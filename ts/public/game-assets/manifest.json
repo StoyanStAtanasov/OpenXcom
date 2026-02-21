@@ -1,0 +1,99 @@
+﻿{
+    "generatedAtIso":  "2026-02-20T22:24:47.8699637Z",
+    "packs":  [
+                  {
+                      "name":  "ufo",
+                      "synced":  true,
+                      "fileCount":  808,
+                      "topExtensions":  [
+                                            {
+                                                "ext":  ".RMP",
+                                                "count":  199
+                                            },
+                                            {
+                                                "ext":  ".MAP",
+                                                "count":  168
+                                            },
+                                            {
+                                                "ext":  ".PCK",
+                                                "count":  118
+                                            },
+                                            {
+                                                "ext":  ".SPK",
+                                                "count":  64
+                                            },
+                                            {
+                                                "ext":  ".DAT",
+                                                "count":  63
+                                            },
+                                            {
+                                                "ext":  ".TAB",
+                                                "count":  55
+                                            },
+                                            {
+                                                "ext":  ".MCD",
+                                                "count":  27
+                                            },
+                                            {
+                                                "ext":  ".SCR",
+                                                "count":  21
+                                            },
+                                            {
+                                                "ext":  ".MID",
+                                                "count":  14
+                                            },
+                                            {
+                                                "ext":  ".CAT",
+                                                "count":  12
+                                            }
+                                        ]
+                  },
+                  {
+                      "name":  "tftd",
+                      "synced":  true,
+                      "fileCount":  1195,
+                      "topExtensions":  [
+                                            {
+                                                "ext":  ".MAP",
+                                                "count":  298
+                                            },
+                                            {
+                                                "ext":  ".RMP",
+                                                "count":  297
+                                            },
+                                            {
+                                                "ext":  ".BDY",
+                                                "count":  151
+                                            },
+                                            {
+                                                "ext":  ".PCK",
+                                                "count":  94
+                                            },
+                                            {
+                                                "ext":  ".TAB",
+                                                "count":  93
+                                            },
+                                            {
+                                                "ext":  ".DAT",
+                                                "count":  65
+                                            },
+                                            {
+                                                "ext":  ".MCD",
+                                                "count":  64
+                                            },
+                                            {
+                                                "ext":  ".LBM",
+                                                "count":  53
+                                            },
+                                            {
+                                                "ext":  ".SCR",
+                                                "count":  17
+                                            },
+                                            {
+                                                "ext":  ".EXE",
+                                                "count":  14
+                                            }
+                                        ]
+                  }
+              ]
+}
