@@ -1,0 +1,22 @@
+{
+  "name": "openxcom-browser-typescript",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "agents": "node scripts/agent-ledger.mjs list",
+    "agents:close": "node scripts/agent-ledger.mjs close",
+    "agents:prompt": "node scripts/agent-ledger.mjs prompt",
+    "agents:start": "node scripts/agent-ledger.mjs start",
+    "build": "node scripts/build.mjs",
+    "context": "node scripts/context-pack.mjs",
+    "context:json": "node scripts/context-pack.mjs --json",
+    "context:readonly": "node scripts/context-pack.mjs --role readonly",
+    "context:worker": "node scripts/context-pack.mjs --role worker",
+    "status": "node scripts/translation-status.mjs",
+    "typecheck": "npx --yes --package typescript tsc --noEmit",
+    "serve": "node scripts/serve.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
