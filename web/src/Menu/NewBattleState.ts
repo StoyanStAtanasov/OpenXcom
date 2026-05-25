@@ -387,13 +387,28 @@ export class NewBattleState extends State {
   cbxMissionChange(_action: Action | null): void {
     const mod = this.game().getMod();
     const mission = this._missionTypes[this._cbxMission.getSelected()] || "";
-    const deploymentTerrains = mod?.getDeployment(mission)?.getTerrains() || [];
-    this._terrainTypes = deploymentTerrains.length > 0 ? [...deploymentTerrains] : (mod?.getTerrainList() || []);
-    if (this._terrainTypes.length === 0) {
-      this._terrainTypes = ["STR_FARM"];
+    const deployment = mod?.getDeployment(mission) || null;
+    const deploymentTerrains = deployment?.getTerrains() || [];
+    const globeTerrains = deploymentTerrains.length === 0
+      ? (mod?.getGlobe().getTerrains("") || [])
+      : (mod?.getGlobe().getTerrains(deployment?.getType() || "") || []);
+    const terrains = new Set<string>();
+    for (const terrain of deploymentTerrains) {
+      terrains.add(terrain);
     }
-    this._cbxTerrain.setOptions(this._terrainTypes, true);
-    this._cbxTerrain.setSelected(Math.min(this._cbxTerrain.getSelected(), this._terrainTypes.length - 1));
+    for (const terrain of globeTerrains) {
+      terrains.add(terrain);
+    }
+    this._terrainTypes = [...terrains].sort();
+    if (this._terrainTypes.length === 0) {
+      this._terrainTypes = mod?.getTerrainList() || ["STR_FARM"];
+    }
+    this._txtDarkness.setVisible((deployment?.getShade() ?? -1) === -1);
+    this._slrDarkness.setVisible((deployment?.getShade() ?? -1) === -1);
+    this._txtTerrain.setVisible(this._terrainTypes.length > 1);
+    this._cbxTerrain.setVisible(this._terrainTypes.length > 1);
+    this._cbxTerrain.setOptions(this._terrainTypes.map(terrain => `MAP_${terrain}`), true);
+    this._cbxTerrain.setSelected(0);
     this.cbxTerrainChange(null);
   }
 

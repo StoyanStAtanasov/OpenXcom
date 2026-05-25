@@ -18,9 +18,16 @@ const verifier = String.raw`async page => {
   await page.waitForFunction(() => window.openxcomGame?.getMod?.());
 
   const result = await page.evaluate(async () => {
-    const [{ Options }, { FileMap }] = await Promise.all([
+    const [
+      { Options },
+      { FileMap },
+      { NewBattleState },
+      { BattlescapeGenerator }
+    ] = await Promise.all([
       import("/web/dist/Engine/Options.js"),
-      import("/web/dist/Engine/FileMap.js")
+      import("/web/dist/Engine/FileMap.js"),
+      import("/web/dist/Menu/NewBattleState.js"),
+      import("/web/dist/Battlescape/BattlescapeGenerator.js")
     ]);
     const assert = (condition, message) => {
       if (!condition) throw new Error(message);
@@ -59,13 +66,59 @@ const verifier = String.raw`async page => {
     const craftTypes = firstBase.getCrafts().map(craft => craft.getRules().getType());
     assert(craftTypes.includes("STR_TRITON"), "xcom2 starting base should create a Triton craft");
 
+    localStorage.removeItem("openxcom.battle.cfg");
+    const state = new NewBattleState();
+    state.initSave();
+    const sandboxSave = game.getSavedGame();
+    const sandboxBase = sandboxSave.getBases()[0];
+    const sandboxCraft = sandboxBase.getCrafts()[0];
+    assert(sandboxCraft?.getRules().getType() === "STR_TRITON", "NewBattleState xcom2 sandbox should select STR_TRITON");
+    assert(sandboxBase.getSoldiers().length === 30, "NewBattleState xcom2 sandbox should generate 30 aquanauts");
+    assert(sandboxCraft.getItems().getItem("STR_DART_PISTOL") > 0, "NewBattleState xcom2 craft cargo should use TFTD weapons");
+    assert(sandboxCraft.getItems().getItem("STR_RIFLE") === 0, "NewBattleState xcom2 craft cargo should not use xcom1 rifle cargo");
+    assert(state._alienRaces.includes("STR_AQUATOID"), "NewBattleState xcom2 race list should include TFTD aquatoids");
+
+    let generatorSummary = null;
+    const originalRun = BattlescapeGenerator.prototype.run;
+    const originalPop = game.popState.bind(game);
+    const originalPush = game.pushState.bind(game);
+    let pops = 0;
+    const pushed = [];
+    BattlescapeGenerator.prototype.run = async function () {
+      generatorSummary = {
+        craft: this._craft?.getRules?.().getType?.() || "",
+        terrain: this._terrain?.getType?.() || this._terrain?.getName?.() || "",
+        mission: this._save?.getMissionType?.() || "",
+        depth: this._save?.getDepth?.() || 0,
+        alienRace: this._alienRace || "",
+        itemLevel: this._alienItemLevel
+      };
+    };
+    game.popState = () => { pops++; };
+    game.pushState = value => { pushed.push(value?.constructor?.name || "unknown"); };
+    try {
+      await state.btnOkClick(null);
+    } finally {
+      BattlescapeGenerator.prototype.run = originalRun;
+      game.popState = originalPop;
+      game.pushState = originalPush;
+    }
+    assert(generatorSummary?.craft === "STR_TRITON", "NewBattleState xcom2 OK route should pass Triton to BattlescapeGenerator");
+    assert(generatorSummary?.mission, "NewBattleState xcom2 OK route should set a mission type");
+    assert(generatorSummary?.terrain, "NewBattleState xcom2 OK route should set a terrain");
+    assert(generatorSummary?.alienRace?.startsWith("STR_"), "NewBattleState xcom2 OK route should pass an alien race");
+    assert(pops === 2 && pushed.includes("BriefingState"), "NewBattleState xcom2 OK route should pop twice and push BriefingState");
+
     return {
       activeMaster: Options.getActiveMaster(),
       rulesetCount: rulesets[0][1].length,
       craftTypes,
       triton: String(game.getLanguage().getString("STR_TRITON")),
       sandSize: sand.getSize(),
-      seabedBlockBytes: seabedBlock.byteLength
+      seabedBlockBytes: seabedBlock.byteLength,
+      sandboxCraft: sandboxCraft.getRules().getType(),
+      sandboxSoldiers: sandboxBase.getSoldiers().length,
+      generatorSummary
     };
   });
 

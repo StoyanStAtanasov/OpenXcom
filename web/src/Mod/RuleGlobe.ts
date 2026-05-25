@@ -91,18 +91,19 @@ export class RuleGlobe {
   }
 
   getTerrains(deployment: string): string[] {
-    const terrains = new Set<string>();
+    const terrains: string[] = [];
     for (const texture of this._textures.values()) {
-      if (!texture.getDeployments().has(deployment)) {
+      const deployments = texture.getDeployments();
+      if (!((deployment === "" && deployments.size === 0) || deployments.has(deployment))) {
         continue;
       }
       for (const terrain of texture.getTerrain()) {
         if (terrain.name) {
-          terrains.add(terrain.name);
+          terrains.push(terrain.name);
         }
       }
     }
-    return [...terrains];
+    return terrains;
   }
 }
 

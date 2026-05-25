@@ -102,6 +102,10 @@ export class State {
     State._game.getFpsCounter().setColor(this._cursorColor);
     State._game.getFpsCounter().draw();
     State._game.getMod()?.setPalette(this._palette);
+    const music = this._ruleInterface?.getMusic() || "";
+    if (music) {
+      State._game.getMod()?.playMusic(music);
+    }
   }
 
   handle(action: Action): void {

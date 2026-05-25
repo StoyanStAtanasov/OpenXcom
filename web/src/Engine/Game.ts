@@ -29,12 +29,14 @@ export class Game {
   private _timeUntilNextFrame = 0;
   private _events: SdlEvent[] = [];
   private _animation = 0;
+  private _useBrowserNativeCursor = true;
   static VOLUME_GRADIENT = 10.0;
 
   constructor(private title: string, canvas: HTMLCanvasElement) {
     document.title = title;
     this._screen = new Screen(canvas);
     this._cursor = new Cursor(9, 13);
+    canvas.style.cursor = "default";
     this._fpsCounter = new FpsCounter(30, 12, 15, 5);
     this.installEventHandlers(canvas);
     this.initAudio();
@@ -237,7 +239,9 @@ export class Game {
       if (Options.fpsCounter) {
         this._fpsCounter.blit(this._screen.getSurface());
       }
-      this._cursor.blit(this._screen.getSurface());
+      if (!this._useBrowserNativeCursor) {
+        this._cursor.blit(this._screen.getSurface());
+      }
       this._screen.flip();
     }
   }

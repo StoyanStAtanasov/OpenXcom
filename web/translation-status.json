@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T19:21:44.779Z",
+    "generatedAt": "2026-05-25T19:52:20.434Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
@@ -983,7 +983,7 @@
       "area": "Engine",
       "status": "integrated-verified",
       "slicePercent": 100,
-      "nextAction": "Continue broader TFTD route/playthrough parity now that active xcom2 rules, language, starting base, and original terrain/map resources load in the browser runtime.",
+      "nextAction": "Continue broader TFTD route/playthrough parity now that active xcom2 rules, language, starting base, original terrain/map resources, and New Battle generator handoff load in the browser runtime.",
       "sourceFiles": [
         "src/Engine/Game.cpp",
         "src/Engine/Game.h",
@@ -993,6 +993,10 @@
         "src/Engine/Options.h",
         "src/Mod/Mod.cpp",
         "src/Mod/Mod.h",
+        "src/Mod/RuleGlobe.cpp",
+        "src/Mod/RuleGlobe.h",
+        "src/Menu/NewBattleState.cpp",
+        "src/Menu/NewBattleState.h",
         "src/Mod/RuleBaseFacility.cpp",
         "src/Mod/RuleBaseFacility.h"
       ],
@@ -1000,12 +1004,14 @@
         "web/src/Engine/Game.ts",
         "web/src/Engine/FileMap.ts",
         "web/src/Mod/Mod.ts",
+        "web/src/Mod/RuleGlobe.ts",
+        "web/src/Menu/NewBattleState.ts",
         "web/src/Mod/RuleBaseFacility.ts",
         "web/scripts/build.mjs",
         "web/scripts/verify-active-mod-runtime.mjs",
         "web/package.json"
       ],
-      "verification": "npm run verify:active-mod-runtime passed for build/typecheck/browser proof that an explicit xcom2 active master maps FileMap rulesets as xcom2, Game.loadMods() passes those groups into Mod.loadAll(), Mod loads xcom2-only rules such as STR_TRITON, STR_DART_PISTOL, and STR_SURVEY_SHIP while excluding xcom1-only STR_SKYRANGER and STR_RIFLE, Game.loadLanguages() loads STR_TRITON from the active xcom2 language folder, active-master original-resource loading can load TFTD TERRAIN/SAND and MAPS/SEABED00, and Mod.newSave() creates a TFTD starting base containing the STR_TRITON craft despite TFTD startingBase.rul listing craft coordinates before type. npm run verify:new-battle-sandbox passed afterward to prove the existing XCOM1 sandbox path still works.",
+      "verification": "npm run verify:active-mod-runtime passed for build/typecheck/browser proof that an explicit xcom2 active master maps FileMap rulesets as xcom2, Game.loadMods() passes those groups into Mod.loadAll(), Mod loads xcom2-only rules such as STR_TRITON, STR_DART_PISTOL, and STR_SURVEY_SHIP while excluding xcom1-only STR_SKYRANGER and STR_RIFLE, Game.loadLanguages() loads STR_TRITON from the active xcom2 language folder, active-master original-resource loading can load TFTD TERRAIN/SAND and MAPS/SEABED00, Mod.newSave() creates a TFTD starting base containing the STR_TRITON craft despite TFTD startingBase.rul listing craft coordinates before type, NewBattleState uses source-shaped RuleGlobe/deployment terrain selection, and the xcom2 New Battle OK route passes Triton craft, mission, terrain, alien race, item level, and BriefingState handoff into BattlescapeGenerator. npm run verify:new-battle-sandbox passed afterward to prove the existing XCOM1 sandbox path still works.",
       "boundaries": [
         "Arbitrary external mod scanning, metadata.yml/resourceConfig parsing, and deep multi-mod override behavior remain browser adapter boundaries.",
         "This proves built-in xcom2 master runtime ingestion, not full TFTD campaign/tactical playthrough parity."
@@ -1016,22 +1022,37 @@
       "area": "Menu",
       "status": "integrated-verified",
       "slicePercent": 100,
-      "nextAction": "Continue active-mod ruleset runtime loading now that startup browser warnings and cursor visibility are covered.",
+      "nextAction": "Continue active-mod ruleset runtime loading now that startup browser warnings and native cursor visibility are covered.",
       "sourceFiles": [
         "src/Menu/StartState.cpp",
         "src/Menu/StartState.h",
         "src/Interface/Cursor.cpp",
         "src/Interface/Cursor.h",
+        "src/Engine/Font.cpp",
+        "src/Engine/Font.h",
+        "src/Engine/DosFont.h",
+        "src/Engine/State.cpp",
+        "src/Engine/State.h",
+        "src/Engine/Music.cpp",
+        "src/Engine/Music.h",
         "src/Engine/Sound.cpp",
-        "src/Engine/Sound.h"
+        "src/Engine/Sound.h",
+        "src/Mod/Mod.cpp",
+        "src/Mod/Mod.h"
       ],
       "targetFiles": [
         "web/src/Menu/StartState.ts",
+        "web/src/Engine/Font.ts",
+        "web/src/Engine/Game.ts",
+        "web/src/Engine/Music.ts",
+        "web/src/Engine/State.ts",
         "web/src/Engine/Sound.ts",
+        "web/src/Mod/Mod.ts",
+        "web/styles.css",
         "web/scripts/verify-startup-browser.mjs",
         "web/package.json"
       ],
-      "verification": "npm run verify:startup-browser passed for build/typecheck/browser proof that StartState temporarily shows the native browser cursor during loading while keeping the translated cursor hidden until the main menu/game takes over, browser startup output no longer contains DOS/4GW, SoundBlaster, Base Port, IRQ, or DMA text, browser-adapter startup lines are shown instead, and the startup console does not contain the AudioContext autoplay-policy warning.",
+      "verification": "npm run verify:startup-browser passed for build/typecheck/browser proof that StartState shows the native browser cursor during loading, the loaded browser runtime keeps the native cursor visible instead of relying on a reload-sensitive translated cursor blit, Font.loadTerminal() decodes the embedded source DosFont.h bitmap, browser startup output no longer contains DOS/4GW, SoundBlaster, Base Port, IRQ, or DMA text, browser-adapter startup lines are shown instead, State::init() requests main-menu RuleInterface music through Mod.playMusic(), GMSTORY is found, a user gesture activates native or synthesized browser music, and the startup console does not contain the AudioContext autoplay-policy warning.",
       "boundaries": [
         "This is a browser adapter slice: it preserves the StartState loading lifecycle but intentionally replaces native DOS/SoundBlaster platform text with browser platform text.",
         "Full WebAudio mixer/backend parity and exact native audio backend behavior remain separate adapter boundaries."
@@ -1095,11 +1116,11 @@
       "Basescape": 9114,
       "Battlescape": 19948,
       "(root)": 335,
-      "Engine": 8347,
+      "Engine": 8745,
       "Geoscape": 8501,
       "Interface": 2787,
-      "Menu": 4748,
-      "Mod": 12791,
+      "Menu": 4763,
+      "Mod": 12806,
       "Savegame": 14224,
       "Ufopaedia": 1902
     }

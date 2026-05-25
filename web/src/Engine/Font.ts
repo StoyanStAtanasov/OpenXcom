@@ -58,18 +58,22 @@ export class Font {
     };
     this._monospace = true;
     image.surface.setPalette([{ r: 0, g: 0, b: 0, a: 0 }, { r: 185, g: 185, b: 185, a: 255 }], 0, 2);
-    const ctx = image.surface.getContext();
-    ctx.clearRect(0, 0, image.surface.getWidth(), image.surface.getHeight());
-    ctx.font = "16px 'Lucida Console', Consolas, monospace";
-    ctx.textBaseline = "top";
-    ctx.fillStyle = "#ffffff";
     const chars = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
-    for (let i = 0; i < chars.length; ++i) {
-      const x = (i % 32) * image.width;
-      const y = Math.floor(i / 32) * image.height;
-      ctx.fillText(chars[i], x, y);
+
+    const dosFont = this.loadDosFontHeader();
+    if (!dosFont || !this.loadMonochromeBmp(image.surface, dosFont)) {
+      const ctx = image.surface.getContext();
+      ctx.clearRect(0, 0, image.surface.getWidth(), image.surface.getHeight());
+      ctx.font = "16px 'Lucida Console', Consolas, monospace";
+      ctx.textBaseline = "top";
+      ctx.fillStyle = "#ffffff";
+      for (let i = 0; i < chars.length; ++i) {
+        const x = (i % 32) * image.width;
+        const y = Math.floor(i / 32) * image.height;
+        ctx.fillText(chars[i], x, y);
+      }
+      image.surface.loadIndexedFromCanvas(1);
     }
-    image.surface.loadIndexedFromCanvas(1);
     this._images.push(image);
     this.init(this._images.length - 1, convUtf8ToUtf32(chars));
   }
@@ -180,6 +184,60 @@ export class Font {
       }
       this._chars.set(str[i], { index, rect: { x: left, y: startY, w: right - left + 1, h: image.height } });
     }
+  }
+
+  private loadDosFontHeader(): Uint8Array | null {
+    if (typeof XMLHttpRequest === "undefined") {
+      return null;
+    }
+    for (const path of ["/src/Engine/DosFont.h", "../src/Engine/DosFont.h"]) {
+      const request = new XMLHttpRequest();
+      request.open("GET", path, false);
+      request.overrideMimeType("text/plain; charset=x-user-defined");
+      try {
+        request.send();
+      } catch {
+        continue;
+      }
+      if (request.status !== 200 && request.status !== 0) {
+        continue;
+      }
+      const values: number[] = [];
+      for (const match of request.responseText.matchAll(/0x([0-9a-fA-F]{2})/g)) {
+        values.push(Number.parseInt(match[1], 16));
+      }
+      if (values.length > 0) {
+        return Uint8Array.from(values);
+      }
+    }
+    return null;
+  }
+
+  private loadMonochromeBmp(surface: Surface, bytes: Uint8Array): boolean {
+    if (bytes.length < 62 || bytes[0] !== 0x42 || bytes[1] !== 0x4d) {
+      return false;
+    }
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const dataOffset = view.getUint32(10, true);
+    const width = view.getInt32(18, true);
+    const height = Math.abs(view.getInt32(22, true));
+    const bitsPerPixel = view.getUint16(28, true);
+    if (width <= 0 || height <= 0 || bitsPerPixel !== 1) {
+      return false;
+    }
+    surface.setWidth(width);
+    surface.setHeight(height);
+    const rowStride = Math.trunc((width * bitsPerPixel + 31) / 32) * 4;
+    const bottomUp = view.getInt32(22, true) > 0;
+    for (let y = 0; y < height; ++y) {
+      const sourceY = bottomUp ? height - 1 - y : y;
+      const row = dataOffset + sourceY * rowStride;
+      for (let x = 0; x < width; ++x) {
+        const value = bytes[row + Math.trunc(x / 8)] || 0;
+        surface.setPixel(x, y, (value & (0x80 >> (x % 8))) ? 1 : 0);
+      }
+    }
+    return true;
   }
 }
 

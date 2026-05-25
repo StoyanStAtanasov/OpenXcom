@@ -21,5 +21,5 @@ body {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   background: #000;
-  cursor: none;
+  cursor: default;
 }

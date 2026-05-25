@@ -32,8 +32,11 @@ const verifier = String.raw`async page => {
     Options.preferredMusic = "digital";
 
     const state = new StartState();
-    const canvasCursor = document.getElementById("openxcom")?.style.cursor || "";
+    const canvas = document.getElementById("openxcom");
+    const canvasCursor = canvas?.style.cursor || "";
+    const computedCursor = canvas ? getComputedStyle(canvas).cursor : "";
     const translatedCursorVisible = game.getCursor().getVisible();
+    const terminalFont = state._font?._images?.[0]?.surface;
     for (let i = 0; i < 10; ++i) {
       state.animate();
     }
@@ -43,7 +46,7 @@ const verifier = String.raw`async page => {
     Options.reload = oldReload;
     Options.preferredMusic = oldMusic;
 
-    if (canvasCursor === "none" || translatedCursorVisible) {
+    if (canvasCursor === "none" || computedCursor === "none" || translatedCursorVisible) {
       throw new Error("StartState should show the native browser cursor during loading and keep the translated cursor hidden");
     }
     for (const stale of ["DOS/4GW", "SoundBlaster", "Base Port 220", "Irq 7", "Dma 1"]) {
@@ -54,17 +57,51 @@ const verifier = String.raw`async page => {
     if (!output.includes("OpenXcom Browser Runtime") || !output.includes("WebAudio Sound Effects")) {
       throw new Error("Browser startup output did not use the browser-adapter loading text");
     }
+    if (!terminalFont || terminalFont.getWidth() !== 288 || terminalFont.getHeight() !== 48 ||
+      terminalFont.getPixel(12, 18) !== 1 ||
+      terminalFont.getPixel(9, 16) !== 0 ||
+      terminalFont.getPixel(14, 23) !== 1) {
+      throw new Error("StartState terminal font was not decoded from the source DosFont.h bitmap");
+    }
     return {
       canvasCursor,
+      computedCursor,
       translatedCursorVisible,
+      terminalFont: { width: terminalFont.getWidth(), height: terminalFont.getHeight() },
       hasBrowserRuntimeText: output.includes("OpenXcom Browser Runtime"),
       hasWebAudioText: output.includes("WebAudio Sound Effects")
     };
   });
 
+  await page.waitForFunction(() => window.openxcomGame?.getMod?.()?.musicRequestLog?.some?.(entry => entry.name === "GMSTORY" && entry.found), null, { timeout: 15000 });
+  await page.mouse.click(8, 8);
+  await page.waitForTimeout(250);
+
+  const liveResult = await page.evaluate(async () => {
+    const { Music } = await import("/web/dist/Engine/Music.js");
+    const game = window.openxcomGame;
+    const mod = game.getMod();
+    const canvas = document.getElementById("openxcom");
+    const cursorStyle = canvas?.style.cursor || "";
+    const computedCursor = canvas ? getComputedStyle(canvas).cursor : "";
+    const translatedCursorVisible = game.getCursor().getVisible();
+    if (cursorStyle === "none" || computedCursor === "none") {
+      throw new Error("Loaded browser runtime hid the native cursor");
+    }
+    const storyRequest = mod?.musicRequestLog?.find?.(entry => entry.name === "GMSTORY" && entry.found);
+    if (!storyRequest) {
+      throw new Error("MainMenuState did not request source interface music GMSTORY");
+    }
+    const musicActive = Boolean(Music._currentSynth?.sources?.length || Music._currentAudio);
+    if (!musicActive) {
+      throw new Error("GMSTORY request did not activate native or synthesized browser music after user gesture");
+    }
+    return { cursorStyle, computedCursor, translatedCursorVisible, storyRequest, musicActive };
+  });
+
   await page.evaluate(value => {
     console.log("VERIFY_STARTUP_BROWSER ok " + JSON.stringify(value));
-  }, result);
+  }, { ...result, live: liveResult });
 }`;
 
 function line(message) {

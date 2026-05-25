@@ -1,4 +1,5 @@
 import { Font, parseFontDat } from "../Engine/Font.ts";
+import { GMCatFile } from "../Engine/GMCat.ts";
 import type { RulesetGroup } from "../Engine/FileMap.ts";
 import { Logger, LOG_WARNING } from "../Engine/Logger.ts";
 import { Music } from "../Engine/Music.ts";
@@ -955,19 +956,32 @@ export class Mod {
       return;
     }
     const soundFiles = this.activeManifestFiles("ufoSoundFiles", "tftdSoundFiles");
+    const gmCatPath = `${soundDir}/GM.CAT`;
+    let gmCat: GMCatFile | null = null;
     for (const [type, rule] of this.musicDefs) {
       const filename = `${soundDir}/${rule.getName()}.MID`;
-      if (soundFiles.length > 0 && !soundFiles.includes(filename)) {
-        continue;
+      let music: Music | null = null;
+      if (soundFiles.length === 0 || soundFiles.includes(filename)) {
+        const bytes = await this.fetchOptionalBinary(filename);
+        if (bytes) {
+          music = new Music();
+          music.load(bytes);
+        }
       }
-      const bytes = await this.fetchOptionalBinary(filename);
-      if (!bytes) {
-        continue;
+      if (!music && rule.getCatPos() !== Number.MAX_SAFE_INTEGER && (soundFiles.length === 0 || soundFiles.includes(gmCatPath))) {
+        try {
+          gmCat ??= new GMCatFile(this.assetUrl(gmCatPath));
+          if (rule.getCatPos() < gmCat.getAmount()) {
+            music = gmCat.loadMIDI(rule.getCatPos());
+          }
+        } catch (error) {
+          Logger.log(LOG_WARNING, `GM.CAT music not loaded: ${error instanceof Error ? error.message : "failed"}`);
+        }
       }
-      const music = new Music();
-      music.load(bytes);
-      this.musics.set(type, music);
-      this.musicIndex.push(type);
+      if (music) {
+        this.musics.set(type, music);
+        this.musicIndex.push(type);
+      }
     }
   }
 

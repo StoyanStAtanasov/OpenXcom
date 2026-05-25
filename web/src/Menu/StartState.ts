@@ -167,10 +167,10 @@ export class StartState extends State {
     this._cursor.setY(y);
   }
 
-  private setNativeCursorVisible(visible: boolean): void {
+  private setNativeCursorVisible(_visible: boolean): void {
     const canvas = typeof document !== "undefined" ? document.getElementById("openxcom") as HTMLCanvasElement | null : null;
     if (canvas) {
-      canvas.style.cursor = visible ? "default" : "none";
+      canvas.style.cursor = "default";
     }
   }
 
