@@ -35,6 +35,9 @@ const verifier = String.raw`async page => {
       { ExplosionBState },
       { ProjectileFlyBState },
       { UnitWalkBState },
+      { Camera },
+      { Map: BattleMap, CursorType },
+      { Action },
       { Position },
       { MovementType },
       { UnitFaction, UnitStatus, UnitSide, UnitBodyPart },
@@ -42,13 +45,18 @@ const verifier = String.raw`async page => {
       { BattlescapeGame, BattleActionType },
       { ItemDamageType, BattleType },
       { SpecialAbility },
-      { Mod }
+      { Mod },
+      { Options, SCROLL_AUTO, SCROLL_TRIGGER },
+      { SDL_BUTTON_LEFT, SDL_BUTTON_MIDDLE, SDL_BUTTON_WHEELUP, SDL_KEYDOWN, SDL_KEYUP, SDL_MOUSEBUTTONDOWN, SDL_MOUSEBUTTONUP, SDL_MOUSEMOTION }
     ] = await Promise.all([
       import("/web/dist/Battlescape/Pathfinding.js"),
       import("/web/dist/Battlescape/TileEngine.js"),
       import("/web/dist/Battlescape/ExplosionBState.js"),
       import("/web/dist/Battlescape/ProjectileFlyBState.js"),
       import("/web/dist/Battlescape/UnitWalkBState.js"),
+      import("/web/dist/Battlescape/Camera.js"),
+      import("/web/dist/Battlescape/Map.js"),
+      import("/web/dist/Engine/Action.js"),
       import("/web/dist/Battlescape/Position.js"),
       import("/web/dist/Mod/Armor.js"),
       import("/web/dist/Savegame/BattleUnit.js"),
@@ -56,7 +64,9 @@ const verifier = String.raw`async page => {
       import("/web/dist/Battlescape/BattlescapeGame.js"),
       import("/web/dist/Mod/RuleItem.js"),
       import("/web/dist/Mod/Unit.js"),
-      import("/web/dist/Mod/Mod.js")
+      import("/web/dist/Mod/Mod.js"),
+      import("/web/dist/Engine/Options.js"),
+      import("/web/dist/types.js")
     ]);
 
     const assert = (condition, message) => {
@@ -732,6 +742,110 @@ const verifier = String.raw`async page => {
     slidingDoorState.think();
     assert(doorSounds.at(-1).sound === Mod.SLIDING_DOOR_OPEN && startedWalks.length === 1, "UnitWalkBState sliding door did not play SLIDING_DOOR_OPEN and wait");
 
+    const previousEdgeScroll = Options.battleEdgeScroll;
+    const previousScrollSpeed = Options.battleScrollSpeed;
+    const previousDragButton = Options.battleDragScrollButton;
+    const previousSmoothCamera = Options.battleSmoothCamera;
+    const cameraInvalidations = [];
+    const cameraDraws = [];
+    const fakeCameraMap = {
+      getWidth: () => 320,
+      getHeight: () => 200,
+      getIconWidth: () => 0,
+      getIconHeight: () => 0,
+      getCursorType: () => CursorType.CT_NORMAL,
+      isButtonPressed: button => fakeCameraMap.pressedButton === button,
+      refreshSelectorPosition: () => cameraInvalidations.push("selector"),
+      invalidate: () => cameraInvalidations.push("invalidate"),
+      draw: () => cameraDraws.push("draw"),
+      pressedButton: 0
+    };
+    const makeTimer = () => ({
+      running: false,
+      starts: 0,
+      stops: 0,
+      start() { this.running = true; this.starts++; },
+      stop() { this.running = false; this.stops++; },
+      isRunning() { return this.running; }
+    });
+    const mouseTimer = makeTimer();
+    const keyTimer = makeTimer();
+    const camera = new Camera(32, 40, 12, 12, 3, fakeCameraMap, 200);
+    camera.setScrollTimer(mouseTimer, keyTimer);
+    const makeMouseAction = (type, x, y, button = SDL_BUTTON_LEFT) => {
+      const action = new Action({ type, button: { x, y, button }, motion: { x, y } }, 1, 1, 0, 0);
+      action.setMouseAction(x, y, 0, 0);
+      return action;
+    };
+    Options.battleEdgeScroll = SCROLL_AUTO;
+    Options.battleScrollSpeed = 8;
+    Options.battleDragScrollButton = SDL_BUTTON_MIDDLE;
+    camera.mouseOver(makeMouseAction(SDL_MOUSEMOTION, 1, 100), null);
+    assert(camera._scrollMouseX === 8 && camera._scrollMouseY === 0 && mouseTimer.running, "Camera edge-scroll mouseOver did not start source mouse timer/speed");
+    fakeCameraMap.pressedButton = SDL_BUTTON_MIDDLE;
+    mouseTimer.stop();
+    camera.mouseOver(makeMouseAction(SDL_MOUSEMOTION, 319, 1), null);
+    assert(!mouseTimer.running, "Camera edge-scroll started while drag-scroll button was pressed");
+    fakeCameraMap.pressedButton = 0;
+    camera.mousePress(makeMouseAction(SDL_MOUSEBUTTONDOWN, 100, 100, SDL_BUTTON_WHEELUP), null);
+    assert(camera.getViewLevel() === 1 && cameraDraws.length === 1, "Camera wheel-up did not call source level-up path");
+    const triggerRelease = makeMouseAction(SDL_MOUSEBUTTONUP, 1, 100, SDL_BUTTON_LEFT);
+    Options.battleEdgeScroll = SCROLL_TRIGGER;
+    camera.mousePress(makeMouseAction(SDL_MOUSEBUTTONDOWN, 1, 100, SDL_BUTTON_LEFT), null);
+    assert(camera._scrollTrigger === true, "Camera trigger edge-scroll did not arm on left press");
+    camera.mouseRelease(triggerRelease, null);
+    assert(camera._scrollTrigger === false && triggerRelease.getDetails().button.button === 0, "Camera trigger edge-scroll release did not stop and swallow border click");
+    const keyAction = new Action({ type: SDL_KEYDOWN, key: { keysym: { sym: Options.keyBattleLeft, mod: 0 } } }, 1, 1, 0, 0);
+    camera.keyboardPress(keyAction, null);
+    assert(camera._scrollKeyX === 8 && keyTimer.running, "Camera keyboardPress did not start source key scroll");
+    const keyRelease = new Action({ type: SDL_KEYUP, key: { keysym: { sym: Options.keyBattleLeft, mod: 0 } } }, 1, 1, 0, 0);
+    camera.keyboardRelease(keyRelease, null);
+    assert(camera._scrollKeyX === 0 && !keyTimer.running, "Camera keyboardRelease did not stop source key scroll");
+
+    const mapTile = {
+      animateCalls: 0,
+      resetCalls: 0,
+      animate() { this.animateCalls++; },
+      resetObstacle() { this.resetCalls++; },
+      isVoid: () => false,
+      getShade: () => 0,
+      isObstacle: () => false,
+      getMarkerColor: () => 0,
+      getPreview: () => -1
+    };
+    const mapSave = {
+      getMapSizeX: () => 4,
+      getMapSizeY: () => 4,
+      getMapSizeZ: () => 2,
+      getTiles: () => [mapTile],
+      getTile: () => mapTile,
+      getUnits: () => [],
+      getSelectedUnit: () => null
+    };
+    const battleMap = new BattleMap({ getSavedGame: () => ({ getSavedBattle: () => mapSave }) }, 320, 200, 0, 0, 180);
+    const timerCalls = [];
+    battleMap._scrollMouseTimer = { think: () => timerCalls.push("mouse") };
+    battleMap._scrollKeyTimer = { think: () => timerCalls.push("key") };
+    battleMap._obstacleTimer = { think: () => timerCalls.push("obstacle"), stop: () => timerCalls.push("obstacleStop"), start: () => timerCalls.push("obstacleStart") };
+    battleMap.think();
+    assert(JSON.stringify(timerCalls.slice(0, 3)) === JSON.stringify(["mouse", "key", "obstacle"]), "Map.think did not drive source scroll/obstacle timers");
+    battleMap.enableObstacles();
+    assert(battleMap._showObstacles === true && timerCalls.includes("obstacleStart"), "Map.enableObstacles did not start source obstacle timer");
+    battleMap.disableObstacles();
+    assert(battleMap._showObstacles === false && timerCalls.at(-1) === "obstacleStop", "Map.disableObstacles did not stop source obstacle timer");
+    battleMap._smoothingEngaged = true;
+    battleMap.resetCameraSmoothing();
+    assert(battleMap._smoothingEngaged === false, "Map.resetCameraSmoothing did not clear smoothing flag");
+    Options.battleSmoothCamera = true;
+    battleMap.setProjectile({ getPosition: () => new Position(), getItem: () => null });
+    assert(battleMap._launch === true, "Map.setProjectile did not arm source smooth-camera launch flag");
+    battleMap.init();
+    assert(battleMap.getProjectile() === null, "Map.init did not reset projectile ownership");
+    Options.battleEdgeScroll = previousEdgeScroll;
+    Options.battleScrollSpeed = previousScrollSpeed;
+    Options.battleDragScrollButton = previousDragButton;
+    Options.battleSmoothCamera = previousSmoothCamera;
+
     const dangerSave = new FakeSave(5, 5, 1);
     const dangerEngine = new TileEngine(dangerSave, aftermathVoxelData);
     dangerEngine.setDangerZone(new Position(2, 2, 0), 2, null);
@@ -1137,6 +1251,8 @@ const verifier = String.raw`async page => {
       explosionSounds: explosionSounds.length,
       movementSounds: walkSounds.length,
       doorSounds: doorSounds.length,
+      cameraTimerStarts: mouseTimer.starts + keyTimer.starts,
+      mapLifecycleTimers: timerCalls.length,
       hostileGrenadeDanger: dangerCalls.length,
       shotFireSound: shotSounds[0].sound,
       shotgunSecondaryHits: shotgunHitCalls.length,

@@ -1,5 +1,7 @@
 import { InteractiveSurface } from "../Engine/InteractiveSurface.ts";
+import { Options } from "../Engine/Options.ts";
 import { Palette } from "../Engine/Palette.ts";
+import { Timer } from "../Engine/Timer.ts";
 import type { Action } from "../Engine/Action.ts";
 import type { State } from "../Engine/State.ts";
 import { UnitFaction } from "../Savegame/BattleUnit.ts";
@@ -55,11 +57,16 @@ export class Map extends InteractiveSurface {
   private _waypoints: Position[] = [];
   private _unitDying = false;
   private _flashScreen = false;
+  private _launch = false;
+  private _smoothingEngaged = false;
   private _iconHeight = 0;
   private _iconWidth = 0;
   private _showObstacles = false;
   private _projectile: Projectile | null = null;
   private _explosions: Explosion[] = [];
+  private _scrollMouseTimer = new Timer(Map.SCROLL_INTERVAL);
+  private _scrollKeyTimer = new Timer(Map.SCROLL_INTERVAL);
+  private _obstacleTimer = new Timer(2500);
 
   constructor(gameOrSave: SavedBattleGame | MapGameLike, width: number, height: number, x: number, y: number, visibleMapHeight = height, spriteWidth = 32, spriteHeight = 40) {
     super(width, height, x, y);
@@ -68,13 +75,24 @@ export class Map extends InteractiveSurface {
     this._spriteHeight = spriteHeight;
     this._visibleMapHeight = visibleMapHeight;
     this._camera = new Camera(this._spriteWidth, this._spriteHeight, this._save.getMapSizeX(), this._save.getMapSizeY(), this._save.getMapSizeZ(), this, visibleMapHeight);
+    this._scrollMouseTimer.onSurfaceTimer(this.scrollMouse.bind(this));
+    this._scrollKeyTimer.onSurfaceTimer(this.scrollKey.bind(this));
+    this._camera.setScrollTimer(this._scrollMouseTimer, this._scrollKeyTimer);
+    this._obstacleTimer.stop();
+    this._obstacleTimer.onSurfaceTimer(this.disableObstacles.bind(this));
     this._camera.centerOnPosition(new Position(Math.trunc(this._save.getMapSizeX() / 2), Math.trunc(this._save.getMapSizeY() / 2), 0), false);
     this.invalidate();
   }
 
-  init(): void {}
+  init(): void {
+    this._projectile = null;
+  }
 
-  think(): void {}
+  think(): void {
+    this._scrollMouseTimer.think(null, this);
+    this._scrollKeyTimer.think(null, this);
+    this._obstacleTimer.think(null, this);
+  }
 
   override draw(): void {
     if (!this._redraw) {
@@ -214,10 +232,15 @@ export class Map extends InteractiveSurface {
     return 360 + Math.trunc(relativePosition.x / (midPoint / 80.0));
   }
 
-  resetCameraSmoothing(): void {}
+  resetCameraSmoothing(): void {
+    this._smoothingEngaged = false;
+  }
 
   setProjectile(projectile: Projectile | null): void {
     this._projectile = projectile;
+    if (projectile && Options.battleSmoothCamera) {
+      this._launch = true;
+    }
     this.invalidate();
   }
 
@@ -250,16 +273,20 @@ export class Map extends InteractiveSurface {
     for (const tile of this._save.getTiles()) {
       tile.resetObstacle();
     }
+    this._showObstacles = false;
     this.invalidate();
   }
 
   enableObstacles(): void {
     this._showObstacles = true;
+    this._obstacleTimer.stop();
+    this._obstacleTimer.start();
     this.invalidate();
   }
 
   disableObstacles(): void {
     this._showObstacles = false;
+    this._obstacleTimer.stop();
     this.invalidate();
   }
 

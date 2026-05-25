@@ -1,5 +1,8 @@
 import type { Action } from "../Engine/Action.ts";
+import { Options, SCROLL_AUTO, SCROLL_TRIGGER } from "../Engine/Options.ts";
 import type { State } from "../Engine/State.ts";
+import type { Timer } from "../Engine/Timer.ts";
+import { SDL_BUTTON_LEFT, SDL_BUTTON_MIDDLE, SDL_BUTTON_WHEELDOWN, SDL_BUTTON_WHEELUP } from "../types.ts";
 import { Position, type PositionLike } from "./Position.ts";
 import type { Map } from "./Map.ts";
 
@@ -14,6 +17,8 @@ export class Camera {
   static readonly SCROLL_BORDER = 5;
   static readonly SCROLL_DIAGONAL_EDGE = 60;
 
+  private _scrollMouseTimer: Timer | null = null;
+  private _scrollKeyTimer: Timer | null = null;
   private _screenWidth: number;
   private _screenHeight: number;
   private _mapOffset = new Position(-250, 250, 0);
@@ -38,23 +43,131 @@ export class Camera {
     this._screenHeight = _map.getHeight();
   }
 
-  setScrollTimer(_mouse: unknown, _key: unknown): void {}
-
-  mousePress(_action: Action, _state: State): void {}
-
-  mouseRelease(_action: Action, _state: State): void {
-    this._scrollTrigger = false;
-    this._scrollMouseX = 0;
-    this._scrollMouseY = 0;
+  setScrollTimer(mouse: Timer | null, key: Timer | null): void {
+    this._scrollMouseTimer = mouse;
+    this._scrollKeyTimer = key;
   }
 
-  mouseOver(_action: Action, _state: State): void {}
+  mousePress(action: Action, _state: State): void {
+    const button = action.getDetails().button?.button || 0;
+    if (button === SDL_BUTTON_LEFT && Options.battleEdgeScroll === SCROLL_TRIGGER) {
+      this._scrollTrigger = true;
+      this.mouseOver(action, _state);
+    } else if (Options.battleDragScrollButton !== SDL_BUTTON_MIDDLE || !this._map.isButtonPressed(Options.battleDragScrollButton)) {
+      if (button === SDL_BUTTON_WHEELUP) {
+        this.up();
+      } else if (button === SDL_BUTTON_WHEELDOWN) {
+        this.down();
+      }
+    }
+  }
 
-  keyboardPress(_action: Action, _state: State): void {}
+  mouseRelease(action: Action, _state: State): void {
+    const details = action.getDetails();
+    if (details.button?.button !== SDL_BUTTON_LEFT || Options.battleEdgeScroll !== SCROLL_TRIGGER) {
+      return;
+    }
+    this._scrollMouseX = 0;
+    this._scrollMouseY = 0;
+    this._scrollMouseTimer?.stop();
+    this._scrollTrigger = false;
+    const posX = action.getXMouse();
+    const posY = action.getYMouse();
+    if ((posX < Camera.SCROLL_BORDER * action.getXScale() && posX > 0) ||
+      posX > (this._screenWidth - Camera.SCROLL_BORDER) * action.getXScale() ||
+      (posY < Camera.SCROLL_BORDER * action.getYScale() && posY > 0) ||
+      posY > (this._screenHeight - Camera.SCROLL_BORDER) * action.getYScale()) {
+      details.button.button = 0;
+    }
+  }
 
-  keyboardRelease(_action: Action, _state: State): void {
-    this._scrollKeyX = 0;
-    this._scrollKeyY = 0;
+  mouseOver(action: Action, _state: State): void {
+    if (this._map.getCursorType() === 0) {
+      return;
+    }
+    if (Options.battleEdgeScroll !== SCROLL_AUTO && !this._scrollTrigger) {
+      return;
+    }
+
+    const posX = action.getXMouse();
+    const posY = action.getYMouse();
+    const scrollSpeed = Options.battleScrollSpeed;
+    if (posX < Camera.SCROLL_BORDER * action.getXScale() && posX >= 0) {
+      this._scrollMouseX = scrollSpeed;
+      if (posY < Camera.SCROLL_DIAGONAL_EDGE * action.getYScale() && posY >= 0) {
+        this._scrollMouseY = Math.trunc(scrollSpeed / 2);
+      } else if (posY > (this._screenHeight - Camera.SCROLL_DIAGONAL_EDGE) * action.getYScale()) {
+        this._scrollMouseY = -Math.trunc(scrollSpeed / 2);
+      } else {
+        this._scrollMouseY = 0;
+      }
+    } else if (posX > (this._screenWidth - Camera.SCROLL_BORDER) * action.getXScale()) {
+      this._scrollMouseX = -scrollSpeed;
+      if (posY <= Camera.SCROLL_DIAGONAL_EDGE * action.getYScale() && posY >= 0) {
+        this._scrollMouseY = Math.trunc(scrollSpeed / 2);
+      } else if (posY > (this._screenHeight - Camera.SCROLL_DIAGONAL_EDGE) * action.getYScale()) {
+        this._scrollMouseY = -Math.trunc(scrollSpeed / 2);
+      } else {
+        this._scrollMouseY = 0;
+      }
+    } else if (posX) {
+      this._scrollMouseX = 0;
+    }
+
+    if (posY < Camera.SCROLL_BORDER * action.getYScale() && posY >= 0) {
+      this._scrollMouseY = scrollSpeed;
+      if (posX < Camera.SCROLL_DIAGONAL_EDGE * action.getXScale() && posX >= 0) {
+        this._scrollMouseX = scrollSpeed;
+        this._scrollMouseY = Math.trunc(this._scrollMouseY / 2);
+      } else if (posX > (this._screenWidth - Camera.SCROLL_DIAGONAL_EDGE) * action.getXScale()) {
+        this._scrollMouseX = -scrollSpeed;
+        this._scrollMouseY = Math.trunc(this._scrollMouseY / 2);
+      }
+    } else if (posY > (this._screenHeight - Camera.SCROLL_BORDER) * action.getYScale()) {
+      this._scrollMouseY = -scrollSpeed;
+      if (posX < Camera.SCROLL_DIAGONAL_EDGE * action.getXScale() && posX >= 0) {
+        this._scrollMouseX = scrollSpeed;
+        this._scrollMouseY = Math.trunc(this._scrollMouseY / 2);
+      } else if (posX > (this._screenWidth - Camera.SCROLL_DIAGONAL_EDGE) * action.getXScale()) {
+        this._scrollMouseX = -scrollSpeed;
+        this._scrollMouseY = Math.trunc(this._scrollMouseY / 2);
+      }
+    } else if (posY && this._scrollMouseX === 0) {
+      this._scrollMouseY = 0;
+    }
+
+    this.updateMouseTimer();
+  }
+
+  keyboardPress(action: Action, _state: State): void {
+    if (this._map.getCursorType() === 0) {
+      return;
+    }
+    const key = action.getDetails().key?.keysym.sym || "";
+    const scrollSpeed = Options.battleScrollSpeed;
+    if (key === Options.keyBattleLeft) {
+      this._scrollKeyX = scrollSpeed;
+    } else if (key === Options.keyBattleRight) {
+      this._scrollKeyX = -scrollSpeed;
+    } else if (key === Options.keyBattleUp) {
+      this._scrollKeyY = scrollSpeed;
+    } else if (key === Options.keyBattleDown) {
+      this._scrollKeyY = -scrollSpeed;
+    }
+    this.updateKeyTimer();
+  }
+
+  keyboardRelease(action: Action, _state: State): void {
+    if (this._map.getCursorType() === 0) {
+      return;
+    }
+    const key = action.getDetails().key?.keysym.sym || "";
+    if (key === Options.keyBattleLeft || key === Options.keyBattleRight) {
+      this._scrollKeyX = 0;
+    } else if (key === Options.keyBattleUp || key === Options.keyBattleDown) {
+      this._scrollKeyY = 0;
+    }
+    this.updateKeyTimer();
   }
 
   scrollMouse(): void {
@@ -264,5 +377,30 @@ export class Camera {
   stopMouseScrolling(): void {
     this._scrollMouseX = 0;
     this._scrollMouseY = 0;
+    this._scrollMouseTimer?.stop();
+  }
+
+  private updateMouseTimer(): void {
+    if (!this._scrollMouseTimer || !this._scrollKeyTimer) {
+      return;
+    }
+    const shouldRun = Boolean(this._scrollMouseX || this._scrollMouseY);
+    if (shouldRun && !this._scrollMouseTimer.isRunning() && !this._scrollKeyTimer.isRunning() && !this._map.isButtonPressed(Options.battleDragScrollButton)) {
+      this._scrollMouseTimer.start();
+    } else if (!shouldRun && this._scrollMouseTimer.isRunning()) {
+      this._scrollMouseTimer.stop();
+    }
+  }
+
+  private updateKeyTimer(): void {
+    if (!this._scrollMouseTimer || !this._scrollKeyTimer) {
+      return;
+    }
+    const shouldRun = Boolean(this._scrollKeyX || this._scrollKeyY);
+    if (shouldRun && !this._scrollKeyTimer.isRunning() && !this._scrollMouseTimer.isRunning() && !this._map.isButtonPressed(Options.battleDragScrollButton)) {
+      this._scrollKeyTimer.start();
+    } else if (!shouldRun && this._scrollKeyTimer.isRunning()) {
+      this._scrollKeyTimer.stop();
+    }
   }
 }
