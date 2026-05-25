@@ -21,7 +21,7 @@ http://127.0.0.1:4173/web/index.html
 
 If a server is already running, just open the URL. The current verified playable path is XCOM1: startup, base/geoscape, new battle, battlescape runtime, debriefing, and browser save/load.
 
-TFD/TFTD data is detected by the build manifest and `Options.updateMods()` now creates the `xcom2` master entry when data is present. Full TFTD runtime startup/ruleset loading is still a separate translation boundary.
+TFD/TFTD data is detected by the build manifest and `Options.updateMods()` creates the `xcom2` master entry when data is present. The active `xcom2` runtime can now load TFTD rules, language, starting-base craft, terrain data, and map blocks; broader TFTD gameplay parity still needs focused playthrough verification.
 
 ## Common Commands
 

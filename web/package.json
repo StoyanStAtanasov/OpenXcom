@@ -27,6 +27,7 @@
     "verify:battle-runtime": "node scripts/verify-battle-runtime.mjs",
     "verify:save-menu": "node scripts/verify-save-menu.mjs",
     "verify:menu-geoscape-routes": "node scripts/verify-menu-geoscape-routes.mjs",
+    "verify:active-mod-runtime": "node scripts/verify-active-mod-runtime.mjs",
     "verify:mod-selection": "node scripts/verify-mod-selection.mjs",
     "verify:startup-browser": "node scripts/verify-startup-browser.mjs",
     "verify:new-battle-sandbox": "node scripts/verify-new-battle-sandbox.mjs",

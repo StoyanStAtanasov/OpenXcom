@@ -160,6 +160,14 @@ await writeFile(join(dist, "resource-manifest.json"), JSON.stringify({
   tftdBasebitsTab: await findOriginalFile(tftdRoots, "GEOGRAPH", "BASEBITS.TAB"),
   tftdFloorobPck: await findOriginalFile(tftdRoots, "UNITS", "FLOOROB.PCK"),
   tftdFloorobTab: await findOriginalFile(tftdRoots, "UNITS", "FLOOROB.TAB"),
+  tftdScangDat: await findOriginalFile(tftdRoots, "GEODATA", "SCANG.DAT"),
+  tftdScanbordPck: await findOriginalFile(tftdRoots, "UFOGRAPH", "SCANBORD.PCK"),
+  tftdDetbordPck: await findOriginalFile(tftdRoots, "UFOGRAPH", "DETBORD.PCK"),
+  tftdDetbord2Pck: await findOriginalFile(tftdRoots, "UFOGRAPH", "DETBORD2.PCK"),
+  tftdDetblobDat: await findOriginalFile(tftdRoots, "UFOGRAPH", "DETBLOB.DAT"),
+  tftdMedibordPck: await findOriginalFile(tftdRoots, "UFOGRAPH", "MEDIBORD.PCK"),
+  tftdMedibitsDat: await findOriginalFile(tftdRoots, "UFOGRAPH", "MEDIBITS.DAT"),
+  tftdUnibordPck: await findOriginalFile(tftdRoots, "UFOGRAPH", "UNIBORD.PCK"),
   commonSoldierNameFiles: (await findOriginalFiles(commonRoots, "SoldierName")).filter(file => file.toLowerCase().endsWith(".nam"))
 }, null, 2), "utf8");
 

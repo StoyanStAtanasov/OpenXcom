@@ -827,7 +827,7 @@
     "area": "Engine",
     "status": "integrated-verified",
     "slicePercent": 100,
-    "nextAction": "Thread FileMap.getRulesets() into Mod.loadAll() for broader xcom2/TFTD ruleset runtime loading.",
+    "nextAction": "Continue remaining mod-management boundaries such as external mod metadata/resourceConfig and deeper multi-mod override behavior.",
     "sourceFiles": [
       "src/Engine/Options.cpp",
       "src/Engine/Options.h",
@@ -849,7 +849,40 @@
     "verification": "npm run verify:mod-selection passed for build/typecheck and source-shaped browser proof that Options.updateMods() detects xcom1/xcom2 master availability from the resource manifest, defaults to xcom1 active when both UFO and TFTD data exist, defaults to xcom2 when only TFTD data exists, preserves explicit xcom2 activation, turns off duplicate active masters, exposes ModInfo.getMaster()/canActivate() semantics for master/standalone/dependent mods, and keeps FileMap rulesets grouped as [modId, string[]]. npm run verify:new-battle-sandbox passed afterward to prove the existing XCOM1 playable startup/new-battle path still works.",
     "boundaries": [
       "Arbitrary mod directory scanning, metadata.yml parsing, resourceConfig parsing, and external resource directories remain browser adapter boundaries.",
-      "Game.loadMods()/Mod.loadAll() still load the translated xcom1 rules directly; threading FileMap.getRulesets() into the full ruleset loader and fully starting xcom2/TFTD remains a separate slice."
+      "Runtime ingestion of the active built-in master is now covered by the Active master ruleset runtime slice."
+    ]
+  },
+  {
+    "name": "Active master ruleset runtime",
+    "area": "Engine",
+    "status": "integrated-verified",
+    "slicePercent": 100,
+    "nextAction": "Continue broader TFTD route/playthrough parity now that active xcom2 rules, language, starting base, and original terrain/map resources load in the browser runtime.",
+    "sourceFiles": [
+      "src/Engine/Game.cpp",
+      "src/Engine/Game.h",
+      "src/Engine/FileMap.cpp",
+      "src/Engine/FileMap.h",
+      "src/Engine/Options.cpp",
+      "src/Engine/Options.h",
+      "src/Mod/Mod.cpp",
+      "src/Mod/Mod.h",
+      "src/Mod/RuleBaseFacility.cpp",
+      "src/Mod/RuleBaseFacility.h"
+    ],
+    "targetFiles": [
+      "web/src/Engine/Game.ts",
+      "web/src/Engine/FileMap.ts",
+      "web/src/Mod/Mod.ts",
+      "web/src/Mod/RuleBaseFacility.ts",
+      "web/scripts/build.mjs",
+      "web/scripts/verify-active-mod-runtime.mjs",
+      "web/package.json"
+    ],
+    "verification": "npm run verify:active-mod-runtime passed for build/typecheck/browser proof that an explicit xcom2 active master maps FileMap rulesets as xcom2, Game.loadMods() passes those groups into Mod.loadAll(), Mod loads xcom2-only rules such as STR_TRITON, STR_DART_PISTOL, and STR_SURVEY_SHIP while excluding xcom1-only STR_SKYRANGER and STR_RIFLE, Game.loadLanguages() loads STR_TRITON from the active xcom2 language folder, active-master original-resource loading can load TFTD TERRAIN/SAND and MAPS/SEABED00, and Mod.newSave() creates a TFTD starting base containing the STR_TRITON craft despite TFTD startingBase.rul listing craft coordinates before type. npm run verify:new-battle-sandbox passed afterward to prove the existing XCOM1 sandbox path still works.",
+    "boundaries": [
+      "Arbitrary external mod scanning, metadata.yml/resourceConfig parsing, and deep multi-mod override behavior remain browser adapter boundaries.",
+      "This proves built-in xcom2 master runtime ingestion, not full TFTD campaign/tactical playthrough parity."
     ]
   },
   {

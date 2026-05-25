@@ -399,9 +399,12 @@ export function parseStartingBaseRul(source: string): StartingBaseDefinition {
     }
 
     if (section === "crafts") {
-      const craftStart = /^-\s+type:\s*(.+)$/.exec(trimmed);
+      const craftStart = /^-\s*(?:([A-Za-z0-9_]+):\s*(.*))?$/.exec(trimmed);
       if (indent === 4 && craftStart) {
-        currentCraft = { type: unquote(craftStart[1]), items: {}, weapons: [] };
+        currentCraft = { type: "", items: {}, weapons: [] };
+        if (craftStart[1] === "type") {
+          currentCraft.type = unquote(craftStart[2]);
+        }
         definition.crafts.push(currentCraft);
         currentWeapon = null;
         craftSubsection = "";
@@ -424,6 +427,8 @@ export function parseStartingBaseRul(source: string): StartingBaseDefinition {
           currentCraft.damage = n;
         } else if (prop[1] === "status") {
           currentCraft.status = unquote(prop[2]);
+        } else if (prop[1] === "type") {
+          currentCraft.type = unquote(prop[2]);
         }
         continue;
       }

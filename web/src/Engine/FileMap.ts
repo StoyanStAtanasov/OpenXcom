@@ -1,6 +1,6 @@
 import { Logger, LOG_INFO, LOG_VERBOSE } from "./Logger.ts";
 
-type RulesetGroup = [string, string[]];
+export type RulesetGroup = [string, string[]];
 
 const rulesets: RulesetGroup[] = [];
 const resources = new Map<string, string>();

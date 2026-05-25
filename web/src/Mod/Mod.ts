@@ -1,4 +1,5 @@
 import { Font, parseFontDat } from "../Engine/Font.ts";
+import type { RulesetGroup } from "../Engine/FileMap.ts";
 import { Logger, LOG_WARNING } from "../Engine/Logger.ts";
 import { Music } from "../Engine/Music.ts";
 import { Options } from "../Engine/Options.ts";
@@ -51,6 +52,8 @@ import { RNG } from "../Engine/RNG.ts";
 import { resetDifficultyCoefficients, setDifficultyCoefficient } from "./ModStatics.ts";
 
 type ResourceManifest = {
+  xcom1RulesetFiles?: string[];
+  xcom2RulesetFiles?: string[];
   ufoPalettesDat?: string | null;
   ufoBackPalsDat?: string | null;
   ufoBack01Scr?: string | null;
@@ -114,6 +117,14 @@ type ResourceManifest = {
   tftdBasebitsTab?: string | null;
   tftdFloorobPck?: string | null;
   tftdFloorobTab?: string | null;
+  tftdScangDat?: string | null;
+  tftdScanbordPck?: string | null;
+  tftdDetbordPck?: string | null;
+  tftdDetbord2Pck?: string | null;
+  tftdDetblobDat?: string | null;
+  tftdMedibordPck?: string | null;
+  tftdMedibitsDat?: string | null;
+  tftdUnibordPck?: string | null;
 };
 
 export class Mod {
@@ -222,9 +233,12 @@ export class Mod {
   private globe = new RuleGlobe();
   private converter = new RuleConverter();
   private manifest: ResourceManifest = {};
+  private activeModId = "xcom1";
+  private rulesetFilesByMod = new Map<string, string[]>();
 
-  async loadAll(): Promise<void> {
+  async loadAll(mods: RulesetGroup[] = []): Promise<void> {
     this.manifest = await this.loadResourceManifest();
+    this.configureActiveRulesets(mods);
     await this.loadVanillaResources();
     await this.loadVars();
     await this.loadAudioResources();
@@ -256,6 +270,17 @@ export class Mod {
     await this.loadRuleMissionScripts();
     await this.loadRuleInterfaces();
     await this.loadRuleConverter();
+  }
+
+  private configureActiveRulesets(mods: RulesetGroup[]): void {
+    this.rulesetFilesByMod.clear();
+    const activeMods = mods.length > 0
+      ? mods
+      : [[Options.getActiveMaster() || "xcom1", this.defaultRulesetsFor(Options.getActiveMaster() || "xcom1")]] as RulesetGroup[];
+    this.activeModId = activeMods[0]?.[0] || Options.getActiveMaster() || "xcom1";
+    for (const [modId, files] of activeMods) {
+      this.rulesetFilesByMod.set(modId, [...files]);
+    }
   }
 
   getFont(name: string): Font | null {
@@ -566,7 +591,7 @@ export class Mod {
     return this.voxelData;
   }
 
-  async loadMapDataSet(name: string, ruleset = "xcom1"): Promise<MapDataSet> {
+  async loadMapDataSet(name: string, ruleset = this.activeModId): Promise<MapDataSet> {
     const set = this.getMapDataSet(name);
     if (set.getSize() > 0) {
       return set;
@@ -588,7 +613,7 @@ export class Mod {
     return set;
   }
 
-  async loadMapBlock(name: string, ruleset = "xcom1"): Promise<ArrayBuffer> {
+  async loadMapBlock(name: string, ruleset = this.activeModId): Promise<ArrayBuffer> {
     const mapsDir = ruleset === "xcom2" ? this.manifest.tftdMapsDir : this.manifest.ufoMapsDir;
     if (!mapsDir) {
       throw new Error(`Original MAPS directory not available for ${ruleset}.`);
@@ -600,7 +625,7 @@ export class Mod {
     return map;
   }
 
-  async loadRoute(name: string, ruleset = "xcom1"): Promise<ArrayBuffer> {
+  async loadRoute(name: string, ruleset = this.activeModId): Promise<ArrayBuffer> {
     const routesDir = ruleset === "xcom2" ? this.manifest.tftdRoutesDir : this.manifest.ufoRoutesDir;
     if (!routesDir) {
       throw new Error(`Original ROUTES directory not available for ${ruleset}.`);
@@ -861,7 +886,7 @@ export class Mod {
   }
 
   private async loadMusicDefinitions(): Promise<void> {
-    const response = await fetch("../bin/standard/xcom1/music.rul");
+    const response = await this.fetchRuleset("music.rul");
     if (!response.ok) {
       Logger.log(LOG_WARNING, "music.rul not found; geoscape music will stay silent.");
       return;
@@ -874,18 +899,19 @@ export class Mod {
   }
 
   private loadSoundResources(): void {
-    const soundDir = this.manifest.ufoSoundDir;
+    const soundDir = this.activeManifestPath("ufoSoundDir", "tftdSoundDir");
     if (!soundDir) {
       Logger.log(LOG_WARNING, "Original SOUND directory not available; geoscape sounds stay silent.");
       return;
     }
+    const soundFiles = this.activeManifestFiles("ufoSoundFiles", "tftdSoundFiles");
 
-    const geo = this.tryLoadSoundCat("GEO.CAT", soundDir, "SAMPLE.CAT", true)
-      || this.tryLoadSoundCat("GEO.CAT", soundDir, "SOUND2.CAT", false);
-    const battle = this.tryLoadSoundCat("BATTLE.CAT", soundDir, "SAMPLE2.CAT", true)
-      || this.tryLoadSoundCat("BATTLE.CAT", soundDir, "SOUND1.CAT", false);
-    this.tryLoadSoundCat("INTRO.CAT", soundDir, "INTRO.CAT", false);
-    if (this.tryLoadSoundCat("SAMPLE3.CAT", soundDir, "SAMPLE3.CAT", true) && !this.sounds.has("BATTLE2.CAT")) {
+    const geo = this.tryLoadSoundCat("GEO.CAT", soundDir, "SAMPLE.CAT", true, soundFiles)
+      || this.tryLoadSoundCat("GEO.CAT", soundDir, "SOUND2.CAT", false, soundFiles);
+    const battle = this.tryLoadSoundCat("BATTLE.CAT", soundDir, "SAMPLE2.CAT", true, soundFiles)
+      || this.tryLoadSoundCat("BATTLE.CAT", soundDir, "SOUND1.CAT", false, soundFiles);
+    this.tryLoadSoundCat("INTRO.CAT", soundDir, "INTRO.CAT", false, soundFiles);
+    if (this.tryLoadSoundCat("SAMPLE3.CAT", soundDir, "SAMPLE3.CAT", true, soundFiles) && !this.sounds.has("BATTLE2.CAT")) {
       const sample3 = this.sounds.get("SAMPLE3.CAT");
       if (sample3) {
         this.sounds.set("BATTLE2.CAT", sample3);
@@ -907,9 +933,9 @@ export class Mod {
     }
   }
 
-  private tryLoadSoundCat(setName: string, soundDir: string, filename: string, wav: boolean): boolean {
+  private tryLoadSoundCat(setName: string, soundDir: string, filename: string, wav: boolean, soundFiles: string[]): boolean {
     const path = `${soundDir}/${filename}`;
-    if (this.manifest.ufoSoundFiles && !this.manifest.ufoSoundFiles.includes(path)) {
+    if (soundFiles.length > 0 && !soundFiles.includes(path)) {
       return false;
     }
     try {
@@ -924,13 +950,14 @@ export class Mod {
   }
 
   private async loadMusicResources(): Promise<void> {
-    const soundDir = this.manifest.ufoSoundDir;
+    const soundDir = this.activeManifestPath("ufoSoundDir", "tftdSoundDir");
     if (!soundDir) {
       return;
     }
+    const soundFiles = this.activeManifestFiles("ufoSoundFiles", "tftdSoundFiles");
     for (const [type, rule] of this.musicDefs) {
       const filename = `${soundDir}/${rule.getName()}.MID`;
-      if (this.manifest.ufoSoundFiles && !this.manifest.ufoSoundFiles.includes(filename)) {
+      if (soundFiles.length > 0 && !soundFiles.includes(filename)) {
         continue;
       }
       const bytes = await this.fetchOptionalBinary(filename);
@@ -975,14 +1002,15 @@ export class Mod {
     this.palettes.set("PAL_BATTLESCAPE", Palette.createDefault());
     this.palettes.set("BACKPALS.DAT", Palette.createDefaultBackPals());
 
-    if (!this.manifest.ufoPalettesDat) {
+    const palettesPath = this.activeManifestPath("ufoPalettesDat", "tftdPalettesDat");
+    if (!palettesPath) {
       Logger.log(LOG_WARNING, "Original GEODATA/PALETTES.DAT not available; using browser fallback palettes.");
       return;
     }
 
-    const palettesDat = await this.fetchOptionalBinary(this.manifest.ufoPalettesDat);
+    const palettesDat = await this.fetchOptionalBinary(palettesPath);
     if (!palettesDat) {
-      Logger.log(LOG_WARNING, `${this.manifest.ufoPalettesDat} not found; using browser fallback palettes.`);
+      Logger.log(LOG_WARNING, `${palettesPath} not found; using browser fallback palettes.`);
       return;
     }
 
@@ -1014,7 +1042,7 @@ export class Mod {
     }
     this.palettes.set("PAL_BATTLESCAPE", battlescape);
 
-    const backpalsDat = await this.fetchOptionalBinary(this.manifest.ufoBackPalsDat);
+    const backpalsDat = await this.fetchOptionalBinary(this.activeManifestPath("ufoBackPalsDat", "tftdBackPalsDat"));
     if (backpalsDat) {
       this.palettes.set("BACKPALS.DAT", Palette.loadDat(backpalsDat, 128));
     } else {
@@ -1024,7 +1052,7 @@ export class Mod {
 
   private async loadSurfaces(): Promise<void> {
     const back01 = new Surface(320, 200);
-    const back01Scr = await this.fetchOptionalBinary(this.manifest.ufoBack01Scr);
+    const back01Scr = await this.fetchOptionalBinary(this.activeManifestPath("ufoBack01Scr", "tftdBack01Scr"));
     if (back01Scr) {
       back01.loadScr(back01Scr);
     } else {
@@ -1032,24 +1060,24 @@ export class Mod {
     }
     this.surfaces.set("BACK01.SCR", back01);
 
-    await this.loadOptionalScrSurface("BACK02.SCR", this.manifest.ufoBack02Scr, surface => this.drawFallbackBack01(surface));
-    await this.loadOptionalScrSurface("BACK05.SCR", this.manifest.ufoBack05Scr, surface => this.drawFallbackBack01(surface));
-    await this.loadOptionalScrSurface("BACK06.SCR", this.manifest.ufoBack06Scr, surface => this.drawFallbackBack01(surface));
-    await this.loadOptionalScrSurface("BACK07.SCR", this.manifest.ufoBack07Scr, surface => this.drawFallbackBack01(surface));
+    await this.loadOptionalScrSurface("BACK02.SCR", this.activeManifestPath("ufoBack02Scr", "tftdBack01Scr"), surface => this.drawFallbackBack01(surface));
+    await this.loadOptionalScrSurface("BACK05.SCR", this.activeManifestPath("ufoBack05Scr", "tftdBack01Scr"), surface => this.drawFallbackBack01(surface));
+    await this.loadOptionalScrSurface("BACK06.SCR", this.activeManifestPath("ufoBack06Scr", "tftdBack01Scr"), surface => this.drawFallbackBack01(surface));
+    await this.loadOptionalScrSurface("BACK07.SCR", this.activeManifestPath("ufoBack07Scr", "tftdBack01Scr"), surface => this.drawFallbackBack01(surface));
     const back07 = this.surfaces.get("BACK07.SCR");
     if (back07) {
       this.surfaces.set("ALTBACK07.SCR", this.createAltBack07(back07));
     }
-    await this.loadOptionalScrSurface("BACK12.SCR", this.manifest.ufoBack12Scr, surface => this.drawFallbackBack01(surface));
-    await this.loadOptionalScrSurface("BACK13.SCR", this.manifest.ufoBack13Scr, surface => this.drawFallbackBack01(surface));
-    await this.loadOptionalScrSurface("BACK14.SCR", this.manifest.ufoBack14Scr, surface => this.drawFallbackBack01(surface));
-    await this.loadOptionalScrSurface("BACK15.SCR", this.manifest.ufoBack15Scr, surface => this.drawFallbackBack01(surface));
-    await this.loadOptionalScrSurface("BACK17.SCR", this.manifest.ufoBack17Scr, surface => this.drawFallbackBack01(surface));
-    await this.loadOptionalBdySurface("GRAPH.BDY", this.manifest.ufoGraphBdy || this.manifest.tftdGraphBdy, surface => this.drawFallbackGraphs(surface));
-    await this.loadOptionalSpkSurface("GRAPHS.SPK", this.manifest.ufoGraphsSpk || this.manifest.tftdGraphsSpk, surface => this.drawFallbackGraphs(surface));
+    await this.loadOptionalScrSurface("BACK12.SCR", this.activeManifestPath("ufoBack12Scr", "tftdBack12Scr"), surface => this.drawFallbackBack01(surface));
+    await this.loadOptionalScrSurface("BACK13.SCR", this.activeManifestPath("ufoBack13Scr", "tftdBack12Scr"), surface => this.drawFallbackBack01(surface));
+    await this.loadOptionalScrSurface("BACK14.SCR", this.activeManifestPath("ufoBack14Scr", "tftdBack15Scr"), surface => this.drawFallbackBack01(surface));
+    await this.loadOptionalScrSurface("BACK15.SCR", this.activeManifestPath("ufoBack15Scr", "tftdBack15Scr"), surface => this.drawFallbackBack01(surface));
+    await this.loadOptionalScrSurface("BACK17.SCR", this.activeManifestPath("ufoBack17Scr", "tftdBack17Scr"), surface => this.drawFallbackBack01(surface));
+    await this.loadOptionalBdySurface("GRAPH.BDY", this.activeManifestPath("ufoGraphBdy", "tftdGraphBdy"), surface => this.drawFallbackGraphs(surface));
+    await this.loadOptionalSpkSurface("GRAPHS.SPK", this.activeManifestPath("ufoGraphsSpk", "tftdGraphsSpk"), surface => this.drawFallbackGraphs(surface));
 
     const geobord = new Surface(320, 200);
-    const geobordScr = await this.fetchOptionalBinary(this.manifest.ufoGeobordScr);
+    const geobordScr = await this.fetchOptionalBinary(this.activeManifestPath("ufoGeobordScr", "tftdGeobordScr"));
     if (geobordScr) {
       geobord.loadScr(geobordScr);
     } else {
@@ -1057,7 +1085,7 @@ export class Mod {
     }
     this.surfaces.set("GEOBORD.SCR", geobord);
 
-    const altGeobordScr = await this.fetchOptionalBinary(this.manifest.ufoAltGeobordScr);
+    const altGeobordScr = await this.fetchOptionalBinary(this.activeManifestPath("ufoAltGeobordScr", "tftdAltGeobordScr"));
     if (altGeobordScr) {
       const alt = new Surface(320, 200);
       alt.loadScr(altGeobordScr);
@@ -1066,11 +1094,11 @@ export class Mod {
       this.surfaces.set("ALTGEOBORD.SCR", this.createAltGeobord(geobord));
     }
 
-    await this.loadOptionalSpkSurface("SCANBORD.PCK", this.manifest.ufoScanbordPck, surface => this.drawFallbackMiniMapBorder(surface));
-    await this.loadOptionalSpkSurface("DETBORD.PCK", this.manifest.ufoDetbordPck, surface => this.drawFallbackScannerBorder(surface));
-    await this.loadOptionalSpkSurface("DETBORD2.PCK", this.manifest.ufoDetbord2Pck, surface => this.drawFallbackScannerScan(surface));
-    await this.loadOptionalSpkSurface("MEDIBORD.PCK", this.manifest.ufoMedibordPck, surface => this.drawFallbackMedikitBorder(surface));
-    await this.loadOptionalSpkSurface("UNIBORD.PCK", this.manifest.ufoUnibordPck, surface => this.drawFallbackUnitInfoBorder(surface));
+    await this.loadOptionalSpkSurface("SCANBORD.PCK", this.activeManifestPath("ufoScanbordPck", "tftdScanbordPck"), surface => this.drawFallbackMiniMapBorder(surface));
+    await this.loadOptionalSpkSurface("DETBORD.PCK", this.activeManifestPath("ufoDetbordPck", "tftdDetbordPck"), surface => this.drawFallbackScannerBorder(surface));
+    await this.loadOptionalSpkSurface("DETBORD2.PCK", this.activeManifestPath("ufoDetbord2Pck", "tftdDetbord2Pck"), surface => this.drawFallbackScannerScan(surface));
+    await this.loadOptionalSpkSurface("MEDIBORD.PCK", this.activeManifestPath("ufoMedibordPck", "tftdMedibordPck"), surface => this.drawFallbackMedikitBorder(surface));
+    await this.loadOptionalSpkSurface("UNIBORD.PCK", this.activeManifestPath("ufoUnibordPck", "tftdUnibordPck"), surface => this.drawFallbackUnitInfoBorder(surface));
     const unibord = this.surfaces.get("UNIBORD.PCK");
     if (unibord) {
       this.adjustUnitInfoBorder(unibord);
@@ -1079,8 +1107,8 @@ export class Mod {
 
   private async loadSurfaceSets(): Promise<void> {
     this.surfaceSets.clear();
-    const basebitsPck = await this.fetchOptionalBinary(this.manifest.ufoBasebitsPck);
-    const basebitsTab = await this.fetchOptionalBinary(this.manifest.ufoBasebitsTab);
+    const basebitsPck = await this.fetchOptionalBinary(this.activeManifestPath("ufoBasebitsPck", "tftdBasebitsPck"));
+    const basebitsTab = await this.fetchOptionalBinary(this.activeManifestPath("ufoBasebitsTab", "tftdBasebitsTab"));
     if (basebitsPck && basebitsTab) {
       const basebits = new SurfaceSet(32, 40);
       basebits.loadPck(basebitsPck, basebitsTab);
@@ -1089,24 +1117,21 @@ export class Mod {
       Logger.log(LOG_WARNING, "Original GEOGRAPH/BASEBITS.PCK/TAB not found; basescape uses fallback facility blocks.");
     }
 
-    const floorobPck = await this.fetchOptionalBinary(this.manifest.ufoFloorobPck);
-    const floorobTab = await this.fetchOptionalBinary(this.manifest.ufoFloorobTab);
+    const floorobPck = await this.fetchOptionalBinary(this.activeManifestPath("ufoFloorobPck", "tftdFloorobPck"));
+    const floorobTab = await this.fetchOptionalBinary(this.activeManifestPath("ufoFloorobTab", "tftdFloorobTab"));
     if (floorobPck && floorobTab) {
       const floorob = new SurfaceSet(32, 40);
       floorob.loadPck(floorobPck, floorobTab);
       this.surfaceSets.set("FLOOROB.PCK", floorob);
     }
 
-    const ufographFiles = [
-      ...(this.manifest.ufoUfographFiles || []),
-      ...(this.manifest.tftdUfographFiles || [])
-    ];
+    const ufographFiles = this.activeManifestFiles("ufoUfographFiles", "tftdUfographFiles");
     await this.loadPckSurfaceSetFromManifest("CURSOR.PCK", 32, 40, ufographFiles);
     await this.loadPckSurfaceSetFromManifest("SMOKE.PCK", 32, 40, ufographFiles);
     await this.loadPckSurfaceSetFromManifest("HIT.PCK", 32, 40, ufographFiles);
     await this.loadPckSurfaceSetFromManifest("X1.PCK", 128, 64, ufographFiles);
 
-    const scangDat = await this.fetchOptionalBinary(this.manifest.ufoScangDat);
+    const scangDat = await this.fetchOptionalBinary(this.activeManifestPath("ufoScangDat", "tftdScangDat"));
     if (scangDat) {
       const scang = new SurfaceSet(4, 4);
       scang.loadDat(scangDat);
@@ -1115,7 +1140,7 @@ export class Mod {
       this.surfaceSets.set("SCANG.DAT", this.createFallbackScang());
     }
 
-    const detblobDat = await this.fetchOptionalBinary(this.manifest.ufoDetblobDat);
+    const detblobDat = await this.fetchOptionalBinary(this.activeManifestPath("ufoDetblobDat", "tftdDetblobDat"));
     if (detblobDat) {
       const detblob = new SurfaceSet(16, 16);
       detblob.loadDat(detblobDat);
@@ -1124,7 +1149,7 @@ export class Mod {
       this.surfaceSets.set("DETBLOB.DAT", this.createFallbackDetblob());
     }
 
-    const medibitsDat = await this.fetchOptionalBinary(this.manifest.ufoMedibitsDat);
+    const medibitsDat = await this.fetchOptionalBinary(this.activeManifestPath("ufoMedibitsDat", "tftdMedibitsDat"));
     if (medibitsDat) {
       const medibits = new SurfaceSet(52, 58);
       medibits.loadDat(medibitsDat);
@@ -1133,10 +1158,7 @@ export class Mod {
       this.surfaceSets.set("MEDIBITS.DAT", this.createFallbackMedibits());
     }
 
-    const unitFiles = [
-      ...(this.manifest.ufoUnitFiles || []),
-      ...(this.manifest.tftdUnitFiles || [])
-    ];
+    const unitFiles = this.activeManifestFiles("ufoUnitFiles", "tftdUnitFiles");
     await this.loadUnitSurfaceSets(unitFiles);
     const handob = this.surfaceSets.get("HANDOB.PCK");
     if (handob && !this.surfaceSets.has("HANDOB2.PCK")) {
@@ -1221,8 +1243,48 @@ export class Mod {
     return path.split(/[\\/]/).pop()?.toUpperCase() || path.toUpperCase();
   }
 
+  private defaultRulesetsFor(modId: string): string[] {
+    return modId === "xcom2" ? [...(this.manifest.xcom2RulesetFiles || [])] : [...(this.manifest.xcom1RulesetFiles || [])];
+  }
+
+  private rulesetPath(name: string): string {
+    const wanted = name.toUpperCase();
+    for (const files of this.rulesetFilesByMod.values()) {
+      const found = files.find(file => this.fileName(file) === wanted);
+      if (found) {
+        return found;
+      }
+    }
+    return `bin/standard/${this.activeModId}/${name}`;
+  }
+
+  private async fetchRulesetText(name: string): Promise<string> {
+    const path = this.rulesetPath(name);
+    const response = await fetch(`../${path}`.replaceAll("\\", "/"));
+    if (!response.ok) {
+      throw new Error(`${path}: ${response.status} ${response.statusText}`);
+    }
+    return response.text();
+  }
+
+  private async fetchRuleset(name: string): Promise<Response> {
+    return fetch(`../${this.rulesetPath(name)}`.replaceAll("\\", "/"));
+  }
+
+  private activeManifestPath(ufoKey: keyof ResourceManifest, tftdKey: keyof ResourceManifest): string | null {
+    const primary = this.activeModId === "xcom2" ? this.manifest[tftdKey] : this.manifest[ufoKey];
+    const fallback = this.activeModId === "xcom2" ? this.manifest[ufoKey] : this.manifest[tftdKey];
+    return (primary || fallback || null) as string | null;
+  }
+
+  private activeManifestFiles(ufoKey: keyof ResourceManifest, tftdKey: keyof ResourceManifest): string[] {
+    const primary = this.activeModId === "xcom2" ? this.manifest[tftdKey] : this.manifest[ufoKey];
+    const fallback = this.activeModId === "xcom2" ? this.manifest[ufoKey] : this.manifest[tftdKey];
+    return [...((primary || fallback || []) as string[])];
+  }
+
   private async loadMCDPatches(): Promise<void> {
-    const patchesResponse = await fetch("../bin/standard/xcom1/mcdPatches.rul");
+    const patchesResponse = await this.fetchRuleset("mcdPatches.rul");
     if (!patchesResponse.ok) {
       throw new Error(`mcdPatches.rul: ${patchesResponse.status} ${patchesResponse.statusText}`);
     }
@@ -1236,7 +1298,7 @@ export class Mod {
 
   private async loadVoxelData(): Promise<void> {
     this.voxelData = [];
-    const loftemps = await this.fetchOptionalBinary(this.manifest.ufoLoftempsDat);
+    const loftemps = await this.fetchOptionalBinary(this.activeManifestPath("ufoLoftempsDat", "tftdLoftempsDat"));
     if (!loftemps) {
       Logger.log(LOG_WARNING, "Original LOFTEMPS.DAT not found; battlescape voxel data is empty.");
       return;
@@ -1245,7 +1307,7 @@ export class Mod {
   }
 
   private async loadRuleInterfaces(): Promise<void> {
-    const interfacesResponse = await fetch("../bin/standard/xcom1/interfaces.rul");
+    const interfacesResponse = await this.fetchRuleset("interfaces.rul");
     if (!interfacesResponse.ok) {
       throw new Error(`interfaces.rul: ${interfacesResponse.status} ${interfacesResponse.statusText}`);
     }
@@ -1257,7 +1319,7 @@ export class Mod {
   }
 
   private async loadRuleConverter(): Promise<void> {
-    const converterResponse = await fetch("../bin/standard/xcom1/converter.rul");
+    const converterResponse = await this.fetchRuleset("converter.rul");
     if (!converterResponse.ok) {
       throw new Error(`converter.rul: ${converterResponse.status} ${converterResponse.statusText}`);
     }
@@ -1266,7 +1328,7 @@ export class Mod {
 
   private async loadVars(): Promise<void> {
     resetDifficultyCoefficients();
-    const varsResponse = await fetch("../bin/standard/xcom1/vars.rul");
+    const varsResponse = await this.fetchRuleset("vars.rul");
     if (!varsResponse.ok) {
       throw new Error(`vars.rul: ${varsResponse.status} ${varsResponse.statusText}`);
     }
@@ -1377,7 +1439,7 @@ export class Mod {
   }
 
   private async loadRuleRegions(): Promise<void> {
-    const regionsResponse = await fetch("../bin/standard/xcom1/regions.rul");
+    const regionsResponse = await this.fetchRuleset("regions.rul");
     if (!regionsResponse.ok) {
       throw new Error(`regions.rul: ${regionsResponse.status} ${regionsResponse.statusText}`);
     }
@@ -1392,7 +1454,7 @@ export class Mod {
   }
 
   private async loadRuleCountries(): Promise<void> {
-    const countriesResponse = await fetch("../bin/standard/xcom1/countries.rul");
+    const countriesResponse = await this.fetchRuleset("countries.rul");
     if (!countriesResponse.ok) {
       throw new Error(`countries.rul: ${countriesResponse.status} ${countriesResponse.statusText}`);
     }
@@ -1407,7 +1469,7 @@ export class Mod {
   }
 
   private async loadRuleResearch(): Promise<void> {
-    const researchResponse = await fetch("../bin/standard/xcom1/research.rul");
+    const researchResponse = await this.fetchRuleset("research.rul");
     if (!researchResponse.ok) {
       throw new Error(`research.rul: ${researchResponse.status} ${researchResponse.statusText}`);
     }
@@ -1429,7 +1491,7 @@ export class Mod {
   }
 
   private async loadRuleManufacture(): Promise<void> {
-    const manufactureResponse = await fetch("../bin/standard/xcom1/manufacture.rul");
+    const manufactureResponse = await this.fetchRuleset("manufacture.rul");
     if (!manufactureResponse.ok) {
       throw new Error(`manufacture.rul: ${manufactureResponse.status} ${manufactureResponse.statusText}`);
     }
@@ -1446,7 +1508,7 @@ export class Mod {
   }
 
   private async loadRuleUfopaedia(): Promise<void> {
-    const ufopaediaResponse = await fetch("../bin/standard/xcom1/ufopaedia.rul");
+    const ufopaediaResponse = await this.fetchRuleset("ufopaedia.rul");
     if (!ufopaediaResponse.ok) {
       throw new Error(`ufopaedia.rul: ${ufopaediaResponse.status} ${ufopaediaResponse.statusText}`);
     }
@@ -1517,7 +1579,7 @@ export class Mod {
   }
 
   private async loadRuleFacilities(): Promise<void> {
-    const facilitiesResponse = await fetch("../bin/standard/xcom1/facilities.rul");
+    const facilitiesResponse = await this.fetchRuleset("facilities.rul");
     if (!facilitiesResponse.ok) {
       throw new Error(`facilities.rul: ${facilitiesResponse.status} ${facilitiesResponse.statusText}`);
     }
@@ -1533,7 +1595,7 @@ export class Mod {
   }
 
   private async loadRuleCrafts(): Promise<void> {
-    const craftsResponse = await fetch("../bin/standard/xcom1/crafts.rul");
+    const craftsResponse = await this.fetchRuleset("crafts.rul");
     if (!craftsResponse.ok) {
       throw new Error(`crafts.rul: ${craftsResponse.status} ${craftsResponse.statusText}`);
     }
@@ -1549,7 +1611,7 @@ export class Mod {
   }
 
   private async loadRuleCraftWeapons(): Promise<void> {
-    const craftWeaponsResponse = await fetch("../bin/standard/xcom1/craftWeapons.rul");
+    const craftWeaponsResponse = await this.fetchRuleset("craftWeapons.rul");
     if (!craftWeaponsResponse.ok) {
       throw new Error(`craftWeapons.rul: ${craftWeaponsResponse.status} ${craftWeaponsResponse.statusText}`);
     }
@@ -1564,7 +1626,7 @@ export class Mod {
   }
 
   private async loadRuleUfos(): Promise<void> {
-    const ufosResponse = await fetch("../bin/standard/xcom1/ufos.rul");
+    const ufosResponse = await this.fetchRuleset("ufos.rul");
     if (!ufosResponse.ok) {
       throw new Error(`ufos.rul: ${ufosResponse.status} ${ufosResponse.statusText}`);
     }
@@ -1579,7 +1641,7 @@ export class Mod {
   }
 
   private async loadRuleTerrains(): Promise<void> {
-    const terrainsResponse = await fetch("../bin/standard/xcom1/terrains.rul");
+    const terrainsResponse = await this.fetchRuleset("terrains.rul");
     if (!terrainsResponse.ok) {
       throw new Error(`terrains.rul: ${terrainsResponse.status} ${terrainsResponse.statusText}`);
     }
@@ -1594,7 +1656,7 @@ export class Mod {
   }
 
   private async loadMapScripts(): Promise<void> {
-    const mapScriptsResponse = await fetch("../bin/standard/xcom1/mapScripts.rul");
+    const mapScriptsResponse = await this.fetchRuleset("mapScripts.rul");
     if (!mapScriptsResponse.ok) {
       throw new Error(`mapScripts.rul: ${mapScriptsResponse.status} ${mapScriptsResponse.statusText}`);
     }
@@ -1617,7 +1679,7 @@ export class Mod {
   }
 
   private async loadUfoTrajectories(): Promise<void> {
-    const trajectoriesResponse = await fetch("../bin/standard/xcom1/ufoTrajectories.rul");
+    const trajectoriesResponse = await this.fetchRuleset("ufoTrajectories.rul");
     if (!trajectoriesResponse.ok) {
       throw new Error(`ufoTrajectories.rul: ${trajectoriesResponse.status} ${trajectoriesResponse.statusText}`);
     }
@@ -1630,7 +1692,7 @@ export class Mod {
   }
 
   private async loadRuleAlienMissions(): Promise<void> {
-    const missionsResponse = await fetch("../bin/standard/xcom1/alienMissions.rul");
+    const missionsResponse = await this.fetchRuleset("alienMissions.rul");
     if (!missionsResponse.ok) {
       throw new Error(`alienMissions.rul: ${missionsResponse.status} ${missionsResponse.statusText}`);
     }
@@ -1645,7 +1707,7 @@ export class Mod {
   }
 
   private async loadRuleMissionScripts(): Promise<void> {
-    const missionScriptsResponse = await fetch("../bin/standard/xcom1/missionScripts.rul");
+    const missionScriptsResponse = await this.fetchRuleset("missionScripts.rul");
     if (!missionScriptsResponse.ok) {
       throw new Error(`missionScripts.rul: ${missionScriptsResponse.status} ${missionScriptsResponse.statusText}`);
     }
@@ -1661,7 +1723,7 @@ export class Mod {
   }
 
   private async loadAlienRaces(): Promise<void> {
-    const alienRacesResponse = await fetch("../bin/standard/xcom1/alienRaces.rul");
+    const alienRacesResponse = await this.fetchRuleset("alienRaces.rul");
     if (!alienRacesResponse.ok) {
       throw new Error(`alienRaces.rul: ${alienRacesResponse.status} ${alienRacesResponse.statusText}`);
     }
@@ -1676,7 +1738,7 @@ export class Mod {
   }
 
   private async loadAlienDeployments(): Promise<void> {
-    const alienDeploymentsResponse = await fetch("../bin/standard/xcom1/alienDeployments.rul");
+    const alienDeploymentsResponse = await this.fetchRuleset("alienDeployments.rul");
     if (!alienDeploymentsResponse.ok) {
       throw new Error(`alienDeployments.rul: ${alienDeploymentsResponse.status} ${alienDeploymentsResponse.statusText}`);
     }
@@ -1710,7 +1772,7 @@ export class Mod {
   }
 
   private async loadRuleItems(): Promise<void> {
-    const itemsResponse = await fetch("../bin/standard/xcom1/items.rul");
+    const itemsResponse = await this.fetchRuleset("items.rul");
     if (!itemsResponse.ok) {
       throw new Error(`items.rul: ${itemsResponse.status} ${itemsResponse.statusText}`);
     }
@@ -1726,7 +1788,7 @@ export class Mod {
   }
 
   private async loadRuleInventories(): Promise<void> {
-    const inventoriesResponse = await fetch("../bin/standard/xcom1/inventories.rul");
+    const inventoriesResponse = await this.fetchRuleset("inventories.rul");
     if (!inventoriesResponse.ok) {
       throw new Error(`inventories.rul: ${inventoriesResponse.status} ${inventoriesResponse.statusText}`);
     }
@@ -1743,7 +1805,7 @@ export class Mod {
   }
 
   private async loadRuleArmors(): Promise<void> {
-    const armorsResponse = await fetch("../bin/standard/xcom1/armors.rul");
+    const armorsResponse = await this.fetchRuleset("armors.rul");
     if (!armorsResponse.ok) {
       throw new Error(`armors.rul: ${armorsResponse.status} ${armorsResponse.statusText}`);
     }
@@ -1758,7 +1820,7 @@ export class Mod {
   }
 
   private async loadRuleUnits(): Promise<void> {
-    const unitsResponse = await fetch("../bin/standard/xcom1/units.rul");
+    const unitsResponse = await this.fetchRuleset("units.rul");
     if (!unitsResponse.ok) {
       throw new Error(`units.rul: ${unitsResponse.status} ${unitsResponse.statusText}`);
     }
@@ -1773,7 +1835,7 @@ export class Mod {
   }
 
   private async loadAlienItemLevels(): Promise<void> {
-    const levelsResponse = await fetch("../bin/standard/xcom1/alienItemLevels.rul");
+    const levelsResponse = await this.fetchRuleset("alienItemLevels.rul");
     if (!levelsResponse.ok) {
       throw new Error(`alienItemLevels.rul: ${levelsResponse.status} ${levelsResponse.statusText}`);
     }
@@ -1781,7 +1843,7 @@ export class Mod {
   }
 
   private async loadRuleSoldiers(): Promise<void> {
-    const soldiersResponse = await fetch("../bin/standard/xcom1/soldiers.rul");
+    const soldiersResponse = await this.fetchRuleset("soldiers.rul");
     if (!soldiersResponse.ok) {
       throw new Error(`soldiers.rul: ${soldiersResponse.status} ${soldiersResponse.statusText}`);
     }
@@ -1821,7 +1883,7 @@ export class Mod {
   }
 
   private async loadStartingBase(): Promise<void> {
-    const startingBaseResponse = await fetch("../bin/standard/xcom1/startingBase.rul");
+    const startingBaseResponse = await this.fetchRuleset("startingBase.rul");
     if (!startingBaseResponse.ok) {
       throw new Error(`startingBase.rul: ${startingBaseResponse.status} ${startingBaseResponse.statusText}`);
     }
@@ -1896,19 +1958,19 @@ export class Mod {
   }
 
   private async loadGlobe(): Promise<void> {
-    const globeRules = await fetch("../bin/standard/xcom1/globe.rul");
+    const globeRules = await this.fetchRuleset("globe.rul");
     if (globeRules.ok) {
       this.globe.load(await globeRules.text());
     } else {
-      Logger.log(LOG_WARNING, "bin/standard/xcom1/globe.rul not found; using globe texture metadata fallbacks.");
+      Logger.log(LOG_WARNING, `${this.rulesetPath("globe.rul")} not found; using globe texture metadata fallbacks.`);
     }
-    const worldDat = await this.fetchOptionalBinary(this.manifest.ufoWorldDat);
+    const worldDat = await this.fetchOptionalBinary(this.activeManifestPath("ufoWorldDat", "tftdWorldDat"));
     if (worldDat) {
       this.globe.loadDat(worldDat);
     } else {
       Logger.log(LOG_WARNING, "Original GEODATA/WORLD.DAT not found; using empty globe rules.");
     }
-    const textureDat = await this.fetchOptionalBinary(this.manifest.ufoTextureDat);
+    const textureDat = await this.fetchOptionalBinary(this.activeManifestPath("ufoTextureDat", "tftdTextureDat"));
     if (textureDat) {
       this.globe.loadTextureDat(textureDat);
     } else {

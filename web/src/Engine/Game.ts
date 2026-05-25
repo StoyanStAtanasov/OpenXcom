@@ -3,6 +3,7 @@ import { Language } from "./Language.ts";
 import { Logger, LOG_INFO, LOG_WARNING } from "./Logger.ts";
 import { Music } from "./Music.ts";
 import { Options } from "./Options.ts";
+import { FileMap } from "./FileMap.ts";
 import { Screen } from "./Screen.ts";
 import { Sound } from "./Sound.ts";
 import { State } from "./State.ts";
@@ -135,7 +136,7 @@ export class Game {
 
   async loadMods(): Promise<void> {
     this._mod = new Mod();
-    await this._mod.loadAll();
+    await this._mod.loadAll(FileMap.getRulesets());
   }
 
   setMouseActive(active: boolean): void {
@@ -157,10 +158,14 @@ export class Game {
     Options.language = currentLang;
     this._lang = new Language();
     await this._lang.loadFile(`bin/common/Language/${defaultLang}.yml`);
-    await this._lang.loadFile(`bin/standard/xcom1/Language/${defaultLang}.yml`);
+    for (const modInfo of Options.getActiveMods()) {
+      await this._lang.loadFile(`${modInfo.getPath()}/Language/${defaultLang}.yml`);
+    }
     if (currentLang !== defaultLang) {
       await this._lang.loadFile(`bin/common/Language/${currentLang}.yml`);
-      await this._lang.loadFile(`bin/standard/xcom1/Language/${currentLang}.yml`);
+      for (const modInfo of Options.getActiveMods()) {
+        await this._lang.loadFile(`${modInfo.getPath()}/Language/${currentLang}.yml`);
+      }
     }
   }
 
