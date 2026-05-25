@@ -74,6 +74,9 @@ export class SaveConverter {
     this._saveName = `GAME_${save}`;
     this._savePath = `${Options.getMasterUserFolder()}${this._saveName}`;
     this._rules = this._mod?.getConverter() || null;
+    if (!localStorage.getItem(`${SaveConverter.saveFolder(save)}SAVEINFO.DAT`)) {
+      throw new Error(`${this._saveName} is not a valid save folder`);
+    }
   }
 
   private static saveFolder(id: number): string {

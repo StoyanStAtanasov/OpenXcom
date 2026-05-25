@@ -84,14 +84,6 @@ const verifier = String.raw`async page => {
     assert(converterData.hasUSA, "STR_USA is missing from converter countries");
     assert(converterData.hasElerium, "STR_ELERIUM_115 is missing from converter items");
 
-    const saveConverter = new SaveConverter(1, mod);
-    assert(saveConverter, "SaveConverter constructor returned null/undefined");
-    assert(saveConverter._mod === mod, "SaveConverter did not store the provided Mod");
-    assert(typeof saveConverter.loadOriginal === "function", "SaveConverter.loadOriginal() is missing");
-    if (typeof saveConverter._rules === "object" && saveConverter._rules !== null) {
-      assert(saveConverter._rules === converter, "SaveConverter _rules field did not match Mod.getConverter()");
-    }
-
     const path = "browser://localStorage/openxcom/saves/GAME_1/";
     const toBase64 = bytes => {
       let text = "";
@@ -100,6 +92,23 @@ const verifier = String.raw`async page => {
       }
       return btoa(text);
     };
+    localStorage.removeItem(path.replace("GAME_1/", "GAME_6/") + "SAVEINFO.DAT");
+    let missingSaveInfo = "";
+    try {
+      new SaveConverter(6, mod);
+    } catch (error) {
+      missingSaveInfo = error instanceof Error ? error.message : String(error);
+    }
+    assert(missingSaveInfo.includes("GAME_6 is not a valid save folder"), "SaveConverter constructor did not reject a missing SAVEINFO.DAT header");
+    localStorage.setItem(path + "SAVEINFO.DAT", toBase64(new Uint8Array(0x28)));
+
+    const saveConverter = new SaveConverter(1, mod);
+    assert(saveConverter, "SaveConverter constructor returned null/undefined");
+    assert(saveConverter._mod === mod, "SaveConverter did not store the provided Mod");
+    assert(typeof saveConverter.loadOriginal === "function", "SaveConverter.loadOriginal() is missing");
+    if (typeof saveConverter._rules === "object" && saveConverter._rules !== null) {
+      assert(saveConverter._rules === converter, "SaveConverter _rules field did not match Mod.getConverter()");
+    }
     const putDat = (name, bytes) => localStorage.setItem(path + name, toBase64(bytes));
     const writeI32 = (bytes, offset, value) => new DataView(bytes.buffer).setInt32(offset, value, true);
     const writeU16 = (bytes, offset, value) => new DataView(bytes.buffer).setUint16(offset, value, true);
