@@ -565,6 +565,38 @@ export class TileEngine {
     return null;
   }
 
+  setDangerZone(posLike: PositionLike, radius: number, unit: BattleUnit | null): void {
+    let tile = this._save.getTile(posLike);
+    if (!tile) {
+      return;
+    }
+    const pos = Position.from(posLike);
+    tile.setDangerous(true);
+    const originVoxel = pos.multiply(new Position(16, 16, 24)).add(new Position(8, 8, 12 - tile.getTerrainLevel()));
+    for (let x = -radius; x !== radius; ++x) {
+      for (let y = -radius; y !== radius; ++y) {
+        if (x === 0 && y === 0) {
+          continue;
+        }
+        if (x * x + y * y > radius * radius) {
+          continue;
+        }
+        const target = pos.add(new Position(x, y, 0));
+        tile = this._save.getTile(target);
+        if (!tile) {
+          continue;
+        }
+        const targetVoxel = target.multiply(new Position(16, 16, 24)).add(new Position(8, 8, 12 - tile.getTerrainLevel()));
+        const trajectory: Position[] = [];
+        if (this.calculateLine(originVoxel, targetVoxel, false, trajectory, unit, true, false, unit) === VoxelType.V_EMPTY) {
+          if (trajectory.length && trajectory[trajectory.length - 1].divide(new Position(16, 16, 24)).equals(target)) {
+            tile.setDangerous(true);
+          }
+        }
+      }
+    }
+  }
+
   togglePersonalLighting(): void {
     this._personalLighting = !this._personalLighting;
   }

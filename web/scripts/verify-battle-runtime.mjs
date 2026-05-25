@@ -33,24 +33,28 @@ const verifier = String.raw`async page => {
       { Pathfinding },
       { TileEngine },
       { ExplosionBState },
+      { ProjectileFlyBState },
       { Position },
       { MovementType },
       { UnitFaction, UnitStatus, UnitSide, UnitBodyPart },
       { TilePart, VoxelType },
       { BattlescapeGame, BattleActionType },
-      { ItemDamageType },
-      { SpecialAbility }
+      { ItemDamageType, BattleType },
+      { SpecialAbility },
+      { Mod }
     ] = await Promise.all([
       import("/web/dist/Battlescape/Pathfinding.js"),
       import("/web/dist/Battlescape/TileEngine.js"),
       import("/web/dist/Battlescape/ExplosionBState.js"),
+      import("/web/dist/Battlescape/ProjectileFlyBState.js"),
       import("/web/dist/Battlescape/Position.js"),
       import("/web/dist/Mod/Armor.js"),
       import("/web/dist/Savegame/BattleUnit.js"),
       import("/web/dist/Mod/MapData.js"),
       import("/web/dist/Battlescape/BattlescapeGame.js"),
       import("/web/dist/Mod/RuleItem.js"),
-      import("/web/dist/Mod/Unit.js")
+      import("/web/dist/Mod/Unit.js"),
+      import("/web/dist/Mod/Mod.js")
     ]);
 
     const assert = (condition, message) => {
@@ -89,6 +93,7 @@ const verifier = String.raw`async page => {
         this.fire = options.fire ?? 0;
         this.smoke = options.smoke ?? 0;
         this.light = [0, 0, 0];
+        this.dangerous = Boolean(options.dangerous);
       }
       getPosition() { return this.pos.clone(); }
       getTerrainLevel() { return this.terrainLevel; }
@@ -122,6 +127,8 @@ const verifier = String.raw`async page => {
       resetLight(layer) { this.light[layer] = 0; }
       addLight(light, layer) { this.light[layer] = Math.max(this.light[layer] || 0, light); }
       getShade() { return Math.max(0, 15 - Math.max(...this.light)); }
+      setDangerous(danger) { this.dangerous = danger; }
+      getDangerous() { return this.dangerous; }
       isUfoDoorOpen() { return false; }
     }
 
@@ -490,6 +497,105 @@ const verifier = String.raw`async page => {
     assert(chainedStates.length === 1, "ExplosionBState did not queue chained terrain explosion");
     assert(chainedStates[0]._center.equals(new Position(40, 24, 0)), "ExplosionBState chained terrain center lost the source +8,+8 voxel offset");
 
+    const dangerSave = new FakeSave(5, 5, 1);
+    const dangerEngine = new TileEngine(dangerSave, aftermathVoxelData);
+    dangerEngine.setDangerZone(new Position(2, 2, 0), 2, null);
+    assert(dangerSave.getTile(new Position(2, 2, 0)).getDangerous() === true, "TileEngine.setDangerZone did not mark the grenade epicenter dangerous");
+
+    const dropSounds = [];
+    const droppedItems = [];
+    const dangerCalls = [];
+    const thrower = {
+      getFaction: () => UnitFaction.FACTION_HOSTILE
+    };
+    const grenadeRule = {
+      getBattleType: () => BattleType.BT_GRENADE,
+      getExplosionRadius: () => 2
+    };
+    const grenadeItem = {
+      getRules: () => grenadeRule,
+      getFuseTimer: () => 1
+    };
+    const dropVoxel = new Position(2 * 16 + 8, 2 * 16 + 8, 12);
+    const projectileDrop = {
+      getPosition: () => dropVoxel.clone(),
+      getItem: () => grenadeItem
+    };
+    const projectileParent = {
+      getMap: () => ({
+        resetCameraSmoothing: () => {},
+        getSoundAngle: pos => pos.x + pos.y
+      }),
+      getSave: () => ({
+        getMapSizeX: () => 5,
+        getMapSizeY: () => 5
+      }),
+      getMod: () => ({
+        getSoundByDepth: (sound, depth) => ({
+          play: (...args) => dropSounds.push({ sound, depth, args })
+        })
+      }),
+      getDepth: () => 0,
+      dropItem: (pos, item) => droppedItems.push({ pos: pos.clone(), item }),
+      getTileEngine: () => ({
+        setDangerZone: (pos, radius, unit) => dangerCalls.push({ pos: pos.clone(), radius, unit })
+      }),
+      statePushFront: state => { projectileParent.pushed = state; }
+    };
+    const projectileDropState = Object.create(ProjectileFlyBState.prototype);
+    projectileDropState._unit = thrower;
+    projectileDropState._action = { type: BattleActionType.BA_THROW, actor: thrower, target: new Position(2, 2, 0) };
+    projectileDropState._parent = projectileParent;
+    projectileDropState.handleImpact(projectileDrop);
+    assert(dropSounds.length === 1 && dropSounds[0].sound === Mod.ITEM_DROP, "ProjectileFlyBState throw impact did not play ITEM_DROP");
+    assert(droppedItems.length === 1 && droppedItems[0].item === grenadeItem && droppedItems[0].pos.equals(new Position(2, 2, 0)), "ProjectileFlyBState throw impact did not drop the grenade at the impact tile");
+    assert(dangerCalls.length === 1 && dangerCalls[0].radius === 2 && dangerCalls[0].unit === thrower && dangerCalls[0].pos.equals(new Position(2, 2, 0)), "ProjectileFlyBState throw impact did not mark hostile grenade danger");
+
+    const shotSounds = [];
+    const cachedUnits = [];
+    const aimed = [];
+    const cacheValues = [];
+    const firingUnit = {
+      aim: value => aimed.push(value),
+      setCache: value => cacheValues.push(value),
+      getPosition: () => new Position(1, 1, 0)
+    };
+    const ammoRule = { getFireSound: () => 77 };
+    const weaponRule = { getFireSound: () => 12 };
+    const shotState = Object.create(ProjectileFlyBState.prototype);
+    shotState._unit = firingUnit;
+    shotState._ammo = {
+      getRules: () => ammoRule,
+      spendBullet: () => true
+    };
+    shotState._action = {
+      type: BattleActionType.BA_SNAPSHOT,
+      weapon: {
+        getRules: () => weaponRule,
+        setAmmoItem: item => { shotState.clearedAmmo = item; }
+      }
+    };
+    shotState._parent = {
+      getMap: () => ({
+        cacheUnit: unit => cachedUnits.push(unit),
+        getSoundAngle: pos => pos.x + pos.y
+      }),
+      getMod: () => ({
+        getSoundByDepth: (sound, depth) => ({
+          play: (...args) => shotSounds.push({ sound, depth, args })
+        })
+      }),
+      getDepth: () => 0,
+      getSave: () => ({
+        getDebugMode: () => false,
+        removeItem: () => {}
+      })
+    };
+    shotState.startShotAnimation({ getOrigin: () => new Position(4, 4, 0) });
+    assert(aimed.length === 1 && aimed[0] === true, "ProjectileFlyBState shot lift-off did not aim the unit");
+    assert(cacheValues.length === 1 && cacheValues[0] === 0 && cachedUnits[0] === firingUnit, "ProjectileFlyBState shot lift-off did not clear and recache the unit");
+    assert(shotSounds.length === 1 && shotSounds[0].sound === 77, "ProjectileFlyBState shot lift-off did not prefer ammo fire sound");
+
     return {
       straightPath: straightPath.copyPath(),
       straightTU: straightPath.getTotalTUCost(),
@@ -500,7 +606,9 @@ const verifier = String.raw`async page => {
       casualtyKills: killer._stats.kills.length,
       casualtyDeaths: deadSoldiers.length,
       hitAftermathExplosions: queuedExplosions.length,
-      blastKilledBy: blastVictim.getKilledBy()
+      blastKilledBy: blastVictim.getKilledBy(),
+      hostileGrenadeDanger: dangerCalls.length,
+      shotFireSound: shotSounds[0].sound
     };
   });
 

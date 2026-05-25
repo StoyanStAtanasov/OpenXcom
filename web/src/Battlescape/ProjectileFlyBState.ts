@@ -1,6 +1,7 @@
 import { Options } from "../Engine/Options.ts";
 import { KMOD_CTRL } from "../types.ts";
 import { MovementType } from "../Mod/Armor.ts";
+import { Mod } from "../Mod/Mod.ts";
 import { TilePart, VoxelType } from "../Mod/MapData.ts";
 import { BattleType } from "../Mod/RuleItem.ts";
 import type { BattleItem } from "../Savegame/BattleItem.ts";
@@ -339,7 +340,10 @@ export class ProjectileFlyBState extends BattleState {
           this._projectileItem.setFuseTimer(0);
         }
         this._projectileItem?.moveToOwner(null);
-        this._unit.invalidateCache();
+        this._unit.setCache(0);
+        this._parent.getMap().cacheUnit(this._unit);
+        this._parent.getMod()?.getSoundByDepth(Mod.ITEM_THROW, this._parent.getDepth(), false)
+          ?.play(-1, this._parent.getMap().getSoundAngle(this._unit.getPosition()));
         this._unit.addThrowingExp();
         return true;
       }
@@ -353,7 +357,7 @@ export class ProjectileFlyBState extends BattleState {
     if (this._action.weapon.getRules().getArcingShot()) {
       this._projectileImpact = projectile.calculateThrow(this._unit.getFiringAccuracy(this._action.type, this._action.weapon) / accuracyDivider);
       if (this._projectileImpact !== VoxelType.V_EMPTY && this._projectileImpact !== VoxelType.V_OUTOFBOUNDS) {
-        this.startShotAnimation();
+        this.startShotAnimation(projectile, true);
         return true;
       }
       this.failShot(projectile);
@@ -368,7 +372,7 @@ export class ProjectileFlyBState extends BattleState {
 
     if (!samePosition(this._targetVoxel, new Position(-16, -16, -24)) &&
       (this._projectileImpact !== VoxelType.V_EMPTY || this._action.type === BattleActionType.BA_LAUNCH)) {
-      this.startShotAnimation();
+      this.startShotAnimation(projectile);
       if (this._action.type !== BattleActionType.BA_LAUNCH) {
         this._unit.getStatistics().shotsFiredCounter++;
       }
@@ -379,12 +383,21 @@ export class ProjectileFlyBState extends BattleState {
     return false;
   }
 
-  private startShotAnimation(): void {
+  private startShotAnimation(projectile: Projectile, useUnitPosition = false): void {
     if (!this._unit || !this._ammo || !this._action.weapon) {
       return;
     }
     this._unit.aim(true);
-    this._unit.invalidateCache();
+    this._unit.setCache(0);
+    this._parent.getMap().cacheUnit(this._unit);
+    const fireSound = this._ammo.getRules().getFireSound() !== -1
+      ? this._ammo.getRules().getFireSound()
+      : this._action.weapon.getRules().getFireSound();
+    if (fireSound !== -1) {
+      const anglePosition = useUnitPosition ? this._unit.getPosition() : projectile.getOrigin();
+      this._parent.getMod()?.getSoundByDepth(fireSound, this._parent.getDepth(), false)
+        ?.play(-1, this._parent.getMap().getSoundAngle(anglePosition));
+    }
     if (!this._parent.getSave().getDebugMode() && this._action.type !== BattleActionType.BA_LAUNCH && !this._ammo.spendBullet()) {
       this._parent.getSave().removeItem(this._ammo);
       this._action.weapon.setAmmoItem(null);
@@ -398,7 +411,7 @@ export class ProjectileFlyBState extends BattleState {
     } else if (this._unit) {
       this._unit.setTimeUnits(this._unit.getTimeUnits() + this._action.TU);
     }
-    this._unit?.aim(false);
+    this._unit?.abortTurn();
     this._parent.popState();
   }
 
@@ -451,10 +464,15 @@ export class ProjectileFlyBState extends BattleState {
       }
       const item = projectile.getItem();
       if (item) {
+        this._parent.getMod()?.getSoundByDepth(Mod.ITEM_DROP, this._parent.getDepth(), false)
+          ?.play(-1, this._parent.getMap().getSoundAngle(pos));
         if (Options.battleInstantGrenade && item.getRules().getBattleType() === BattleType.BT_GRENADE && item.getFuseTimer() === 0) {
           this._parent.statePushFront(new ExplosionBState(this._parent, projectile.getPosition(Projectile.ItemDropVoxelOffset), item, this._action.actor));
         } else {
           this._parent.dropItem(pos, item);
+          if (this._unit.getFaction() !== UnitFaction.FACTION_PLAYER && item.getRules().getBattleType() === BattleType.BT_GRENADE) {
+            this._parent.getTileEngine()?.setDangerZone(pos, item.getRules().getExplosionRadius(), this._action.actor);
+          }
         }
       }
       return;
