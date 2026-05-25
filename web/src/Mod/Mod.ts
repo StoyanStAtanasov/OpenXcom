@@ -1,3 +1,5 @@
+import { AdlibMusic } from "../Engine/AdlibMusic.ts";
+import { CatFile } from "../Engine/CatFile.ts";
 import { Font, parseFontDat } from "../Engine/Font.ts";
 import { GMCatFile } from "../Engine/GMCat.ts";
 import type { RulesetGroup } from "../Engine/FileMap.ts";
@@ -1041,15 +1043,42 @@ export class Mod {
     }
     const soundFiles = this.activeManifestFiles("ufoSoundFiles", "tftdSoundFiles");
     const gmCatPath = `${soundDir}/GM.CAT`;
+    const adlibCatPath = this.findManifestPath(soundFiles, `${soundDir}/ADLIB.CAT`);
+    const aintroCatPath = this.findManifestPath(soundFiles, `${soundDir}/AINTRO.CAT`);
     let gmCat: GMCatFile | null = null;
+    let adlibCat: CatFile | null = null;
+    let aintroCat: CatFile | null = null;
     for (const [type, rule] of this.musicDefs) {
       let music: Music | null = null;
       const priority = browserMusicPriority(Options.preferredMusic);
       for (const format of priority) {
-        music = await this.loadMusicByFormat(format, rule, soundDir, soundFiles, gmCatPath, () => {
-          gmCat ??= new GMCatFile(this.assetUrl(gmCatPath));
-          return gmCat;
-        });
+        music = await this.loadMusicByFormat(
+          format,
+          rule,
+          soundDir,
+          soundFiles,
+          gmCatPath,
+          adlibCatPath,
+          aintroCatPath,
+          () => {
+            gmCat ??= new GMCatFile(this.assetUrl(gmCatPath));
+            return gmCat;
+          },
+          () => {
+            if (!adlibCatPath) {
+              throw new Error("ADLIB.CAT missing");
+            }
+            adlibCat ??= new CatFile(this.assetUrl(adlibCatPath));
+            return adlibCat;
+          },
+          () => {
+            if (!aintroCatPath) {
+              throw new Error("AINTRO.CAT missing");
+            }
+            aintroCat ??= new CatFile(this.assetUrl(aintroCatPath));
+            return aintroCat;
+          }
+        );
         if (music) {
           break;
         }
@@ -1067,12 +1096,46 @@ export class Mod {
     soundDir: string,
     soundFiles: string[],
     gmCatPath: string,
-    getGmCat: () => GMCatFile
+    adlibCatPath: string | null,
+    aintroCatPath: string | null,
+    getGmCat: () => GMCatFile,
+    getAdlibCat: () => CatFile,
+    getAintroCat: () => CatFile
   ): Promise<Music | null> {
     if (format === MUSIC_AUTO) {
       return null;
     }
     if (format === MUSIC_ADLIB) {
+      if (rule.getCatPos() === Number.MAX_SAFE_INTEGER || Options.audioBitDepth !== 16 || !adlibCatPath) {
+        return null;
+      }
+      try {
+        const music = new AdlibMusic(rule.getNormalization());
+        const adlibCat = getAdlibCat();
+        let track = rule.getCatPos();
+        if (track < adlibCat.getAmount()) {
+          const bytes = adlibCat.load(track, true);
+          if (!bytes) {
+            return null;
+          }
+          music.load(bytes, adlibCat.getObjectSize(track));
+          return music;
+        }
+        if (aintroCatPath) {
+          track -= adlibCat.getAmount();
+          const aintroCat = getAintroCat();
+          if (track < aintroCat.getAmount()) {
+            const bytes = aintroCat.load(track, true);
+            if (!bytes) {
+              return null;
+            }
+            music.load(bytes, aintroCat.getObjectSize(track));
+            return music;
+          }
+        }
+      } catch (error) {
+        Logger.log(LOG_WARNING, `ADLIB.CAT music not loaded: ${error instanceof Error ? error.message : "failed"}`);
+      }
       return null;
     }
     if (format === MUSIC_GM) {

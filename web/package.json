@@ -30,6 +30,7 @@
     "verify:active-mod-runtime": "node scripts/verify-active-mod-runtime.mjs",
     "verify:mod-selection": "node scripts/verify-mod-selection.mjs",
     "verify:music-source-priority": "node scripts/verify-music-source-priority.mjs",
+    "verify:adlib-music-player": "node scripts/verify-adlib-music-player.mjs",
     "verify:video-flc-player": "node scripts/verify-video-flc-player.mjs",
     "verify:interface-battlescape-theme": "node scripts/verify-interface-battlescape-theme.mjs",
     "verify:font-source-parity": "node scripts/verify-font-source-parity.mjs",

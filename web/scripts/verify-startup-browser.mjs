@@ -119,13 +119,13 @@ const verifier = String.raw`async page => {
     if (!storyRequest) {
       throw new Error("MainMenuState did not request source interface music GMSTORY");
     }
-    if (!window.__openxcomMidiBackendStarted) {
+    if (!window.__openxcomMidiBackendStarted && !Music._currentCustomPlayback) {
       mod.playingMusic = "";
       mod.playMusic("GMSTORY");
     }
-    const musicActive = Boolean(Music._currentAudio || Music._currentMidiPlayback || window.__openxcomMidiBackendStarted);
+    const musicActive = Boolean(Music._currentAudio || Music._currentMidiPlayback || Music._currentCustomPlayback || window.__openxcomMidiBackendStarted);
     if (!musicActive) {
-      throw new Error("GMSTORY request did not activate native stream or browser MIDI backend after user gesture");
+      throw new Error("GMSTORY request did not activate native stream, browser MIDI backend, or translated Adlib playback after user gesture");
     }
     if (Music._currentSynth?.sources?.length) {
       throw new Error("Startup must not use the crude oscillator MIDI synth by default");

@@ -1,14 +1,14 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T22:59:17.886Z",
+    "generatedAt": "2026-05-25T23:17:30.844Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
     "sourceCodeFiles": 646,
     "targetTsFiles": 342,
     "webOnlyTsFiles": 6,
-    "integratedVerifiedSlices": 27,
-    "trackedSlices": 27,
+    "integratedVerifiedSlices": 28,
+    "trackedSlices": 28,
     "slicePathWarnings": 0
   },
   "areas": [
@@ -113,7 +113,7 @@
     }
   ],
   "statusRollups": {
-    "integrated-verified": 27
+    "integrated-verified": 28
   },
   "nextQueue": [],
   "slices": [
@@ -940,7 +940,7 @@
       "verification": "npm run build passed; npm run typecheck passed; npm run verify:battle-runtime passed for browser proof that Game::setVolume applies the source exponential volume curve, Sound channel -1 controls default sound, channel 3 is halved without a saved battle and scaled by SavedBattleGame::getAmbientVolume() with one, Music receives the source music curve, UI channels 1 and 2 receive the source UI curve, muted setVolume calls preserve current adapter volumes, TextButton/Window popup sounds now use the source reserved UI channel group rotation, and Sound.stop() clears owned looping-sound state so ambient playback can restart after global halt.",
       "boundaries": [
         "Browser WebAudio still adapts SDL_mixer channels rather than reproducing native mixer internals exactly.",
-        "Full YM3812/Adlib playback, FLC audio, and native backend parity remain separate browser adapter seams."
+        "FLC audio/fade timing and native backend parity remain separate browser adapter seams."
       ]
     },
     {
@@ -948,7 +948,7 @@
       "area": "Engine",
       "status": "integrated-verified",
       "slicePercent": 100,
-      "nextAction": "Keep native digital streaming first when available, use the bundled libtimidity/FreePats MIDI backend for MID/GM.CAT-only installs, and move remaining audio work to Adlib/YM3812/FLC/native-mixer parity.",
+      "nextAction": "Keep native digital streaming first when available, use the bundled libtimidity/FreePats MIDI backend for MID/GM.CAT-only installs, and keep remaining audio work focused on FLC/native-mixer parity.",
       "sourceFiles": [
         "src/Engine/CatFile.cpp",
         "src/Engine/CatFile.h",
@@ -980,8 +980,41 @@
       "verification": "npm run build passed; npm run typecheck passed; npm run verify:music-source-priority passed for compiled-browser proof that Options.preferredMusic uses the source MUSIC_AUTO default, Mod.loadMusicResources follows Mod::loadMusic() digital priority by streaming browser-playable OGG before MID/GM fallback when both are present, explicit browser GM/MIDI preferences still stream an available OGG before non-digital fallback, unsupported browser digital formats are skipped so later formats/fallbacks can load, CatFile.load preserves source object-size semantics after skipping embedded CAT names, GM.CAT conversion emits the source controller reset bytes without the extra 00 B0 corruption, the crude oscillator MIDI synth is disabled by default, an explicitly installed browser MIDI backend receives the GM.CAT bytes, loop flag, volume, and stop lifecycle, and the bundled TimidityMidiBackend/libtimidity/FreePats path becomes ready for real GM.CAT MIDI bytes in the browser. npm run verify:startup-browser passed afterward for source GMSTORY request playback after user gesture through the default MIDI backend hook without creating the oscillator synth.",
       "boundaries": [
         "Browser codec support decides which digital formats can stream natively; unsupported digital formats are skipped so the loader can continue to later streamable formats or MID/GM.CAT fallback.",
-        "Original MID/GM.CAT playback uses the bundled browser libtimidity/FreePats backend by default when no streamable digital track exists; tone is a General MIDI software-synth adapter rather than SDL_mixer/OS-native MIDI output.",
-        "Adlib/YM3812 playback remains a separate source translation boundary."
+        "Original MID/GM.CAT playback uses the bundled browser libtimidity/FreePats backend by default when no streamable digital track exists; tone is a General MIDI software-synth adapter rather than SDL_mixer/OS-native MIDI output."
+      ]
+    },
+    {
+      "name": "Adlib YM3812 music playback",
+      "area": "Engine",
+      "status": "integrated-verified",
+      "slicePercent": 90,
+      "nextAction": "Replace the ScriptProcessor bridge with AudioWorklet only if latency/deprecation becomes observable, and add native-vs-browser PCM parity checks if a native OpenXcom/fmopl harness is available.",
+      "sourceFiles": [
+        "src/Engine/AdlibMusic.cpp",
+        "src/Engine/AdlibMusic.h",
+        "src/Engine/Adlib/adlplayer.cpp",
+        "src/Engine/Adlib/adlplayer.h",
+        "src/Engine/Adlib/fmopl.cpp",
+        "src/Engine/Adlib/fmopl.h",
+        "src/Engine/Music.cpp",
+        "src/Engine/Music.h",
+        "src/Mod/Mod.cpp",
+        "src/Mod/Mod.h"
+      ],
+      "targetFiles": [
+        "web/src/Engine/AdlibMusic.ts",
+        "web/src/Engine/Adlib/adlplayer.ts",
+        "web/src/Engine/Adlib/fmopl.ts",
+        "web/src/Engine/Music.ts",
+        "web/src/Mod/Mod.ts",
+        "web/scripts/verify-adlib-music-player.mjs",
+        "web/scripts/verify-startup-browser.mjs",
+        "web/package.json"
+      ],
+      "verification": "npm run build passed; npm run typecheck passed; npm run verify:adlib-music-player passed for compiled-browser proof that Mod::loadMusic MUSIC_ADLIB now loads ADLIB.CAT through AdlibMusic, AdlibMusic::play follows the source setup/volume/custom-player route, the translated YM3812UpdateOne mixer produces nonzero samples from real XCOM/SOUND/ADLIB.CAT data, and the old AdlibMusic browser-boundary warning is absent. npm run verify:music-source-priority, npm run verify:startup-browser, and npm run verify:active-mod-runtime passed afterward to protect digital-stream priority, startup audio activation, and active-master resource loading.",
+      "boundaries": [
+        "The browser uses a WebAudio ScriptProcessor callback as the SDL_mixer hook adapter; the Adlib command interpreter and YM3812 mixer body are source-shaped, but callback scheduling is browser-native.",
+        "No native PCM golden-output harness is currently wired, so verification proves real CAT loading and non-silent translated synthesis rather than sample-exact native parity."
       ]
     },
     {
@@ -1091,7 +1124,7 @@
         "web/scripts/verify-startup-browser.mjs",
         "web/package.json"
       ],
-      "verification": "npm run verify:startup-browser passed for build/typecheck/browser proof that StartState shows the native browser cursor during loading, the loaded browser runtime keeps the native cursor visible instead of relying on a reload-sensitive translated cursor blit, Font.loadTerminal() decodes the embedded source DosFont.h bitmap, normal UI font PNG shades preserve the source indexed grayscale values, browser startup output no longer contains DOS/4GW, SoundBlaster, Base Port, IRQ, or DMA text, browser-adapter startup lines are shown instead, C++ default geoscape/battlescape scale uses a 320x200 base surface scaled to the 640x400 display, browser CSS canvas scale is non-fractional, State::init() requests main-menu RuleInterface music through Mod.playMusic(), GMSTORY is found, a user gesture activates native stream or explicit browser MIDI backend music without using the crude oscillator synth, and the startup console does not contain the AudioContext autoplay-policy warning.",
+      "verification": "npm run verify:startup-browser passed for build/typecheck/browser proof that StartState shows the native browser cursor during loading, the loaded browser runtime keeps the native cursor visible instead of relying on a reload-sensitive translated cursor blit, Font.loadTerminal() decodes the embedded source DosFont.h bitmap, normal UI font PNG shades preserve the source indexed grayscale values, browser startup output no longer contains DOS/4GW, SoundBlaster, Base Port, IRQ, or DMA text, browser-adapter startup lines are shown instead, C++ default geoscape/battlescape scale uses a 320x200 base surface scaled to the 640x400 display, browser CSS canvas scale is non-fractional, State::init() requests main-menu RuleInterface music through Mod.playMusic(), GMSTORY is found, a user gesture activates native stream, explicit browser MIDI backend, or translated Adlib playback without using the crude oscillator synth, and the startup console does not contain the AudioContext autoplay-policy warning.",
       "boundaries": [
         "This is a browser adapter slice: it preserves the StartState loading lifecycle but intentionally replaces native DOS/SoundBlaster platform text with browser platform text.",
         "Full WebAudio mixer/backend parity and exact native audio backend behavior remain separate adapter boundaries."
@@ -1233,11 +1266,11 @@
       "Basescape": 9114,
       "Battlescape": 19949,
       "(root)": 338,
-      "Engine": 9916,
+      "Engine": 10274,
       "Geoscape": 8639,
       "Interface": 2950,
       "Menu": 5184,
-      "Mod": 13149,
+      "Mod": 13212,
       "Savegame": 14224,
       "Ufopaedia": 1902
     }

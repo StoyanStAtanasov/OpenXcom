@@ -9,6 +9,7 @@ import {
   OPLDestroy,
   OPLRead,
   OPLResetChip,
+  OPL_TYPE_YM3812,
   OPLWrite,
   type FM_OPL,
 } from "./fmopl.ts";
@@ -689,10 +690,10 @@ export function func_setup_music(musicPtr: Uint8Array, length: number): void {
   initMusicData(musicPtr, length);
   initMusic();
   if (!opl[0]) {
-    opl[0] = OPLCreate(0, 3579545, 44100);
+    opl[0] = OPLCreate(OPL_TYPE_YM3812, 3579545, 44100);
   }
   if (!opl[1]) {
-    opl[1] = OPLCreate(0, 3579545, 44100);
+    opl[1] = OPLCreate(OPL_TYPE_YM3812, 3579545, 44100);
   }
   adlibInit();
   adlibResetChannels();

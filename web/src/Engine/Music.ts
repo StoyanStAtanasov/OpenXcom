@@ -13,7 +13,7 @@ type MidiSequence = {
   notes: Array<{ start: number; duration: number; note: number; velocity: number; channel: number }>;
 };
 
-type MidiPlaybackHandle = {
+export type MusicPlaybackHandle = {
   stop?: () => void;
   pause?: () => void;
   resume?: () => void;
@@ -21,7 +21,7 @@ type MidiPlaybackHandle = {
 };
 
 export type BrowserMidiBackend = {
-  play: (data: Uint8Array, options: { loop: boolean; volume: number }) => MidiPlaybackHandle | void | null;
+  play: (data: Uint8Array, options: { loop: boolean; volume: number }) => MusicPlaybackHandle | void | null;
 };
 
 export class Music {
@@ -39,7 +39,8 @@ export class Music {
   private static _context: AudioContext | null = null;
   private static _masterGain: GainNode | null = null;
   private static _currentSynth: { sources: AudioScheduledSourceNode[]; timers: number[] } | null = null;
-  private static _currentMidiPlayback: MidiPlaybackHandle | null = null;
+  private static _currentMidiPlayback: MusicPlaybackHandle | null = null;
+  private static _currentCustomPlayback: MusicPlaybackHandle | null = null;
   private static _midiBackend: BrowserMidiBackend | null = null;
   private static _pendingPlayback: { music: Music; loop: number } | null = null;
   private static _userActivated = false;
@@ -82,11 +83,7 @@ export class Music {
     if (Options.mute || (!this._music && !this._streamUrl)) {
       return false;
     }
-    ++this._playCount;
-    this._lastLoop = loop;
-    Music._playing = true;
-    Music._paused = false;
-    Music.stopCurrentAudio();
+    this.beginPlayback(loop);
     const started = this.startPlayback(loop);
     if (!started) {
       Music._playing = false;
@@ -94,7 +91,7 @@ export class Music {
     return started;
   }
 
-  private startPlayback(loop: number): boolean {
+  protected startPlayback(loop: number): boolean {
     if (!this._music && !this._streamUrl) {
       return false;
     }
@@ -251,6 +248,7 @@ export class Music {
       Music._paused = true;
       Music._currentAudio?.pause();
       Music._currentMidiPlayback?.pause?.();
+      Music._currentCustomPlayback?.pause?.();
       if (Music._masterGain) {
         Music._masterGain.gain.value = 0;
       }
@@ -262,6 +260,7 @@ export class Music {
       Music._paused = false;
       void Music._currentAudio?.play().catch(() => undefined);
       Music._currentMidiPlayback?.resume?.();
+      Music._currentCustomPlayback?.resume?.();
       if (Music._masterGain) {
         Music._masterGain.gain.value = Music._volume;
       }
@@ -278,6 +277,7 @@ export class Music {
       Music._currentAudio.volume = Music._volume;
     }
     Music._currentMidiPlayback?.setVolume?.(Music._volume);
+    Music._currentCustomPlayback?.setVolume?.(Music._volume);
     if (Music._masterGain) {
       Music._masterGain.gain.value = Music._paused ? 0 : Music._volume;
     }
@@ -340,6 +340,7 @@ export class Music {
   private static stopCurrentAudio(): void {
     Music.stopCurrentSynth();
     Music.stopCurrentMidiPlayback();
+    Music.stopCurrentCustomPlayback();
     if (Music._currentAudio) {
       Music._currentAudio.pause();
       Music._currentAudio.removeAttribute("src");
@@ -361,6 +362,15 @@ export class Music {
     Music._currentMidiPlayback = null;
   }
 
+  private static stopCurrentCustomPlayback(): void {
+    try {
+      Music._currentCustomPlayback?.stop?.();
+    } catch {
+      // SDL_mixer stop is forgiving; keep custom browser streams equally tolerant.
+    }
+    Music._currentCustomPlayback = null;
+  }
+
   private static stopCurrentSynth(): void {
     if (!Music._currentSynth) {
       return;
@@ -380,7 +390,7 @@ export class Music {
     Music._currentSynth = null;
   }
 
-  private static audioContext(): AudioContext | null {
+  protected static audioContext(): AudioContext | null {
     if (typeof window === "undefined") {
       return null;
     }
@@ -405,7 +415,7 @@ export class Music {
     return Music._context;
   }
 
-  private static hasUserActivation(): boolean {
+  protected static hasUserActivation(): boolean {
     Music.installUnlockListeners();
     const activation = typeof navigator !== "undefined"
       ? (navigator as unknown as { userActivation?: { hasBeenActive?: boolean; isActive?: boolean } }).userActivation
@@ -413,7 +423,7 @@ export class Music {
     return Music._userActivated || Boolean(activation?.hasBeenActive || activation?.isActive);
   }
 
-  private static deferPlayback(music: Music, loop: number): void {
+  protected static deferPlayback(music: Music, loop: number): void {
     Music._pendingPlayback = { music, loop };
     Music.installUnlockListeners();
   }
@@ -439,6 +449,21 @@ export class Music {
     window.addEventListener("pointerdown", unlock, { once: true, capture: true });
     window.addEventListener("keydown", unlock, { once: true, capture: true });
     window.addEventListener("touchstart", unlock, { once: true, capture: true, passive: true });
+  }
+
+  protected beginPlayback(loop: number): void {
+    ++this._playCount;
+    this._lastLoop = loop;
+    Music._playing = true;
+    Music._paused = false;
+    Music.stopCurrentAudio();
+  }
+
+  protected static installCustomPlayback(handle: MusicPlaybackHandle): void {
+    Music.stopCurrentAudio();
+    Music._currentCustomPlayback = handle;
+    Music._playing = true;
+    Music._paused = false;
   }
 
   private detectMimeType(): string {
