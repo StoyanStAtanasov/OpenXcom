@@ -7,6 +7,7 @@ import { Options } from "../Engine/Options.ts";
 import { RNG } from "../Engine/RNG.ts";
 import { MovementType } from "../Mod/Armor.ts";
 import { BattleType, ItemDamageType } from "../Mod/RuleItem.ts";
+import { SpecialAbility } from "../Mod/Unit.ts";
 import type { RuleInventory } from "../Mod/RuleInventory.ts";
 import { MapData, TilePart, VoxelType } from "../Mod/MapData.ts";
 import type { BattleItem } from "../Savegame/BattleItem.ts";
@@ -14,6 +15,7 @@ import { UnitFaction, UnitStatus, type BattleUnit } from "../Savegame/BattleUnit
 import type { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
 import type { Tile } from "../Savegame/Tile.ts";
 import { AIModule } from "./AIModule.ts";
+import { ExplosionBState } from "./ExplosionBState.ts";
 
 type TileEngineModLike = {
   getInventory?: (id: string, error?: boolean) => RuleInventory | null;
@@ -374,10 +376,38 @@ export class TileEngine {
           .multiply(new Position(16, 16, 24))
           .add(new Position(sizeCenter, sizeCenter, hitUnit.getFloatHeight() - tile.getTerrainLevel()));
         const relative = center.subtract(target).subtract(new Position(0, 0, verticalOffset));
-        hitUnit.damage(relative, rndPower, type);
+        const wounds = hitUnit.getFatalWounds();
+        const adjustedDamage = hitUnit.damage(relative, rndPower, type);
+        if (unit && hitUnit.getFaction() !== UnitFaction.FACTION_PLAYER && wounds < hitUnit.getFatalWounds()) {
+          hitUnit.killedBy(unit.getFaction());
+        }
+        const bravery = Math.trunc((110 - hitUnit.getBaseStats().bravery) / 10);
+        const modifier = hitUnit.getFaction() === UnitFaction.FACTION_PLAYER ? this._save.getMoraleModifier() : 100;
+        const moraleLoss = Math.trunc(100 * Math.trunc(adjustedDamage * bravery / 10) / modifier);
+        hitUnit.moraleChange(-moraleLoss);
+        if ((hitUnit.getSpecialAbility() === SpecialAbility.SPECAB_EXPLODEONDEATH ||
+          hitUnit.getSpecialAbility() === SpecialAbility.SPECAB_BURN_AND_EXPLODE) &&
+          !hitUnit.isOut() &&
+          (hitUnit.getHealth() === 0 || hitUnit.getStunlevel() >= hitUnit.getHealth()) &&
+          type !== ItemDamageType.DT_STUN &&
+          type !== ItemDamageType.DT_HE &&
+          type !== ItemDamageType.DT_IN &&
+          type !== ItemDamageType.DT_MELEE) {
+          const battleGame = this._save.getBattleGame();
+          if (battleGame) {
+            battleGame.statePushNext(new ExplosionBState(
+              battleGame,
+              hitUnit.getPosition().multiply(new Position(16, 16, 24)),
+              null,
+              hitUnit,
+              null
+            ));
+          }
+        }
         if (hitUnit.getOriginalFaction() === UnitFaction.FACTION_HOSTILE &&
           unit?.getOriginalFaction() === UnitFaction.FACTION_PLAYER &&
-          type !== ItemDamageType.DT_NONE) {
+          type !== ItemDamageType.DT_NONE &&
+          this._save.getBattleGame()?.getCurrentAction().type !== BattleActionType.BA_HIT) {
           unit.addFiringExp();
         }
       }
@@ -1999,12 +2029,16 @@ export class TileEngine {
     const min = Math.trunc(power * (100 - dmgRng) / 100);
     const max = Math.trunc(power * (100 + dmgRng) / 100);
     let hitUnit = dest.getUnit();
+    let wounds = 0;
     const tileBelow = this._save.getTile(dest.getPosition().add(new Position(0, 0, -1)));
     if (!hitUnit && dest.getPosition().z > 0 && dest.hasNoFloor(tileBelow)) {
       const belowUnit = tileBelow?.getUnit() || null;
       if (belowUnit && belowUnit.getHeight() + belowUnit.getFloatHeight() - tileBelow!.getTerrainLevel() > 24) {
         hitUnit = belowUnit;
       }
+    }
+    if (hitUnit && unit) {
+      wounds = hitUnit.getFatalWounds();
     }
 
     switch (type) {
@@ -2066,6 +2100,9 @@ export class TileEngine {
 
     if (unit && hitUnit && hitUnit.getFaction() !== unit.getFaction()) {
       unit.addFiringExp();
+      if (wounds < hitUnit.getFatalWounds() && hitUnit.getFaction() !== UnitFaction.FACTION_PLAYER) {
+        hitUnit.killedBy(unit.getFaction());
+      }
     }
   }
 

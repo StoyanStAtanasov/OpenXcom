@@ -32,16 +32,18 @@ const verifier = String.raw`async page => {
     const [
       { Pathfinding },
       { TileEngine },
+      { ExplosionBState },
       { Position },
       { MovementType },
       { UnitFaction, UnitStatus, UnitSide, UnitBodyPart },
       { TilePart, VoxelType },
-      { BattlescapeGame },
+      { BattlescapeGame, BattleActionType },
       { ItemDamageType },
       { SpecialAbility }
     ] = await Promise.all([
       import("/web/dist/Battlescape/Pathfinding.js"),
       import("/web/dist/Battlescape/TileEngine.js"),
+      import("/web/dist/Battlescape/ExplosionBState.js"),
       import("/web/dist/Battlescape/Position.js"),
       import("/web/dist/Mod/Armor.js"),
       import("/web/dist/Savegame/BattleUnit.js"),
@@ -63,9 +65,13 @@ const verifier = String.raw`async page => {
         this.loft = loft;
       }
       getBigWall() { return 0; }
+      getArmor() { return 0; }
+      getBlock() { return 0; }
+      getLightSource() { return 0; }
       isDoor() { return false; }
       isUFODoor() { return false; }
       isGravLift() { return this.gravLift; }
+      isNoFloor() { return false; }
       getLoftID() { return this.loft; }
     }
 
@@ -77,14 +83,22 @@ const verifier = String.raw`async page => {
         this.noFloor = Boolean(options.noFloor);
         this.floor = options.floor ?? new FakeMapData();
         this.unit = options.unit ?? null;
+        this.inventory = options.inventory ?? [];
+        this.explosive = options.explosive ?? 0;
+        this.explosiveType = options.explosiveType ?? 0;
+        this.fire = options.fire ?? 0;
+        this.smoke = options.smoke ?? 0;
+        this.light = [0, 0, 0];
       }
       getPosition() { return this.pos.clone(); }
       getTerrainLevel() { return this.terrainLevel; }
       getVisible() { return this.visible; }
       isVoid() { return false; }
+      isBigWall() { return false; }
       getMapData(part) {
         return part === TilePart.O_FLOOR ? this.floor : null;
       }
+      damage() { return false; }
       getTUCost(part) {
         if (part === TilePart.O_FLOOR) {
           return this.noFloor ? 255 : 4;
@@ -94,8 +108,20 @@ const verifier = String.raw`async page => {
       hasNoFloor() { return this.noFloor; }
       getUnit() { return this.unit; }
       setUnit(unit) { this.unit = unit; }
-      getFire() { return 0; }
-      getSmoke() { return 0; }
+      getInventory() { return this.inventory; }
+      addItem(item) { this.inventory.push(item); }
+      getExplosive() { return this.explosive; }
+      getExplosiveType() { return this.explosiveType; }
+      setExplosive(power, type = 0) { this.explosive = power; this.explosiveType = type; }
+      getFuel() { return 0; }
+      getFlammability() { return 0; }
+      getFire() { return this.fire; }
+      setFire(value) { this.fire = value; }
+      getSmoke() { return this.smoke; }
+      setSmoke(value) { this.smoke = value; }
+      resetLight(layer) { this.light[layer] = 0; }
+      addLight(light, layer) { this.light[layer] = Math.max(this.light[layer] || 0, light); }
+      getShade() { return Math.max(0, 15 - Math.max(...this.light)); }
       isUfoDoorOpen() { return false; }
     }
 
@@ -105,6 +131,10 @@ const verifier = String.raw`async page => {
         this.sizeY = sizeY;
         this.sizeZ = sizeZ;
         this.tiles = new Map();
+        this.units = [];
+        this.fallingUnits = [];
+        this.destroyedObjectives = 0;
+        this.battleGame = null;
         for (let z = 0; z < sizeZ; ++z) {
           for (let y = 0; y < sizeY; ++y) {
             for (let x = 0; x < sizeX; ++x) {
@@ -140,6 +170,16 @@ const verifier = String.raw`async page => {
       setTile(posLike, tile) {
         this.tiles.set(this.key(Position.from(posLike)), tile);
       }
+      getTiles() { return [...this.tiles.values()]; }
+      getUnits() { return this.units; }
+      getMissionType() { return ""; }
+      getObjectiveType() { return 0; }
+      addDestroyedObjective() { this.destroyedObjectives++; }
+      getModuleMap() { return []; }
+      getMoraleModifier() { return 100; }
+      getGlobalShade() { return 0; }
+      getBattleGame() { return this.battleGame; }
+      addFallingUnit(unit) { this.fallingUnits.push(unit); }
       getDepth() { return 0; }
       isBeforeGame() { return false; }
     }
@@ -329,6 +369,127 @@ const verifier = String.raw`async page => {
     assert(pushedStates.length === 1, "UnitDieBState was not queued for the casualty");
     assert(psiButtonCalls.length === 1 && psiButtonCalls[0] === false, "psi button was not refreshed after casualties");
 
+    const makeDamageUnit = options => {
+      let health = options.health ?? 100;
+      let stun = options.stun ?? 0;
+      let fatalWounds = options.fatalWounds ?? 0;
+      let killedByFaction = null;
+      let morale = 100;
+      let firingExp = 0;
+      return {
+        getPosition: () => options.position.clone(),
+        setPosition: pos => { options.position = pos.clone(); },
+        getArmor: () => ({
+          getSize: () => 1,
+          getDamageModifier: () => 1,
+          getCorpseGeoscape: () => "STR_TEST_CORPSE"
+        }),
+        getMovementType: () => MovementType.MT_WALK,
+        getFaction: () => options.faction,
+        getOriginalFaction: () => options.originalFaction ?? options.faction,
+        getHealth: () => health,
+        getStunlevel: () => stun,
+        getFatalWounds: () => fatalWounds,
+        damage: () => {
+          fatalWounds += options.fatalWoundDelta ?? 1;
+          if (options.killOnDamage) {
+            health = 0;
+          }
+          return options.adjustedDamage ?? 12;
+        },
+        killedBy: faction => {
+          if (faction == null) {
+            return killedByFaction;
+          }
+          killedByFaction = faction;
+        },
+        getKilledBy: () => killedByFaction,
+        moraleChange: amount => { morale += amount; },
+        getMorale: () => morale,
+        getBaseStats: () => ({ bravery: options.bravery ?? 50, strength: 40 }),
+        getSpecialAbility: () => options.specialAbility ?? SpecialAbility.SPECAB_NONE,
+        isOut: () => false,
+        getFloatHeight: () => 0,
+        getHeight: () => 20,
+        getLoftemps: () => 1,
+        getVisible: () => true,
+        addFiringExp: () => { firingExp++; },
+        getFiringExp: () => firingExp
+      };
+    };
+
+    const aftermathVoxelData = Array(32).fill(0);
+    for (let row = 16; row < 32; ++row) {
+      aftermathVoxelData[row] = 0xffff;
+    }
+    const hitSave = new FakeSave(3, 3, 1);
+    const hitAttacker = makeDamageUnit({
+      position: new Position(0, 1, 0),
+      faction: UnitFaction.FACTION_PLAYER,
+      originalFaction: UnitFaction.FACTION_PLAYER
+    });
+    const explodingVictim = makeDamageUnit({
+      position: new Position(1, 1, 0),
+      faction: UnitFaction.FACTION_HOSTILE,
+      originalFaction: UnitFaction.FACTION_HOSTILE,
+      specialAbility: SpecialAbility.SPECAB_EXPLODEONDEATH,
+      killOnDamage: true,
+      adjustedDamage: 12
+    });
+    hitSave.getTile(new Position(1, 1, 0)).setUnit(explodingVictim);
+    const queuedExplosions = [];
+    hitSave.battleGame = {
+      getCurrentAction: () => ({ type: BattleActionType.BA_SNAPSHOT }),
+      statePushNext: state => queuedExplosions.push(state)
+    };
+    const hitEngine = new TileEngine(hitSave, aftermathVoxelData);
+    const hitResult = hitEngine.hit(new Position(1 * 16 + 8, 1 * 16 + 8, 10), 20, ItemDamageType.DT_AP, hitAttacker);
+    assert(hitResult === explodingVictim, "TileEngine.hit did not return the hit unit");
+    assert(explodingVictim.getKilledBy() === UnitFaction.FACTION_PLAYER, "TileEngine.hit did not credit fatal wounds to the attacker faction");
+    assert(explodingVictim.getMorale() === 93, "TileEngine.hit morale loss mismatch: " + explodingVictim.getMorale());
+    assert(hitAttacker.getFiringExp() === 1, "TileEngine.hit did not award firing experience");
+    assert(queuedExplosions.length === 1, "TileEngine.hit did not queue explode-on-death aftermath");
+
+    const blastSave = new FakeSave(3, 3, 1);
+    const blastAttacker = makeDamageUnit({
+      position: new Position(0, 1, 0),
+      faction: UnitFaction.FACTION_PLAYER,
+      originalFaction: UnitFaction.FACTION_PLAYER
+    });
+    const blastVictim = makeDamageUnit({
+      position: new Position(1, 1, 0),
+      faction: UnitFaction.FACTION_HOSTILE,
+      originalFaction: UnitFaction.FACTION_HOSTILE
+    });
+    blastSave.getTile(new Position(1, 1, 0)).setUnit(blastVictim);
+    const blastEngine = new TileEngine(blastSave, aftermathVoxelData);
+    blastEngine.explode(new Position(1 * 16 + 8, 1 * 16 + 8, 12), 20, ItemDamageType.DT_STUN, 0, blastAttacker);
+    assert(blastVictim.getKilledBy() === UnitFaction.FACTION_PLAYER, "TileEngine.explode did not credit fatal wounds to the attacker faction");
+    assert(blastAttacker.getFiringExp() > 0, "TileEngine.explode did not award firing experience for hostile damage");
+
+    const chainTile = new FakeTile(new Position(2, 1, 0), { explosive: 40 });
+    const chainCalls = [];
+    const chainedStates = [];
+    const chainParent = {
+      getSave: () => ({
+        getTileEngine: () => ({
+          explode: (...args) => chainCalls.push(args),
+          checkForTerrainExplosions: () => chainTile
+        }),
+        removeItem: () => {}
+      }),
+      getMap: () => ({ cacheUnits: () => {}, getExplosions: () => [], getBlastFlash: () => false }),
+      checkForCasualties: () => {},
+      popState: () => { chainParent.popped = true; },
+      statePushFront: state => chainedStates.push(state)
+    };
+    const chainState = new ExplosionBState(chainParent, new Position(8, 8, 0), null, hitAttacker, null);
+    chainState._power = 40;
+    chainState.explode();
+    assert(chainParent.popped === true, "ExplosionBState did not pop before chaining terrain explosions");
+    assert(chainedStates.length === 1, "ExplosionBState did not queue chained terrain explosion");
+    assert(chainedStates[0]._center.equals(new Position(40, 24, 0)), "ExplosionBState chained terrain center lost the source +8,+8 voxel offset");
+
     return {
       straightPath: straightPath.copyPath(),
       straightTU: straightPath.getTotalTUCost(),
@@ -337,7 +498,9 @@ const verifier = String.raw`async page => {
       flyingUp: true,
       potentialUnitTarget: scanVoxel.toString(),
       casualtyKills: killer._stats.kills.length,
-      casualtyDeaths: deadSoldiers.length
+      casualtyDeaths: deadSoldiers.length,
+      hitAftermathExplosions: queuedExplosions.length,
+      blastKilledBy: blastVictim.getKilledBy()
     };
   });
 

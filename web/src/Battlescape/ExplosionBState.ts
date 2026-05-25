@@ -213,26 +213,27 @@ export class ExplosionBState extends BattleState {
     if (!this._cosmetic) {
       this._parent.checkForCasualties(this._item, this._unit, false, terrainExplosion);
     }
-    if (this._lowerWeapon && this._unit) {
+    if (this._lowerWeapon && this._unit && !this._unit.isOut()) {
       this._unit.aim(false);
-      this._unit.invalidateCache();
+      this._unit.setCache(0);
     }
-    if (this._item &&
-      (this._item.getRules().getBattleType() === BattleType.BT_GRENADE ||
-        this._item.getRules().getBattleType() === BattleType.BT_PROXIMITYGRENADE)) {
-      save.removeItem(this._item);
-    }
-
+    this._parent.getMap().cacheUnits();
     this._parent.popState();
     const chainedTile = engine.checkForTerrainExplosions();
     if (chainedTile) {
       this._parent.statePushFront(new ExplosionBState(
         this._parent,
-        chainedTile.getPosition().multiply(new Position(16, 16, 24)),
+        chainedTile.getPosition().multiply(new Position(16, 16, 24)).add(new Position(8, 8, 0)),
         null,
         this._unit,
         chainedTile
       ));
+    }
+
+    if (this._item &&
+      (this._item.getRules().getBattleType() === BattleType.BT_GRENADE ||
+        this._item.getRules().getBattleType() === BattleType.BT_PROXIMITYGRENADE)) {
+      save.removeItem(this._item);
     }
   }
 }
