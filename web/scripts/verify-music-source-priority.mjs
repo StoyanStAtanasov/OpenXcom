@@ -31,7 +31,7 @@ const verifier = String.raw`async page => {
       import("/web/dist/Engine/GMCat.js"),
       import("/web/dist/Engine/Music.js")
     ]);
-    const { Options, MUSIC_AUTO } = optionsModule;
+    const { Options, MUSIC_AUTO, MUSIC_GM, MUSIC_MIDI } = optionsModule;
     const oldPreferred = Options.preferredMusic;
     Options.preferredMusic = MUSIC_AUTO;
 
@@ -52,6 +52,23 @@ const verifier = String.raw`async page => {
       }
       if (music.getSourceKind() !== "stream" || music.getMimeType() !== "audio/ogg") {
         throw new Error("Digital OGG should stream before GM/MIDI; got " + music.getSourceKind() + " " + music.getMimeType());
+      }
+
+      for (const preferred of [MUSIC_GM, MUSIC_MIDI]) {
+        Options.preferredMusic = preferred;
+        const preferredMod = new Mod();
+        const preferredRule = new RuleMusic("GMSTORY");
+        preferredRule.load({ type: "GMSTORY", catPos: 12 });
+        preferredMod.manifest = {
+          ufoSoundDir: "XCOM/SOUND",
+          ufoSoundFiles: ["XCOM/SOUND/gmstory.ogg", "XCOM/SOUND/GMSTORY.MID", "XCOM/SOUND/GM.CAT"]
+        };
+        preferredMod.musicDefs.set("GMSTORY", preferredRule);
+        await preferredMod.loadMusicResources();
+        const preferredMusic = preferredMod.musics.get("GMSTORY");
+        if (!preferredMusic || preferredMusic.getSourceKind() !== "stream" || preferredMusic.getMimeType() !== "audio/ogg") {
+          throw new Error("Browser adapter should stream OGG before MIDI/GM fallback even for preferred " + preferred);
+        }
       }
 
       const cat = new GMCatFile("../XCOM/SOUND/GM.CAT");

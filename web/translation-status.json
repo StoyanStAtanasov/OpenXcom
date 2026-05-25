@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T21:36:21.523Z",
+    "generatedAt": "2026-05-25T21:44:55.168Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
@@ -971,9 +971,9 @@
         "web/scripts/verify-music-source-priority.mjs",
         "web/package.json"
       ],
-      "verification": "npm run build passed; npm run typecheck passed; npm run verify:music-source-priority passed for compiled-browser proof that Options.preferredMusic uses the source MUSIC_AUTO default, Mod.loadMusicResources follows Mod::loadMusic() digital priority by streaming browser-playable OGG before MID/GM fallback when both are present, CatFile.load preserves source object-size semantics after skipping embedded CAT names, GM.CAT conversion emits the source controller reset bytes without the extra 00 B0 corruption, the crude oscillator MIDI synth is disabled by default, and an explicitly installed browser MIDI backend receives the GM.CAT bytes, loop flag, volume, and stop lifecycle. npm run verify:startup-browser passed afterward for source GMSTORY request playback after user gesture through the backend hook without creating the oscillator synth.",
+      "verification": "npm run build passed; npm run typecheck passed; npm run verify:music-source-priority passed for compiled-browser proof that Options.preferredMusic uses the source MUSIC_AUTO default, Mod.loadMusicResources follows Mod::loadMusic() digital priority by streaming browser-playable OGG before MID/GM fallback when both are present, explicit browser GM/MIDI preferences still stream an available OGG before non-digital fallback, unsupported browser digital formats are skipped so later formats/fallbacks can load, CatFile.load preserves source object-size semantics after skipping embedded CAT names, GM.CAT conversion emits the source controller reset bytes without the extra 00 B0 corruption, the crude oscillator MIDI synth is disabled by default, and an explicitly installed browser MIDI backend receives the GM.CAT bytes, loop flag, volume, and stop lifecycle. npm run verify:startup-browser passed afterward for source GMSTORY request playback after user gesture through the backend hook without creating the oscillator synth.",
       "boundaries": [
-        "Browser codec support decides which digital formats can stream natively; unsupported formats still fall back to buffered/native or later adapter handling.",
+        "Browser codec support decides which digital formats can stream natively; unsupported digital formats are skipped so the loader can continue to later streamable formats or MID/GM.CAT fallback.",
         "Original MID/GM.CAT playback now requires native browser MIDI support or an explicitly installed browser MIDI backend; the old oscillator MIDI synth is disabled unless a developer opts into it.",
         "Adlib/YM3812 playback and real SoundFont/DLS MIDI rendering remain separate browser adapter boundaries."
       ]
@@ -1201,7 +1201,7 @@
       "Geoscape": 8639,
       "Interface": 2796,
       "Menu": 4767,
-      "Mod": 13120,
+      "Mod": 13149,
       "Savegame": 14227,
       "Ufopaedia": 1902
     }

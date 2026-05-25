@@ -186,6 +186,32 @@ function normalizeMusicFormat(value: unknown): number {
   }
 }
 
+function browserMusicPriority(preferred: unknown): number[] {
+  const normalized = normalizeMusicFormat(preferred);
+  const digitalPriority = [MUSIC_FLAC, MUSIC_OGG, MUSIC_MP3, MUSIC_MOD, MUSIC_WAV];
+  const fallbackPriority = [MUSIC_ADLIB, MUSIC_GM, MUSIC_MIDI];
+  const priority: number[] = [];
+  const add = (format: number) => {
+    if (format !== MUSIC_AUTO && !priority.includes(format)) {
+      priority.push(format);
+    }
+  };
+
+  if (digitalPriority.includes(normalized)) {
+    add(normalized);
+  }
+  for (const format of digitalPriority) {
+    add(format);
+  }
+  if (fallbackPriority.includes(normalized)) {
+    add(normalized);
+  }
+  for (const format of fallbackPriority) {
+    add(format);
+  }
+  return priority;
+}
+
 export class Mod {
   static GEOSCAPE_CURSOR = 252;
   static BASESCAPE_CURSOR = 252;
@@ -1018,7 +1044,7 @@ export class Mod {
     let gmCat: GMCatFile | null = null;
     for (const [type, rule] of this.musicDefs) {
       let music: Music | null = null;
-      const priority = [normalizeMusicFormat(Options.preferredMusic), MUSIC_FLAC, MUSIC_OGG, MUSIC_MP3, MUSIC_MOD, MUSIC_WAV, MUSIC_ADLIB, MUSIC_GM, MUSIC_MIDI];
+      const priority = browserMusicPriority(Options.preferredMusic);
       for (const format of priority) {
         music = await this.loadMusicByFormat(format, rule, soundDir, soundFiles, gmCatPath, () => {
           gmCat ??= new GMCatFile(this.assetUrl(gmCatPath));
@@ -1074,7 +1100,10 @@ export class Mod {
     }
 
     const music = new Music();
-    if (format !== MUSIC_MIDI && Music.canPlayMimeType(digital.mime)) {
+    if (format !== MUSIC_MIDI) {
+      if (!Music.canPlayMimeType(digital.mime)) {
+        return null;
+      }
       music.loadStream(this.assetUrl(filename), digital.mime);
       return music;
     }
