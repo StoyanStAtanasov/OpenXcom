@@ -16,8 +16,7 @@ body {
 }
 
 #openxcom {
-  width: min(100vw, calc(100vh * 1.6));
-  height: min(100vh, calc(100vw / 1.6));
+  display: block;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   background: #000;

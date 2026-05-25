@@ -35,6 +35,8 @@ const verifier = String.raw`async page => {
     const canvas = document.getElementById("openxcom");
     const canvasCursor = canvas?.style.cursor || "";
     const computedCursor = canvas ? getComputedStyle(canvas).cursor : "";
+    const canvasRect = canvas?.getBoundingClientRect();
+    const cssScale = canvas && canvasRect ? canvasRect.width / canvas.width : 0;
     const translatedCursorVisible = game.getCursor().getVisible();
     const terminalFont = state._font?._images?.[0]?.surface;
     for (let i = 0; i < 10; ++i) {
@@ -48,6 +50,9 @@ const verifier = String.raw`async page => {
 
     if (canvasCursor === "none" || computedCursor === "none" || translatedCursorVisible) {
       throw new Error("StartState should show the native browser cursor during loading and keep the translated cursor hidden");
+    }
+    if (cssScale > 1 && Math.abs(cssScale - Math.round(cssScale)) > 0.001) {
+      throw new Error("Browser canvas CSS scale must be an integer to preserve source bitmap font pixels");
     }
     for (const stale of ["DOS/4GW", "SoundBlaster", "Base Port 220", "Irq 7", "Dma 1"]) {
       if (output.includes(stale)) {
@@ -66,6 +71,7 @@ const verifier = String.raw`async page => {
     return {
       canvasCursor,
       computedCursor,
+      cssScale,
       translatedCursorVisible,
       terminalFont: { width: terminalFont.getWidth(), height: terminalFont.getHeight() },
       hasBrowserRuntimeText: output.includes("OpenXcom Browser Runtime"),
@@ -78,10 +84,16 @@ const verifier = String.raw`async page => {
   await page.waitForTimeout(250);
 
   const liveResult = await page.evaluate(async () => {
-    const { Music } = await import("/web/dist/Engine/Music.js");
+    const [{ Music }, optionsModule] = await Promise.all([
+      import("/web/dist/Engine/Music.js"),
+      import("/web/dist/Engine/Options.js")
+    ]);
+    const { Options, SCALE_ORIGINAL } = optionsModule;
     const game = window.openxcomGame;
     const mod = game.getMod();
     const canvas = document.getElementById("openxcom");
+    const rect = canvas?.getBoundingClientRect();
+    const cssScale = canvas && rect ? rect.width / canvas.width : 0;
     const cursorStyle = canvas?.style.cursor || "";
     const computedCursor = canvas ? getComputedStyle(canvas).cursor : "";
     const translatedCursorVisible = game.getCursor().getVisible();
@@ -96,7 +108,27 @@ const verifier = String.raw`async page => {
     if (!musicActive) {
       throw new Error("GMSTORY request did not activate native or synthesized browser music after user gesture");
     }
-    return { cursorStyle, computedCursor, translatedCursorVisible, storyRequest, musicActive };
+    if (cssScale > 1 && Math.abs(cssScale - Math.round(cssScale)) > 0.001) {
+      throw new Error("Loaded browser runtime is fractionally scaling the source pixel canvas");
+    }
+    if (Options.geoscapeScale !== SCALE_ORIGINAL || Options.battlescapeScale !== SCALE_ORIGINAL) {
+      throw new Error("Browser defaults must match C++ source scale defaults");
+    }
+    const screenSurface = game.getScreen().getSurface();
+    if (Options.baseXResolution !== 320 || Options.baseYResolution !== 200 ||
+      screenSurface.getWidth() !== 320 || screenSurface.getHeight() !== 200) {
+      throw new Error("MainMenuState should use the C++ 320x200 base surface scaled to the 640x400 display");
+    }
+    return {
+      cursorStyle,
+      computedCursor,
+      cssScale,
+      translatedCursorVisible,
+      storyRequest,
+      musicActive,
+      baseResolution: { width: Options.baseXResolution, height: Options.baseYResolution },
+      screenSurface: { width: screenSurface.getWidth(), height: screenSurface.getHeight() }
+    };
   });
 
   await page.evaluate(value => {

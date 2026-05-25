@@ -19,6 +19,9 @@ export class Screen {
   constructor(private canvas: HTMLCanvasElement) {
     this._surface = new Surface(Options.baseXResolution, Options.baseYResolution);
     this.resetDisplay();
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", () => this.syncCanvasCssSize());
+    }
   }
 
   getDX(): number {
@@ -72,6 +75,7 @@ export class Screen {
     const height = Options.displayHeight;
     this.canvas.width = width;
     this.canvas.height = height;
+    this.syncCanvasCssSize();
     if (this._surface.getWidth() !== Options.baseXResolution || this._surface.getHeight() !== Options.baseYResolution) {
       this._surface = new Surface(Options.baseXResolution, Options.baseYResolution);
     }
@@ -137,6 +141,21 @@ export class Screen {
 
   static useOpenGL(): boolean {
     return false;
+  }
+
+  private syncCanvasCssSize(): void {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    const fitScale = Math.min(window.innerWidth / width, window.innerHeight / height);
+    const scale = fitScale >= 1 ? Math.max(1, Math.floor(fitScale)) : fitScale;
+    this.canvas.style.width = `${Math.max(1, Math.floor(width * scale))}px`;
+    this.canvas.style.height = `${Math.max(1, Math.floor(height * scale))}px`;
   }
 
   static updateScale(type: number, widthRef: { value: number }, heightRef: { value: number }, change: boolean): void {

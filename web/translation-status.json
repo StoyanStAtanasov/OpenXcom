@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T19:52:20.434Z",
+    "generatedAt": "2026-05-25T20:07:27.020Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
@@ -1045,14 +1045,17 @@
         "web/src/Engine/Font.ts",
         "web/src/Engine/Game.ts",
         "web/src/Engine/Music.ts",
+        "web/src/Engine/Options.ts",
+        "web/src/Engine/Screen.ts",
         "web/src/Engine/State.ts",
         "web/src/Engine/Sound.ts",
+        "web/src/Engine/Surface.ts",
         "web/src/Mod/Mod.ts",
         "web/styles.css",
         "web/scripts/verify-startup-browser.mjs",
         "web/package.json"
       ],
-      "verification": "npm run verify:startup-browser passed for build/typecheck/browser proof that StartState shows the native browser cursor during loading, the loaded browser runtime keeps the native cursor visible instead of relying on a reload-sensitive translated cursor blit, Font.loadTerminal() decodes the embedded source DosFont.h bitmap, browser startup output no longer contains DOS/4GW, SoundBlaster, Base Port, IRQ, or DMA text, browser-adapter startup lines are shown instead, State::init() requests main-menu RuleInterface music through Mod.playMusic(), GMSTORY is found, a user gesture activates native or synthesized browser music, and the startup console does not contain the AudioContext autoplay-policy warning.",
+      "verification": "npm run verify:startup-browser passed for build/typecheck/browser proof that StartState shows the native browser cursor during loading, the loaded browser runtime keeps the native cursor visible instead of relying on a reload-sensitive translated cursor blit, Font.loadTerminal() decodes the embedded source DosFont.h bitmap, normal UI font PNG shades preserve the source indexed grayscale values, browser startup output no longer contains DOS/4GW, SoundBlaster, Base Port, IRQ, or DMA text, browser-adapter startup lines are shown instead, C++ default geoscape/battlescape scale uses a 320x200 base surface scaled to the 640x400 display, browser CSS canvas scale is non-fractional, State::init() requests main-menu RuleInterface music through Mod.playMusic(), GMSTORY is found, a user gesture activates native or synthesized browser music, and the startup console does not contain the AudioContext autoplay-policy warning.",
       "boundaries": [
         "This is a browser adapter slice: it preserves the StartState loading lifecycle but intentionally replaces native DOS/SoundBlaster platform text with browser platform text.",
         "Full WebAudio mixer/backend parity and exact native audio backend behavior remain separate adapter boundaries."
@@ -1116,7 +1119,7 @@
       "Basescape": 9114,
       "Battlescape": 19948,
       "(root)": 335,
-      "Engine": 8745,
+      "Engine": 8795,
       "Geoscape": 8501,
       "Interface": 2787,
       "Menu": 4763,

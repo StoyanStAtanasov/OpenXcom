@@ -129,10 +129,37 @@ export class Surface {
         this._pixels[i] = forcedColor;
         continue;
       }
-      const brightness = (image.data[p] + image.data[p + 1] + image.data[p + 2]) / 3;
+      const red = image.data[p];
+      const green = image.data[p + 1];
+      const blue = image.data[p + 2];
+      if (red === green && green === blue) {
+        const exact = Surface.exactFontPaletteIndex(red);
+        if (exact !== 0) {
+          this._pixels[i] = exact;
+          continue;
+        }
+      }
+      const brightness = (red + green + blue) / 3;
       this._pixels[i] = Math.max(1, Math.min(5, Math.ceil(brightness / 51)));
     }
     this.invalidatePixels();
+  }
+
+  private static exactFontPaletteIndex(value: number): number {
+    switch (value) {
+      case 63:
+        return 1;
+      case 111:
+        return 2;
+      case 159:
+        return 3;
+      case 207:
+        return 4;
+      case 255:
+        return 5;
+      default:
+        return 0;
+    }
   }
 
   protected rawCopy(src: ArrayLike<number>): void {
