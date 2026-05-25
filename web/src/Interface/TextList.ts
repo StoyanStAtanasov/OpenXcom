@@ -5,10 +5,14 @@ import type { Language } from "../Engine/Language.ts";
 import { Palette } from "../Engine/Palette.ts";
 import type { State } from "../Engine/State.ts";
 import { Surface } from "../Engine/Surface.ts";
-import { SDL_BUTTON_WHEELDOWN, SDL_BUTTON_WHEELUP } from "../types.ts";
+import { SDL_BUTTON_LEFT, SDL_BUTTON_WHEELDOWN, SDL_BUTTON_WHEELUP } from "../types.ts";
 import { ALIGN_LEFT, ALIGN_CENTER, ALIGN_RIGHT, Text } from "./Text.ts";
 
 type TextHAlign = typeof ALIGN_LEFT | typeof ALIGN_CENTER | typeof ALIGN_RIGHT;
+type TextListComboBox = {
+  setSelected: (row: number) => void;
+  toggle: (first?: boolean) => void;
+};
 export const ARROW_VERTICAL = "ARROW_VERTICAL";
 export const ARROW_HORIZONTAL = "ARROW_HORIZONTAL";
 type ArrowOrientation = typeof ARROW_VERTICAL | typeof ARROW_HORIZONTAL;
@@ -49,6 +53,7 @@ export class TextList extends InteractiveSurface {
   private _rightRelease: ((action: Action) => void) | null = null;
   private _arrowsLeftEdge = 0;
   private _arrowsRightEdge = 0;
+  private _comboBox: TextListComboBox | null = null;
 
   override setX(x: number): void {
     super.setX(x);
@@ -323,6 +328,14 @@ export class TextList extends InteractiveSurface {
     this._selectable = selectable;
   }
 
+  setComboBox(comboBox: TextListComboBox | null): void {
+    this._comboBox = comboBox;
+  }
+
+  getComboBox(): TextListComboBox | null {
+    return this._comboBox;
+  }
+
   setBig(): void {
     this._font = this._big;
     this.makeSelector(this._font);
@@ -451,6 +464,7 @@ export class TextList extends InteractiveSurface {
   }
 
   override mouseClick(action: Action, state: State): void {
+    const button = action.getDetails().button?.button;
     const arrow = this.arrowSide(action);
     if (arrow === "left") {
       this._leftClick?.(action);
@@ -459,6 +473,10 @@ export class TextList extends InteractiveSurface {
     }
     if (!this._selectable || this._selRow < this._rows.length) {
       super.mouseClick(action, state);
+      if (this._selectable && this._comboBox && button === SDL_BUTTON_LEFT) {
+        this._comboBox.setSelected(this.getSelectedRow());
+        this._comboBox.toggle();
+      }
     }
   }
 
@@ -485,6 +503,8 @@ export class TextList extends InteractiveSurface {
           this._selector.copy(this._bg);
           if (this._contrast) {
             this._selector.offsetBlock(-5);
+          } else if (this._comboBox) {
+            this._selector.offset(1, Palette.backPos);
           } else {
             this._selector.offsetBlock(-10);
           }

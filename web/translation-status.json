@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T22:19:44.320Z",
+    "generatedAt": "2026-05-25T22:29:36.681Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
@@ -1102,7 +1102,7 @@
       "area": "Engine/Menu",
       "status": "integrated-verified",
       "slicePercent": 100,
-      "nextAction": "Continue broader UI/runtime polish after the source battlescape-origin save/options/pause menu palette branch is covered.",
+      "nextAction": "Continue broader UI/runtime polish after the source battlescape-origin save/options/pause menu palette branch and ComboBox popup-list behavior are covered.",
       "sourceFiles": [
         "src/Engine/State.cpp",
         "src/Engine/State.h",
@@ -1139,9 +1139,8 @@
         "web/scripts/verify-interface-battlescape-theme.mjs",
         "web/package.json"
       ],
-      "verification": "npm run build passed; npm run typecheck passed; npm run verify:interface-battlescape-theme passed for browser proof that State::applyBattlescapeTheme sets the source battlescapeTheme color/high-contrast flags, applies TAC00.SCR to Window surfaces, propagates TextList/ComboBox arrow colors, and that State::setInterface delegates palette selection to SavedBattleGame::setPaletteByDepth with battlescape cursor-color update.",
+      "verification": "npm run build passed; npm run typecheck passed; npm run verify:interface-battlescape-theme passed for browser proof that State::applyBattlescapeTheme sets the source battlescapeTheme color/high-contrast flags, applies TAC00.SCR to Window surfaces, propagates TextList/ComboBox arrow colors, State::setInterface delegates palette selection to SavedBattleGame::setPaletteByDepth with battlescape cursor-color update, and ComboBox now follows the source compound-surface popup contract: TextButton press opens a modal Window/TextList dropdown, list-row click updates selection/button text and closes with one change event, outside click closes the modal popup with source onChange behavior, and popupAboveButton places the dropdown above the button. npm run verify:new-battle-sandbox passed after the ComboBox source translation, proving the multi-combobox NewBattle screen still initializes and routes its source mission setup.",
       "boundaries": [
-        "The simplified browser ComboBox still uses a compact button/dropdown adapter, but the source arrow-color hook consumed by battlescape menu theming is now preserved.",
         "This slice covers battlescape-origin save/options/pause menu palette/theme behavior, not unrelated native FLC palette animation."
       ]
     },
@@ -1206,7 +1205,7 @@
       "(root)": 338,
       "Engine": 9346,
       "Geoscape": 8639,
-      "Interface": 2796,
+      "Interface": 2950,
       "Menu": 4767,
       "Mod": 13149,
       "Savegame": 14224,

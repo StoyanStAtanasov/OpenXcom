@@ -26,7 +26,9 @@ const verifier = String.raw`async page => {
       { Window },
       { Text },
       { TextList },
-      { ComboBox }
+      { ComboBox },
+      { Action },
+      { SDL_BUTTON_LEFT, SDL_MOUSEBUTTONDOWN, SDL_MOUSEBUTTONUP }
     ] = await Promise.all([
       import("/web/dist/Engine/State.js"),
       import("/web/dist/Engine/Surface.js"),
@@ -35,7 +37,9 @@ const verifier = String.raw`async page => {
       import("/web/dist/Interface/Window.js"),
       import("/web/dist/Interface/Text.js"),
       import("/web/dist/Interface/TextList.js"),
-      import("/web/dist/Interface/ComboBox.js")
+      import("/web/dist/Interface/ComboBox.js"),
+      import("/web/dist/Engine/Action.js"),
+      import("/web/dist/types.js")
     ]);
 
     class TestState extends State {}
@@ -89,6 +93,44 @@ const verifier = String.raw`async page => {
         throw new Error("ComboBox did not receive battlescape theme color, contrast, and arrow color");
       }
 
+      const makeButtonAction = (type, x, y) => new Action({ type, button: { x, y, button: SDL_BUTTON_LEFT } }, 1, 1, 0, 0);
+      const comboState = new TestState();
+      let comboChanges = 0;
+      const sourceCombo = new ComboBox(comboState, 80, 16, 10, 20);
+      comboState._surfaces = [sourceCombo];
+      sourceCombo.onChange(() => { comboChanges++; });
+      sourceCombo.setOptions(["Alpha", "Bravo", "Charlie", "Delta"], false);
+      sourceCombo.setSelected(2);
+      sourceCombo.handle(makeButtonAction(SDL_MOUSEBUTTONDOWN, 12, 22), comboState);
+      sourceCombo.handle(makeButtonAction(SDL_MOUSEBUTTONUP, 12, 22), comboState);
+      if (!sourceCombo._window.getVisible() || !sourceCombo._list.getVisible() || comboState._modal !== sourceCombo) {
+        throw new Error("ComboBox button press did not open the source-shaped modal popup list");
+      }
+      if (comboChanges !== 0) {
+        throw new Error("ComboBox onChange fired while opening instead of after closing");
+      }
+      const listX = sourceCombo._list.getX() + 2;
+      const listY = sourceCombo._list.getY() + 2;
+      sourceCombo.handle(makeButtonAction(SDL_MOUSEBUTTONDOWN, listX, listY), comboState);
+      sourceCombo.handle(makeButtonAction(SDL_MOUSEBUTTONUP, listX, listY), comboState);
+      if (sourceCombo.getSelected() !== 0 || sourceCombo._button.getText() !== "Alpha") {
+        throw new Error("ComboBox list click did not update the selected row and button text");
+      }
+      if (sourceCombo._window.getVisible() || sourceCombo._list.getVisible() || comboState._modal !== null || comboChanges !== 1) {
+        throw new Error("ComboBox list click did not close the popup, clear modal state, and fire one change event");
+      }
+      sourceCombo.handle(makeButtonAction(SDL_MOUSEBUTTONDOWN, 12, 22), comboState);
+      sourceCombo.handle(makeButtonAction(SDL_MOUSEBUTTONUP, 12, 22), comboState);
+      sourceCombo.handle(makeButtonAction(SDL_MOUSEBUTTONDOWN, 250, 190), comboState);
+      if (sourceCombo._window.getVisible() || comboState._modal !== null || comboChanges !== 2) {
+        throw new Error("ComboBox outside click did not close the modal popup with source onChange behavior");
+      }
+      const comboAbove = new ComboBox(comboState, 80, 16, 30, 100, true);
+      comboAbove.setOptions(["One", "Two", "Three"], false);
+      if (comboAbove._window.getY() >= comboAbove.getY()) {
+        throw new Error("ComboBox popupAboveButton did not place the popup above the button");
+      }
+
       const depthState = new TestState();
       let depthPaletteCalled = false;
       depthState.setInterface("saveMenus", false, {
@@ -107,6 +149,8 @@ const verifier = String.raw`async page => {
       return {
         themeColor: element.color,
         arrowColor: element.border,
+        comboSelection: sourceCombo.getSelected(),
+        comboChanges,
         windowBackground: win._bg === tac,
         depthPaletteCalled,
         cursorColor: depthState._cursorColor
