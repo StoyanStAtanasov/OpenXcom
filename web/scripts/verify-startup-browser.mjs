@@ -32,7 +32,8 @@ const verifier = String.raw`async page => {
     Options.preferredMusic = "digital";
 
     const state = new StartState();
-    const cursorVisible = game.getCursor().getVisible();
+    const canvasCursor = document.getElementById("openxcom")?.style.cursor || "";
+    const translatedCursorVisible = game.getCursor().getVisible();
     for (let i = 0; i < 10; ++i) {
       state.animate();
     }
@@ -42,8 +43,8 @@ const verifier = String.raw`async page => {
     Options.reload = oldReload;
     Options.preferredMusic = oldMusic;
 
-    if (!cursorVisible) {
-      throw new Error("StartState should keep the translated cursor visible while the CSS native cursor is hidden");
+    if (canvasCursor === "none" || translatedCursorVisible) {
+      throw new Error("StartState should show the native browser cursor during loading and keep the translated cursor hidden");
     }
     for (const stale of ["DOS/4GW", "SoundBlaster", "Base Port 220", "Irq 7", "Dma 1"]) {
       if (output.includes(stale)) {
@@ -54,7 +55,8 @@ const verifier = String.raw`async page => {
       throw new Error("Browser startup output did not use the browser-adapter loading text");
     }
     return {
-      cursorVisible,
+      canvasCursor,
+      translatedCursorVisible,
       hasBrowserRuntimeText: output.includes("OpenXcom Browser Runtime"),
       hasWebAudioText: output.includes("WebAudio Sound Effects")
     };

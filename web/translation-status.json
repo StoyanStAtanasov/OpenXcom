@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T19:09:51.145Z",
+    "generatedAt": "2026-05-25T19:16:35.134Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
@@ -998,7 +998,7 @@
         "web/scripts/verify-startup-browser.mjs",
         "web/package.json"
       ],
-      "verification": "npm run verify:startup-browser passed for build/typecheck/browser proof that StartState keeps the translated cursor visible while the canvas CSS hides the native pointer, browser startup output no longer contains DOS/4GW, SoundBlaster, Base Port, IRQ, or DMA text, browser-adapter startup lines are shown instead, and the startup console does not contain the AudioContext autoplay-policy warning.",
+      "verification": "npm run verify:startup-browser passed for build/typecheck/browser proof that StartState temporarily shows the native browser cursor during loading while keeping the translated cursor hidden until the main menu/game takes over, browser startup output no longer contains DOS/4GW, SoundBlaster, Base Port, IRQ, or DMA text, browser-adapter startup lines are shown instead, and the startup console does not contain the AudioContext autoplay-policy warning.",
       "boundaries": [
         "This is a browser adapter slice: it preserves the StartState loading lifecycle but intentionally replaces native DOS/SoundBlaster platform text with browser platform text.",
         "Full WebAudio mixer/backend parity and exact native audio backend behavior remain separate adapter boundaries."
@@ -1062,11 +1062,11 @@
       "Basescape": 9114,
       "Battlescape": 19948,
       "(root)": 335,
-      "Engine": 8342,
+      "Engine": 8347,
       "Geoscape": 8501,
       "Interface": 2787,
-      "Menu": 4740,
-      "Mod": 12724,
+      "Menu": 4748,
+      "Mod": 12786,
       "Savegame": 14224,
       "Ufopaedia": 1902
     }

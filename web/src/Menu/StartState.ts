@@ -68,8 +68,8 @@ export class StartState extends State {
     this._timer.onTimer(this.animate.bind(this));
     this._timer.start();
 
-    // Browser canvas CSS hides the native pointer, so keep the translated cursor visible while loading.
-    this.game().getCursor().setVisible(true);
+    this.setNativeCursorVisible(true);
+    this.game().getCursor().setVisible(false);
     this.game().getFpsCounter().setVisible(false);
 
     if (Options.reload) {
@@ -105,6 +105,7 @@ export class StartState extends State {
         if (Options.reload) {
           Options.reload = false;
         }
+        this.setNativeCursorVisible(false);
         this.game().getCursor().setVisible(true);
         this.game().getFpsCounter().setVisible(Options.fpsCounter);
         break;
@@ -164,6 +165,13 @@ export class StartState extends State {
     const x = this._text.getTextWidth(Math.max(0, Math.floor(y / 13)));
     this._cursor.setX(x);
     this._cursor.setY(y);
+  }
+
+  private setNativeCursorVisible(visible: boolean): void {
+    const canvas = typeof document !== "undefined" ? document.getElementById("openxcom") as HTMLCanvasElement | null : null;
+    if (canvas) {
+      canvas.style.cursor = visible ? "default" : "none";
+    }
   }
 
   static async load(game: { loadMods: () => Promise<void>; loadLanguages: () => Promise<void> }): Promise<number> {
