@@ -823,6 +823,36 @@
     ]
   },
   {
+    "name": "Engine mod selection and ruleset manifest",
+    "area": "Engine",
+    "status": "integrated-verified",
+    "slicePercent": 100,
+    "nextAction": "Thread FileMap.getRulesets() into Mod.loadAll() for broader xcom2/TFTD ruleset runtime loading.",
+    "sourceFiles": [
+      "src/Engine/Options.cpp",
+      "src/Engine/Options.h",
+      "src/Engine/ModInfo.cpp",
+      "src/Engine/ModInfo.h",
+      "src/Engine/FileMap.cpp",
+      "src/Engine/FileMap.h",
+      "src/Engine/Game.cpp"
+    ],
+    "targetFiles": [
+      "web/src/Engine/Options.ts",
+      "web/src/Engine/ModInfo.ts",
+      "web/src/Engine/FileMap.ts",
+      "web/scripts/build.mjs",
+      "web/scripts/verify-mod-selection.mjs",
+      "web/package.json",
+      "web/README.md"
+    ],
+    "verification": "npm run verify:mod-selection passed for build/typecheck and source-shaped browser proof that Options.updateMods() detects xcom1/xcom2 master availability from the resource manifest, defaults to xcom1 active when both UFO and TFTD data exist, defaults to xcom2 when only TFTD data exists, preserves explicit xcom2 activation, turns off duplicate active masters, exposes ModInfo.getMaster()/canActivate() semantics for master/standalone/dependent mods, and keeps FileMap rulesets grouped as [modId, string[]]. npm run verify:new-battle-sandbox passed afterward to prove the existing XCOM1 playable startup/new-battle path still works.",
+    "boundaries": [
+      "Arbitrary mod directory scanning, metadata.yml parsing, resourceConfig parsing, and external resource directories remain browser adapter boundaries.",
+      "Game.loadMods()/Mod.loadAll() still load the translated xcom1 rules directly; threading FileMap.getRulesets() into the full ruleset loader and fully starting xcom2/TFTD remains a separate slice."
+    ]
+  },
+  {
     "name": "Whole source path parity sweep",
     "area": "All",
     "status": "integrated-verified",

@@ -1,6 +1,25 @@
 import { SDL_KEYDOWN } from "../types.ts";
+import { FileMap } from "./FileMap.ts";
+import { Logger, LOG_INFO, LOG_VERBOSE, LOG_WARNING } from "./Logger.ts";
 import { ModInfo } from "./ModInfo.ts";
 import { OptionInfo } from "./OptionInfo.ts";
+
+type ResourceManifest = {
+  xcom1RulesetFiles?: string[];
+  xcom2RulesetFiles?: string[];
+  ufoPalettesDat?: string | null;
+  ufoTerrainDir?: string | null;
+  ufoMapsDir?: string | null;
+  ufoRoutesDir?: string | null;
+  ufoSoundDir?: string | null;
+  tftdPalettesDat?: string | null;
+  tftdTerrainDir?: string | null;
+  tftdMapsDir?: string | null;
+  tftdRoutesDir?: string | null;
+  tftdSoundDir?: string | null;
+  commonSoldierNameFiles?: string[];
+  [key: string]: string | string[] | null | undefined;
+};
 
 export const SCALE_ORIGINAL = 0;
 export const SCALE_15X = 1;
@@ -190,8 +209,11 @@ export class Options {
   static battleConfirmFireMode = false;
   static keyModifiers = 0;
   static mods: Array<[string, boolean]> = [["xcom1", true]];
+  private static _masterMod = "";
+  private static _resourceManifest: ResourceManifest | null = null;
+  private static _refreshingMods = false;
   private static _modInfos = new Map<string, ModInfo>([
-    ["xcom1", new ModInfo("xcom1", "X-COM: UFO Defense", true, true)]
+    ["xcom1", new ModInfo("xcom1", "X-COM: UFO Defense", true, true, "1.0", "OpenXcom", "X-COM: UFO Defense", "", "", "bin/standard/xcom1")]
   ]);
 
   static init(): boolean {
@@ -202,7 +224,10 @@ export class Options {
   }
 
   static save(_backup = false): void {
-    localStorage.setItem("openxcom.options", JSON.stringify({ language: Options.language }));
+    localStorage.setItem("openxcom.options", JSON.stringify({
+      language: Options.language,
+      mods: Options.mods.map(([id, enabled]) => [id, enabled])
+    }));
   }
 
   static load(): void {
@@ -215,12 +240,18 @@ export class Options {
       if (typeof parsed.language === "string") {
         Options.language = parsed.language;
       }
+      if (Array.isArray(parsed.mods)) {
+        Options.mods = parsed.mods
+          .filter((entry: unknown): entry is [string, boolean] => Array.isArray(entry) && typeof entry[0] === "string" && typeof entry[1] === "boolean")
+          .map((entry: [string, boolean]): [string, boolean] => [entry[0], entry[1]]);
+        Options._masterMod = "";
+      }
     } catch {
       // Keep source behavior forgiving: a bad options file falls back to current defaults.
     }
   }
 
-  static resetDefault(_includeMods = false): void {
+  static resetDefault(includeMods = false): void {
     Options.reload = false;
     Options.mute = false;
     Options.backgroundMute = false;
@@ -249,6 +280,11 @@ export class Options {
     Options.battleSmoothCamera = false;
     Options.fieldPromotions = false;
     Options.backupDisplay();
+    if (includeMods) {
+      Options.mods = [];
+      Options._masterMod = "";
+      Options.setDefaultMods();
+    }
   }
 
   static switchDisplay(): void {
@@ -268,12 +304,19 @@ export class Options {
   }
 
   static updateMods(): void {
-    // Browser port stub: ruleset loading is translated incrementally.
+    FileMap.load("common", "bin/common", true);
+    Options.refreshMods();
+    Options.mapResources();
+
+    Logger.log(LOG_INFO, "Active mods:");
+    for (const mod of Options.getActiveMods()) {
+      Logger.log(LOG_INFO, `- ${mod.getId()} v${mod.getVersion()}`);
+    }
   }
 
   static getActiveMaster(): string {
-    const active = Options.mods.find(([id, enabled]) => enabled && Options.getModInfo(id).isMaster());
-    return active?.[0] || "xcom1";
+    Options.refreshMods();
+    return Options._masterMod || "xcom1";
   }
 
   static backupDisplay(): void {
@@ -290,10 +333,6 @@ export class Options {
     Options.newGeoscapeScale = Options.geoscapeScale;
     Options.newBattlescapeScale = Options.battlescapeScale;
     Options.newRootWindowedMode = Options.rootWindowedMode;
-  }
-
-  static mapResources(): void {
-    Options.updateMods();
   }
 
   static getDataFolder(): string {
@@ -358,11 +397,91 @@ export class Options {
   }
 
   static refreshMods(): void {
-    if (Options.mods.length === 0) {
-      Options.mods.push(["xcom1", true]);
+    if (Options._refreshingMods) {
+      return;
     }
-    if (!Options._modInfos.has("xcom1")) {
-      Options._modInfos.set("xcom1", new ModInfo("xcom1", "X-COM: UFO Defense", true, true));
+
+    Options._refreshingMods = true;
+    try {
+      if (Options.reload) {
+        Options._masterMod = "";
+      }
+
+      Options._modInfos.clear();
+      const manifest = Options.getResourceManifest();
+      const haveUfo = Options.ufoIsInstalled(manifest);
+      const haveTftd = Options.tftdIsInstalled(manifest);
+
+      if (haveUfo || !haveTftd) {
+        Options._modInfos.set("xcom1", new ModInfo("xcom1", "X-COM: UFO Defense", true, true, "1.0", "OpenXcom", "X-COM: UFO Defense", "", "", "bin/standard/xcom1"));
+      }
+      if (haveTftd) {
+        Options._modInfos.set("xcom2", new ModInfo("xcom2", "X-COM: Terror from the Deep", true, true, "1.0", "OpenXcom", "X-COM: Terror from the Deep", "", "", "bin/standard/xcom2"));
+      }
+
+      Options.mods = Options.mods.filter(([id]) => {
+        const keep = Options._modInfos.has(id);
+        if (!keep) {
+          Logger.log(LOG_VERBOSE, `removing references to missing mod: ${id}`);
+        }
+        return keep;
+      });
+
+      if (Options.mods.length === 0) {
+        Options.setDefaultMods();
+      }
+
+      let activeMaster = "";
+      let inactiveMaster = "";
+      for (const [modId, modInfo] of Options._modInfos) {
+        let pair = Options.mods.find(([id]) => id === modId);
+        if (pair) {
+          if (modInfo.isMaster()) {
+            if (Options._masterMod) {
+              pair[1] = Options._masterMod === modId;
+            }
+            if (pair[1]) {
+              if (activeMaster) {
+                Logger.log(LOG_WARNING, `too many active masters detected; turning off ${modId}`);
+                pair[1] = false;
+              } else {
+                activeMaster = modId;
+              }
+            } else if (!inactiveMaster || modId === "xcom1" || modId === "xcom2") {
+              inactiveMaster = modId;
+            }
+          }
+          continue;
+        }
+
+        pair = [modId, false];
+        if (modInfo.isMaster()) {
+          Options.mods.unshift(pair);
+          if (!inactiveMaster) {
+            inactiveMaster = modId;
+          }
+        } else {
+          Options.mods.push(pair);
+        }
+      }
+
+      if (!activeMaster) {
+        if (!inactiveMaster) {
+          throw new Error("No X-COM installations found");
+        }
+        Logger.log(LOG_INFO, `no master already active; activating ${inactiveMaster}`);
+        const pair = Options.mods.find(([id, enabled]) => id === inactiveMaster && !enabled);
+        if (pair) {
+          pair[1] = true;
+        }
+        Options._masterMod = inactiveMaster;
+      } else {
+        Options._masterMod = activeMaster;
+      }
+
+      Options.save();
+    } finally {
+      Options._refreshingMods = false;
     }
   }
 
@@ -379,6 +498,137 @@ export class Options {
       Options._modInfos.set(id, info);
     }
     return info;
+  }
+
+  static getActiveMods(): ModInfo[] {
+    Options.refreshMods();
+    const activeMods: ModInfo[] = [];
+    for (const [id, enabled] of Options.mods) {
+      if (!enabled) {
+        continue;
+      }
+      const info = Options._modInfos.get(id);
+      if (info?.canActivate(Options._masterMod)) {
+        activeMods.push(info);
+      }
+    }
+    return activeMods;
+  }
+
+  static mapResources(): void {
+    Logger.log(LOG_INFO, "Mapping resource files...");
+    FileMap.clear();
+    for (let i = Options.mods.length - 1; i >= 0; --i) {
+      const [id, enabled] = Options.mods[i];
+      if (!enabled) {
+        Logger.log(LOG_VERBOSE, `skipping inactive mod: ${id}`);
+        continue;
+      }
+      const modInfo = Options._modInfos.get(id);
+      if (!modInfo) {
+        continue;
+      }
+      if (!modInfo.canActivate(Options._masterMod)) {
+        Logger.log(LOG_VERBOSE, `skipping mod for non-current master: ${id}(${modInfo.getMaster()} != ${Options._masterMod})`);
+        continue;
+      }
+      Options.loadMod(modInfo, new Set<string>());
+    }
+    FileMap.loadManifest("common", { commonSoldierNameFiles: Options.getResourceManifest().commonSoldierNameFiles }, true);
+    Logger.log(LOG_INFO, "Resources files mapped successfully.");
+  }
+
+  static setResourceManifestForTests(manifest: ResourceManifest | null): void {
+    Options._resourceManifest = manifest;
+    Options._masterMod = "";
+    Options._modInfos.clear();
+  }
+
+  private static setDefaultMods(): void {
+    const manifest = Options.getResourceManifest();
+    const haveUfo = Options.ufoIsInstalled(manifest);
+    if (haveUfo || !Options.tftdIsInstalled(manifest)) {
+      Options.mods.push(["xcom1", true]);
+    }
+    if (Options.tftdIsInstalled(manifest)) {
+      Options.mods.push(["xcom2", !haveUfo]);
+    }
+  }
+
+  private static loadMod(modInfo: ModInfo, circDepCheck: Set<string>): void {
+    if (circDepCheck.has(modInfo.getId())) {
+      Logger.log(LOG_WARNING, `circular dependency found in master chain: ${modInfo.getId()}`);
+      return;
+    }
+    const manifest = Options.getResourceManifest();
+    FileMap.loadManifest(modInfo.getId(), Options.manifestForMod(modInfo.getId(), manifest), true);
+    FileMap.recordRulesets(modInfo.getId(), Options.rulesetsForMod(modInfo.getId(), manifest));
+
+    if (modInfo.isMaster() && modInfo.getMaster()) {
+      circDepCheck.add(modInfo.getId());
+      const masterInfo = Options._modInfos.get(modInfo.getMaster());
+      if (!masterInfo) {
+        throw new Error(`${modInfo.getId()} mod requires ${modInfo.getMaster()} master`);
+      }
+      Options.loadMod(masterInfo, circDepCheck);
+    }
+  }
+
+  private static manifestForMod(id: string, manifest: ResourceManifest): ResourceManifest {
+    if (id === "xcom2") {
+      return {
+        xcom2RulesetFiles: manifest.xcom2RulesetFiles,
+        tftdPalettesDat: manifest.tftdPalettesDat,
+        tftdTerrainDir: manifest.tftdTerrainDir,
+        tftdMapsDir: manifest.tftdMapsDir,
+        tftdRoutesDir: manifest.tftdRoutesDir,
+        tftdSoundDir: manifest.tftdSoundDir
+      };
+    }
+    return {
+      xcom1RulesetFiles: manifest.xcom1RulesetFiles,
+      ufoPalettesDat: manifest.ufoPalettesDat,
+      ufoTerrainDir: manifest.ufoTerrainDir,
+      ufoMapsDir: manifest.ufoMapsDir,
+      ufoRoutesDir: manifest.ufoRoutesDir,
+      ufoSoundDir: manifest.ufoSoundDir
+    };
+  }
+
+  private static rulesetsForMod(id: string, manifest: ResourceManifest): string[] {
+    return id === "xcom2" ? [...(manifest.xcom2RulesetFiles || [])] : [...(manifest.xcom1RulesetFiles || [])];
+  }
+
+  private static getResourceManifest(): ResourceManifest {
+    if (Options._resourceManifest) {
+      return Options._resourceManifest;
+    }
+    if (typeof XMLHttpRequest === "undefined") {
+      Options._resourceManifest = {};
+      return Options._resourceManifest;
+    }
+    const request = new XMLHttpRequest();
+    request.open("GET", "dist/resource-manifest.json", false);
+    request.overrideMimeType("application/json");
+    try {
+      request.send();
+      if (request.status === 200 || request.status === 0) {
+        Options._resourceManifest = JSON.parse(request.responseText || "{}") as ResourceManifest;
+      } else {
+        Options._resourceManifest = {};
+      }
+    } catch {
+      Options._resourceManifest = {};
+    }
+    return Options._resourceManifest;
+  }
+
+  private static ufoIsInstalled(manifest: ResourceManifest): boolean {
+    return Boolean(manifest.ufoPalettesDat || manifest.ufoTerrainDir || manifest.ufoMapsDir || manifest.ufoRoutesDir || manifest.ufoSoundDir);
+  }
+
+  private static tftdIsInstalled(manifest: ResourceManifest): boolean {
+    return Boolean(manifest.tftdPalettesDat || manifest.tftdTerrainDir || manifest.tftdMapsDir || manifest.tftdRoutesDir || manifest.tftdSoundDir);
   }
 
   static setKeyModifiers(modifiers: number): void {

@@ -53,6 +53,19 @@ export function getRulesets(): RulesetGroup[] {
   return rulesets;
 }
 
+export function recordRulesets(modId: string, files: string[]): void {
+  if (files.length === 0) {
+    return;
+  }
+  if (rulesets[0]?.[0] === modId) {
+    rulesets[0][1].push(...files);
+    Logger.log(LOG_VERBOSE, `  recording ${files.length} more rulesets for ${modId}`);
+    return;
+  }
+  rulesets.unshift([modId, [...files]]);
+  Logger.log(LOG_VERBOSE, `  recording ${files.length} rulesets for ${modId}`);
+}
+
 export function clear(): void {
   rulesets.length = 0;
   resources.clear();
@@ -68,8 +81,7 @@ export function mapFile(modId: string, basePath: string, relPath: string, file: 
   }
   if (canonicalFile.endsWith(".rul")) {
     if (!ignoreMods) {
-      rulesets.unshift([modId, [fullPath]]);
-      Logger.log(LOG_VERBOSE, `  recording ruleset: ${fullPath}`);
+      recordRulesets(modId, [fullPath]);
     }
     return;
   }
@@ -119,6 +131,7 @@ export const FileMap = {
   getVFolderContents,
   filterFiles,
   getRulesets,
+  recordRulesets,
   clear,
   load,
   loadManifest,

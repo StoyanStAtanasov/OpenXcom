@@ -82,8 +82,10 @@ async function findOriginalFiles(roots, ...segments) {
 const ufoRoots = ["XCOM", join("bin", "UFO")];
 const tftdRoots = ["TFD", "TFTD", join("bin", "TFTD")];
 const commonRoots = [join("bin", "common")];
+const xcom1RulesetRoots = [join("bin", "standard", "xcom1")];
+const xcom2RulesetRoots = [join("bin", "standard", "xcom2")];
 
-await rm(dist, { recursive: true, force: true });
+await rm(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 for (const file of await walk(src)) {
   const rel = relative(src, file).replace(/\.ts$/, ".js");
   const out = join(dist, rel);
@@ -94,6 +96,8 @@ for (const file of await walk(src)) {
 }
 
 await writeFile(join(dist, "resource-manifest.json"), JSON.stringify({
+  xcom1RulesetFiles: (await findOriginalFiles(xcom1RulesetRoots)).filter(file => file.toLowerCase().endsWith(".rul")),
+  xcom2RulesetFiles: (await findOriginalFiles(xcom2RulesetRoots)).filter(file => file.toLowerCase().endsWith(".rul")),
   ufoPalettesDat: await findOriginalFile(ufoRoots, "GEODATA", "PALETTES.DAT"),
   ufoBackPalsDat: await findOriginalFile(ufoRoots, "GEODATA", "BACKPALS.DAT"),
   ufoBack01Scr: await findOriginalFile(ufoRoots, "GEOGRAPH", "BACK01.SCR"),
