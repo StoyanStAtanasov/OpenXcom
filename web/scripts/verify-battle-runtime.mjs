@@ -29,8 +29,9 @@ const verifier = String.raw`async page => {
   await page.waitForFunction(() => document.readyState === "complete");
 
   const result = await page.evaluate(async () => {
-    const [{ Pathfinding }, { Position }, { MovementType }, { UnitFaction }, { TilePart }] = await Promise.all([
+    const [{ Pathfinding }, { TileEngine }, { Position }, { MovementType }, { UnitFaction }, { TilePart, VoxelType }] = await Promise.all([
       import("/web/dist/Battlescape/Pathfinding.js"),
+      import("/web/dist/Battlescape/TileEngine.js"),
       import("/web/dist/Battlescape/Position.js"),
       import("/web/dist/Mod/Armor.js"),
       import("/web/dist/Savegame/BattleUnit.js"),
@@ -62,10 +63,12 @@ const verifier = String.raw`async page => {
         this.visible = Boolean(options.visible);
         this.noFloor = Boolean(options.noFloor);
         this.floor = options.floor ?? new FakeMapData();
+        this.unit = options.unit ?? null;
       }
       getPosition() { return this.pos.clone(); }
       getTerrainLevel() { return this.terrainLevel; }
       getVisible() { return this.visible; }
+      isVoid() { return false; }
       getMapData(part) {
         return part === TilePart.O_FLOOR ? this.floor : null;
       }
@@ -76,7 +79,8 @@ const verifier = String.raw`async page => {
         return 0;
       }
       hasNoFloor() { return this.noFloor; }
-      getUnit() { return null; }
+      getUnit() { return this.unit; }
+      setUnit(unit) { this.unit = unit; }
       getFire() { return 0; }
       getSmoke() { return 0; }
       isUfoDoorOpen() { return false; }
@@ -124,6 +128,7 @@ const verifier = String.raw`async page => {
         this.tiles.set(this.key(Position.from(posLike)), tile);
       }
       getDepth() { return 0; }
+      isBeforeGame() { return false; }
     }
 
     const makeUnit = (pos, movementType = MovementType.MT_WALK) => ({
@@ -134,7 +139,12 @@ const verifier = String.raw`async page => {
       getSpecialAbility: () => 0,
       getDirection: () => 2,
       getUnitsSpottedThisTurn: () => [],
-      getUnitRules: () => null
+      getUnitRules: () => null,
+      getFloatHeight: () => 0,
+      getLoftemps: () => 1,
+      isOut: () => false,
+      getHeight: () => 20,
+      getVisible: () => true
     });
 
     const straightSave = new FakeSave(6, 5, 2);
@@ -164,12 +174,26 @@ const verifier = String.raw`async page => {
     const flightPath = new Pathfinding(flightSave);
     assert(flightPath.validateUpDown(makeUnit(new Position(1, 1, 0), MovementType.MT_FLY), new Position(1, 1, 0), Pathfinding.DIR_UP), "validateUpDown rejected flying up through no roof");
 
+    const lineSave = new FakeSave(6, 5, 1);
+    const targetUnit = makeUnit(new Position(3, 2, 0));
+    lineSave.setTile(new Position(3, 2, 0), new FakeTile(new Position(3, 2, 0), { unit: targetUnit }));
+    const voxelData = Array(32).fill(0);
+    for (let row = 16; row < 32; ++row) {
+      voxelData[row] = 0xffff;
+    }
+    const tileEngine = new TileEngine(lineSave, voxelData);
+    const scanVoxel = new Position();
+    const originVoxel = new Position(1 * 16 + 8, 2 * 16 + 8, 10);
+    assert(tileEngine.canTargetUnit(originVoxel, lineSave.getTile(new Position(3, 2, 0)), scanVoxel, straightUnit, false, targetUnit), "canTargetUnit rejected source potentialUnit line-of-fire path");
+    assert(tileEngine.voxelCheck(scanVoxel, straightUnit) === VoxelType.V_UNIT, "canTargetUnit scan voxel did not resolve to the target unit");
+
     return {
       straightPath: straightPath.copyPath(),
       straightTU: straightPath.getTotalTUCost(),
       aStarLength: aStarDirs.length,
       gravLift: true,
-      flyingUp: true
+      flyingUp: true,
+      potentialUnitTarget: scanVoxel.toString()
     };
   });
 

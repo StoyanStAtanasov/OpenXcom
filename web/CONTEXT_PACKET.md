@@ -1,6 +1,6 @@
 # OpenXcom TS Port Context Packet
 
-Generated: 2026-05-25T14:28:41.455Z
+Generated: 2026-05-25T14:37:05.276Z
 Role: resume
 
 This is the compact handoff surface for resumed turns and subagents. Regenerate it with `npm run context` instead of rereading long narrative docs.
@@ -13,20 +13,20 @@ This is the compact handoff surface for resumed turns and subagents. Regenerate 
 - Integrated verified slices: 15
 - Slice path warnings: 0
 - Status rollup: integrated-verified=15, partial-integrated-verified=1
-- Local Codex status: gpt-5.5 (xhigh); context 50.5% left (127989/258400 latest input tokens); credits not reported locally
+- Local Codex status: gpt-5.5 (xhigh); context 21.9% left (201884/258400 latest input tokens); credits not reported locally
 
 ## Active Slice
 
 - Name: Original save conversion folder ingestion data
 - Area: Savegame
 - Status: partial-integrated-verified
-- Slice percent: 99.6%
-- Next action: Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting baseline: next source-backed targets are deeper reaction LOS/canTargetUnit potential-unit edge cases plus projectile/explosion casualty aftermath; remaining original-save UX is drag/drop/detail polish rather than core ingestion diagnostics
+- Slice percent: 99.7%
+- Next action: Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting baseline: next source-backed target is casualty aftermath through BattlescapeGame::checkForCasualties plus the ProjectileFlyBState/ExplosionBState handoff; remaining original-save UX is drag/drop/detail polish rather than core ingestion diagnostics
 - Verification markers: none
 
 Boundaries:
 - SaveConverter DAT reader parity now includes the TFTD SITE.DAT artifact-site counter branch; original tactical GAME_# slots still show the source-matching unsupported-battlescape-save error rather than inventing tactical DAT conversion.
-- SavedGame now persists and restores battleGame payloads when SavedBattleGame is registered; ListLoadOriginalState mirrors the C++ post-load saved-battle resume branch; SavedBattleGame binary tile/moduleMap/loadMapResources/prepareNewTurn/randomizeItemLocations/resetTiles/setDebugMode paths, ammo link rule-skip behavior, Tile/BattleUnit tileBelow placement transitions, UnitWalkBState/UnitFallBState movement occupancy tileBelow handoffs, Pathfinding Bresenham/A* and vertical movement, TileEngine::calculateLine, and AIModule::getSpottingUnits source parity are covered by browser verification or scoped source audit. Remaining battle restoration is deeper tactical runtime behavior, not core saved-battle/original-save ingestion.
+- SavedGame now persists and restores battleGame payloads when SavedBattleGame is registered; ListLoadOriginalState mirrors the C++ post-load saved-battle resume branch; SavedBattleGame binary tile/moduleMap/loadMapResources/prepareNewTurn/randomizeItemLocations/resetTiles/setDebugMode paths, ammo link rule-skip behavior, Tile/BattleUnit tileBelow placement transitions, UnitWalkBState/UnitFallBState movement occupancy tileBelow handoffs, Pathfinding Bresenham/A* and vertical movement, TileEngine::calculateLine, TileEngine::canTargetUnit potential-unit targeting, and AIModule::getSpottingUnits source parity are covered by browser verification or scoped source audit. Remaining battle restoration is deeper tactical runtime behavior, especially casualty aftermath, not core saved-battle/original-save ingestion.
 - Browser original-save ingestion now imports selected GAME_# folder files into localStorage, rejects no-op selections, missing SAVEINFO.DAT, and invalid SAVEINFO.DAT with explicit errors, and displays corrupt-slot errors in ListLoadOriginalState. Remaining UX polish is drag/drop/detail presentation rather than core ingestion diagnostics.
 
 Source files (35): src/Mod/RuleConverter.cpp; src/Mod/RuleConverter.h; src/Mod/Mod.cpp; src/Mod/Mod.h; src/Savegame/SaveConverter.cpp; src/Savegame/SaveConverter.h; src/Savegame/Base.cpp; src/Savegame/BaseFacility.cpp; src/Savegame/ItemContainer.cpp; src/Savegame/Ufo.cpp; src/Savegame/Craft.cpp; src/Savegame/AlienBase.cpp; src/Savegame/Waypoint.cpp; src/Savegame/MissionSite.cpp; ... (21 more in web/context-packet.json)
@@ -37,7 +37,7 @@ Target files (36): web/src/Mod/RuleConverter.ts; web/src/Mod/Mod.ts; web/src/Sav
 
 | Slice | Area | Status | % | Next action |
 | --- | --- | --- | ---: | --- |
-| Original save conversion folder ingestion data | Savegame | partial-integrated-verified | 99.6% | Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting baseline: next source-backed targets are deeper reaction LOS/canTargetUnit potential-unit edge cases plus projectile/explosion casualty aftermath; remaining original-save UX is drag/drop/detail polish rather than core ingestion diagnostics |
+| Original save conversion folder ingestion data | Savegame | partial-integrated-verified | 99.7% | Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting baseline: next source-backed target is casualty aftermath through BattlescapeGame::checkForCasualties plus the ProjectileFlyBState/ExplosionBState handoff; remaining original-save UX is drag/drop/detail polish rather than core ingestion diagnostics |
 
 ## Subagent Packet
 
@@ -61,11 +61,11 @@ Worker final format:
 Prompt skeletons:
 
 ```text
-Read-only sidecar for OpenXcom TS port slice "Original save conversion folder ingestion data" (99.6%).
+Read-only sidecar for OpenXcom TS port slice "Original save conversion folder ingestion data" (99.7%).
 Do not edit files.
 Inspect only the exact file list provided by the main agent plus this context packet.
-Next action: Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting baseline: next source-backed targets are deeper reaction LOS/canTargetUnit potential-unit edge cases plus projectile/explosion casualty aftermath; remaining original-save UX is drag/drop/detail polish rather than core ingestion diagnostics.
-Boundaries: SaveConverter DAT reader parity now includes the TFTD SITE.DAT artifact-site counter branch; original tactical GAME_# slots still show the source-matching unsupported-battlescape-save error rather than inventing tactical DAT conversion.; SavedGame now persists and restores battleGame payloads when SavedBattleGame is registered; ListLoadOriginalState mirrors the C++ post-load saved-battle resume branch; SavedBattleGame binary tile/moduleMap/loadMapResources/prepareNewTurn/randomizeItemLocations/resetTiles/setDebugMode paths, ammo link rule-skip behavior, Tile/BattleUnit tileBelow placement transitions, UnitWalkBState/UnitFallBState movement occupancy tileBelow handoffs, Pathfinding Bresenham/A* and vertical movement, TileEngine::calculateLine, and AIModule::getSpottingUnits source parity are covered by browser verification or scoped source audit. Remaining battle restoration is deeper tactical runtime behavior, not core saved-battle/original-save ingestion.; Browser original-save ingestion now imports selected GAME_# folder files into localStorage, rejects no-op selections, missing SAVEINFO.DAT, and invalid SAVEINFO.DAT with explicit errors, and displays corrupt-slot errors in ListLoadOriginalState. Remaining UX polish is drag/drop/detail presentation rather than core ingestion diagnostics..
+Next action: Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting baseline: next source-backed target is casualty aftermath through BattlescapeGame::checkForCasualties plus the ProjectileFlyBState/ExplosionBState handoff; remaining original-save UX is drag/drop/detail polish rather than core ingestion diagnostics.
+Boundaries: SaveConverter DAT reader parity now includes the TFTD SITE.DAT artifact-site counter branch; original tactical GAME_# slots still show the source-matching unsupported-battlescape-save error rather than inventing tactical DAT conversion.; SavedGame now persists and restores battleGame payloads when SavedBattleGame is registered; ListLoadOriginalState mirrors the C++ post-load saved-battle resume branch; SavedBattleGame binary tile/moduleMap/loadMapResources/prepareNewTurn/randomizeItemLocations/resetTiles/setDebugMode paths, ammo link rule-skip behavior, Tile/BattleUnit tileBelow placement transitions, UnitWalkBState/UnitFallBState movement occupancy tileBelow handoffs, Pathfinding Bresenham/A* and vertical movement, TileEngine::calculateLine, TileEngine::canTargetUnit potential-unit targeting, and AIModule::getSpottingUnits source parity are covered by browser verification or scoped source audit. Remaining battle restoration is deeper tactical runtime behavior, especially casualty aftermath, not core saved-battle/original-save ingestion.; Browser original-save ingestion now imports selected GAME_# folder files into localStorage, rejects no-op selections, missing SAVEINFO.DAT, and invalid SAVEINFO.DAT with explicit errors, and displays corrupt-slot errors in ListLoadOriginalState. Remaining UX polish is drag/drop/detail presentation rather than core ingestion diagnostics..
 Return summary-first: files inspected, source facts, risks, recommended integration/verifier checks.
 ```
 
