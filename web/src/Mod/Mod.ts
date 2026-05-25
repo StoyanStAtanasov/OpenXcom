@@ -3,7 +3,18 @@ import { GMCatFile } from "../Engine/GMCat.ts";
 import type { RulesetGroup } from "../Engine/FileMap.ts";
 import { Logger, LOG_WARNING } from "../Engine/Logger.ts";
 import { Music } from "../Engine/Music.ts";
-import { Options } from "../Engine/Options.ts";
+import {
+  MUSIC_ADLIB,
+  MUSIC_AUTO,
+  MUSIC_FLAC,
+  MUSIC_GM,
+  MUSIC_MIDI,
+  MUSIC_MOD,
+  MUSIC_MP3,
+  MUSIC_OGG,
+  MUSIC_WAV,
+  Options
+} from "../Engine/Options.ts";
 import { Palette } from "../Engine/Palette.ts";
 import { Sound } from "../Engine/Sound.ts";
 import { SoundSet } from "../Engine/SoundSet.ts";
@@ -127,6 +138,53 @@ type ResourceManifest = {
   tftdMedibitsDat?: string | null;
   tftdUnibordPck?: string | null;
 };
+
+const MUSIC_FORMATS = [
+  MUSIC_AUTO,
+  MUSIC_FLAC,
+  MUSIC_OGG,
+  MUSIC_MP3,
+  MUSIC_MOD,
+  MUSIC_WAV,
+  MUSIC_ADLIB,
+  MUSIC_GM,
+  MUSIC_MIDI
+] as const;
+
+const DIGITAL_MUSIC = new Map<number, { extension: string; mime: string }>([
+  [MUSIC_FLAC, { extension: ".flac", mime: "audio/flac" }],
+  [MUSIC_OGG, { extension: ".ogg", mime: "audio/ogg" }],
+  [MUSIC_MP3, { extension: ".mp3", mime: "audio/mpeg" }],
+  [MUSIC_MOD, { extension: ".mod", mime: "audio/mod" }],
+  [MUSIC_WAV, { extension: ".wav", mime: "audio/wav" }],
+  [MUSIC_MIDI, { extension: ".mid", mime: "audio/midi" }]
+]);
+
+function normalizeMusicFormat(value: unknown): number {
+  if (typeof value === "number" && MUSIC_FORMATS.includes(value as (typeof MUSIC_FORMATS)[number])) {
+    return value;
+  }
+  switch (value) {
+    case "MUSIC_FLAC":
+      return MUSIC_FLAC;
+    case "MUSIC_OGG":
+      return MUSIC_OGG;
+    case "MUSIC_MP3":
+      return MUSIC_MP3;
+    case "MUSIC_MOD":
+      return MUSIC_MOD;
+    case "MUSIC_WAV":
+      return MUSIC_WAV;
+    case "MUSIC_ADLIB":
+      return MUSIC_ADLIB;
+    case "MUSIC_GM":
+      return MUSIC_GM;
+    case "MUSIC_MIDI":
+      return MUSIC_MIDI;
+    default:
+      return MUSIC_AUTO;
+  }
+}
 
 export class Mod {
   static GEOSCAPE_CURSOR = 252;
@@ -959,23 +1017,15 @@ export class Mod {
     const gmCatPath = `${soundDir}/GM.CAT`;
     let gmCat: GMCatFile | null = null;
     for (const [type, rule] of this.musicDefs) {
-      const filename = `${soundDir}/${rule.getName()}.MID`;
       let music: Music | null = null;
-      if (soundFiles.length === 0 || soundFiles.includes(filename)) {
-        const bytes = await this.fetchOptionalBinary(filename);
-        if (bytes) {
-          music = new Music();
-          music.load(bytes);
-        }
-      }
-      if (!music && rule.getCatPos() !== Number.MAX_SAFE_INTEGER && (soundFiles.length === 0 || soundFiles.includes(gmCatPath))) {
-        try {
+      const priority = [normalizeMusicFormat(Options.preferredMusic), MUSIC_FLAC, MUSIC_OGG, MUSIC_MP3, MUSIC_MOD, MUSIC_WAV, MUSIC_ADLIB, MUSIC_GM, MUSIC_MIDI];
+      for (const format of priority) {
+        music = await this.loadMusicByFormat(format, rule, soundDir, soundFiles, gmCatPath, () => {
           gmCat ??= new GMCatFile(this.assetUrl(gmCatPath));
-          if (rule.getCatPos() < gmCat.getAmount()) {
-            music = gmCat.loadMIDI(rule.getCatPos());
-          }
-        } catch (error) {
-          Logger.log(LOG_WARNING, `GM.CAT music not loaded: ${error instanceof Error ? error.message : "failed"}`);
+          return gmCat;
+        });
+        if (music) {
+          break;
         }
       }
       if (music) {
@@ -983,6 +1033,57 @@ export class Mod {
         this.musicIndex.push(type);
       }
     }
+  }
+
+  private async loadMusicByFormat(
+    format: number,
+    rule: RuleMusic,
+    soundDir: string,
+    soundFiles: string[],
+    gmCatPath: string,
+    getGmCat: () => GMCatFile
+  ): Promise<Music | null> {
+    if (format === MUSIC_AUTO) {
+      return null;
+    }
+    if (format === MUSIC_ADLIB) {
+      return null;
+    }
+    if (format === MUSIC_GM) {
+      if (rule.getCatPos() === Number.MAX_SAFE_INTEGER || !this.findManifestPath(soundFiles, gmCatPath)) {
+        return null;
+      }
+      try {
+        const gmCat = getGmCat();
+        if (rule.getCatPos() < gmCat.getAmount()) {
+          return gmCat.loadMIDI(rule.getCatPos());
+        }
+      } catch (error) {
+        Logger.log(LOG_WARNING, `GM.CAT music not loaded: ${error instanceof Error ? error.message : "failed"}`);
+      }
+      return null;
+    }
+
+    const digital = DIGITAL_MUSIC.get(format);
+    if (!digital) {
+      return null;
+    }
+    const filename = this.findManifestPath(soundFiles, `${soundDir}/${rule.getName()}${digital.extension}`);
+    if (!filename) {
+      return null;
+    }
+
+    const music = new Music();
+    if (format !== MUSIC_MIDI && Music.canPlayMimeType(digital.mime)) {
+      music.loadStream(this.assetUrl(filename), digital.mime);
+      return music;
+    }
+    const bytes = await this.fetchOptionalBinary(filename);
+    if (bytes) {
+      music.load(bytes);
+      return music;
+    }
+    return null;
   }
 
   private loadExtraResources(): void {
@@ -1251,6 +1352,14 @@ export class Mod {
   private findManifestFile(files: string[], name: string): string | null {
     const wanted = name.toUpperCase();
     return files.find(file => this.fileName(file) === wanted) || null;
+  }
+
+  private findManifestPath(files: string[], path: string): string | null {
+    if (files.length === 0) {
+      return path;
+    }
+    const normalized = path.replaceAll("\\", "/").toLowerCase();
+    return files.find(file => file.replaceAll("\\", "/").toLowerCase() === normalized) || null;
   }
 
   private fileName(path: string): string {

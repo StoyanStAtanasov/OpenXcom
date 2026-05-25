@@ -15,6 +15,8 @@ type MidiSequence = {
 
 export class Music {
   protected _music: Uint8Array | null = null;
+  private _streamUrl: string | null = null;
+  private _streamMime = "";
   private _midiSequence: MidiSequence | null = null;
   private _playCount = 0;
   private _lastLoop = -1;
@@ -36,6 +38,8 @@ export class Music {
   load(data: string | ArrayBuffer | Uint8Array | number[], size?: number): void {
     if (typeof data === "string") {
       this._music = this.loadBinary(data);
+      this._streamUrl = null;
+      this._streamMime = "";
       this._lastError = "";
       return;
     }
@@ -46,12 +50,22 @@ export class Music {
         ? new Uint8Array(data).slice(0, size ?? data.byteLength)
         : Uint8Array.from(data).slice(0, size ?? data.length);
     this._music = bytes;
+    this._streamUrl = null;
+    this._streamMime = "";
+    this._midiSequence = null;
+    this._lastError = "";
+  }
+
+  loadStream(url: string, mime: string): void {
+    this._music = null;
+    this._streamUrl = url;
+    this._streamMime = mime;
     this._midiSequence = null;
     this._lastError = "";
   }
 
   play(loop = -1): void {
-    if (Options.mute || !this._music) {
+    if (Options.mute || (!this._music && !this._streamUrl)) {
       return;
     }
     ++this._playCount;
@@ -63,7 +77,7 @@ export class Music {
   }
 
   private startPlayback(loop: number): void {
-    if (!this._music) {
+    if (!this._music && !this._streamUrl) {
       return;
     }
     if (!Music.hasUserActivation()) {
@@ -80,7 +94,7 @@ export class Music {
   }
 
   private playNativeAudio(mime: string, loop: number): boolean {
-    if (!this._music) {
+    if (!this._music && !this._streamUrl) {
       return false;
     }
     if (typeof Audio === "undefined" || typeof URL === "undefined") {
@@ -91,12 +105,12 @@ export class Music {
     if (!canPlay) {
       return false;
     }
-    const url = URL.createObjectURL(new Blob([this._music.slice()], { type: mime }));
+    const url = this._streamUrl || URL.createObjectURL(new Blob([this._music?.slice() || new Uint8Array()], { type: mime }));
     audio.src = url;
     audio.loop = loop !== 0;
     audio.volume = Music._volume;
     Music._currentAudio = audio;
-    Music._currentUrl = url;
+    Music._currentUrl = this._streamUrl ? null : url;
     void audio.play().catch(error => {
       this._lastError = error instanceof Error ? error.message : "playback failed";
       Music.deferPlayback(this, loop);
@@ -225,6 +239,28 @@ export class Music {
     return this._lastError;
   }
 
+  getSourceKind(): "empty" | "stream" | "buffer" {
+    if (this._streamUrl) {
+      return "stream";
+    }
+    if (this._music) {
+      return "buffer";
+    }
+    return "empty";
+  }
+
+  getMimeType(): string {
+    return this.detectMimeType();
+  }
+
+  static canPlayMimeType(mime: string): boolean {
+    if (typeof Audio === "undefined") {
+      return false;
+    }
+    const audio = new Audio();
+    return !audio.canPlayType || audio.canPlayType(mime) !== "";
+  }
+
   private static stopCurrentAudio(): void {
     Music.stopCurrentSynth();
     if (Music._currentAudio) {
@@ -318,6 +354,9 @@ export class Music {
   }
 
   private detectMimeType(): string {
+    if (this._streamMime) {
+      return this._streamMime;
+    }
     if (!this._music || this._music.length < 4) {
       return "audio/mpeg";
     }

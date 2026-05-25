@@ -1,14 +1,14 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T20:25:20.729Z",
+    "generatedAt": "2026-05-25T21:02:58.851Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
     "sourceCodeFiles": 646,
     "targetTsFiles": 341,
     "webOnlyTsFiles": 5,
-    "integratedVerifiedSlices": 23,
-    "trackedSlices": 24,
+    "integratedVerifiedSlices": 24,
+    "trackedSlices": 25,
     "slicePathWarnings": 0
   },
   "areas": [
@@ -113,7 +113,7 @@
     }
   ],
   "statusRollups": {
-    "integrated-verified": 23,
+    "integrated-verified": 24,
     "partial-integrated-verified": 1
   },
   "nextQueue": [
@@ -949,6 +949,43 @@
       ]
     },
     {
+      "name": "Music resource priority and CAT loading",
+      "area": "Engine",
+      "status": "integrated-verified",
+      "slicePercent": 100,
+      "nextAction": "Use native digital streaming when available; if MID/GM.CAT fallback quality is still unacceptable, evaluate a SoundFont/DLS MIDI renderer such as SpessaSynth/lib instead of tuning the crude oscillator fallback.",
+      "sourceFiles": [
+        "src/Engine/CatFile.cpp",
+        "src/Engine/CatFile.h",
+        "src/Engine/GMCat.cpp",
+        "src/Engine/GMCat.h",
+        "src/Engine/Music.cpp",
+        "src/Engine/Music.h",
+        "src/Engine/Options.cpp",
+        "src/Engine/Options.h",
+        "src/Mod/Mod.cpp",
+        "src/Mod/Mod.h",
+        "src/Mod/RuleMusic.cpp",
+        "src/Mod/RuleMusic.h"
+      ],
+      "targetFiles": [
+        "web/src/Engine/CatFile.ts",
+        "web/src/Engine/GMCat.ts",
+        "web/src/Engine/Music.ts",
+        "web/src/Engine/Options.ts",
+        "web/src/Mod/Mod.ts",
+        "web/src/Mod/RuleMusic.ts",
+        "web/scripts/verify-music-source-priority.mjs",
+        "web/package.json"
+      ],
+      "verification": "npm run build passed; npm run typecheck passed; npm run verify:music-source-priority passed for compiled-browser proof that Options.preferredMusic uses the source MUSIC_AUTO default, Mod.loadMusicResources follows Mod::loadMusic() digital priority by streaming browser-playable OGG before MID/GM fallback when both are present, CatFile.load preserves source object-size semantics after skipping embedded CAT names, and GM.CAT conversion emits the source controller reset bytes without the extra 00 B0 corruption. npm run verify:startup-browser passed afterward for source GMSTORY request playback after user gesture.",
+      "boundaries": [
+        "Browser codec support decides which digital formats can stream natively; unsupported formats still fall back to buffered/native or later adapter handling.",
+        "The current WebAudio MIDI synth is only a fallback for original MID/GM.CAT data and is not exact General MIDI, SoundFont, or YM3812 parity.",
+        "Adlib/YM3812 playback remains a separate browser adapter boundary."
+      ]
+    },
+    {
       "name": "Engine mod selection and ruleset manifest",
       "area": "Engine",
       "status": "integrated-verified",
@@ -1119,11 +1156,11 @@
       "Basescape": 9114,
       "Battlescape": 19948,
       "(root)": 335,
-      "Engine": 8795,
-      "Geoscape": 8501,
+      "Engine": 8877,
+      "Geoscape": 8639,
       "Interface": 2787,
       "Menu": 4763,
-      "Mod": 12806,
+      "Mod": 13120,
       "Savegame": 14224,
       "Ufopaedia": 1902
     }

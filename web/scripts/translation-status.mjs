@@ -279,8 +279,6 @@ async function main() {
       md.push(`- ${warning}`);
     }
   }
-  md.push("");
-
   await writeFile(join(webRoot, "TRANSLATION_STATUS.md"), `${md.join("\n")}\n`, "utf8");
   if (args.has("--json")) {
     console.log(JSON.stringify({

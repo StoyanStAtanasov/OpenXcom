@@ -254,7 +254,7 @@ function gmextWriteMidi(stream: GMStream): Uint8Array | null {
     midi.push(0x4d, 0x54, 0x72, 0x6b);
     const loffset = midi.length;
     midi.push(0, 0, 0, 0);
-    const init = [0, 0xB0, 0x78, 0, 0, 0x79, 0, 0, 0x7B, 0];
+    const init = [0x78, 0, 0, 0x79, 0, 0, 0x7B, 0];
     midi.push(0, 0xB0 | stream.tracks[j].channel, ...init);
     const status: OutputStatus = { delta: 0, patch: 0, prevcmd: 0 };
     if (gmextWriteSequence(midi, stream, stream.tracks[j].channel, stream.tracks[j].seq, status) === -1) {

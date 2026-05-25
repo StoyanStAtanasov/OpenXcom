@@ -52,7 +52,6 @@ export class CatFile {
     if (namesize <= 56) {
       if (!name) {
         offset += namesize + 1;
-        size = Math.max(0, size - (namesize + 1));
       } else {
         size += namesize + 1;
       }

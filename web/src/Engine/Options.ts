@@ -28,7 +28,15 @@ export const SCALE_SCREEN_DIV_3 = 3;
 export const SCALE_SCREEN_DIV_2 = 4;
 export const SCALE_SCREEN = 5;
 
-export const MUSIC_MIDI = "MUSIC_MIDI";
+export const MUSIC_AUTO = 0;
+export const MUSIC_FLAC = 1;
+export const MUSIC_OGG = 2;
+export const MUSIC_MP3 = 3;
+export const MUSIC_MOD = 4;
+export const MUSIC_WAV = 5;
+export const MUSIC_ADLIB = 6;
+export const MUSIC_GM = 7;
+export const MUSIC_MIDI = 8;
 export const KEYBOARD_OFF = 0;
 export const KEYBOARD_ON = 1;
 export const SCROLL_NONE = 0;
@@ -83,7 +91,7 @@ export class Options {
   static newOpenGLShader = "";
   static asyncBlit = false;
   static pauseMode = 0;
-  static preferredMusic = MUSIC_MIDI;
+  static preferredMusic = MUSIC_AUTO;
   static preferredSound = 0;
   static preferredVideo = 0;
   static currentSound = 0;
@@ -265,6 +273,7 @@ export class Options {
     Options.soundVolume = 96;
     Options.musicVolume = 96;
     Options.uiVolume = 96;
+    Options.preferredMusic = MUSIC_AUTO;
     Options.musicAlwaysLoop = false;
     Options.geoscapeScale = SCALE_ORIGINAL;
     Options.battlescapeScale = SCALE_ORIGINAL;

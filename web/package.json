@@ -29,6 +29,7 @@
     "verify:menu-geoscape-routes": "node scripts/verify-menu-geoscape-routes.mjs",
     "verify:active-mod-runtime": "node scripts/verify-active-mod-runtime.mjs",
     "verify:mod-selection": "node scripts/verify-mod-selection.mjs",
+    "verify:music-source-priority": "node scripts/verify-music-source-priority.mjs",
     "verify:font-source-parity": "node scripts/verify-font-source-parity.mjs",
     "verify:globe-source-parity": "node scripts/verify-globe-source-parity.mjs",
     "verify:startup-browser": "node scripts/verify-startup-browser.mjs",
