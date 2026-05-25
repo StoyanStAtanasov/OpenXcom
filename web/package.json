@@ -25,6 +25,7 @@
     "verify:debriefing": "node scripts/verify-debriefing.mjs",
     "verify:craft-management": "node scripts/verify-craft-management.mjs",
     "verify:battle-runtime": "node scripts/verify-battle-runtime.mjs",
+    "verify:save-menu": "node scripts/verify-save-menu.mjs",
     "verify:saveconverter-metadata": "node scripts/verify-saveconverter-metadata.mjs"
   },
   "engines": {

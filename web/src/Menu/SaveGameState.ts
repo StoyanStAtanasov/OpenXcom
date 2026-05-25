@@ -18,12 +18,7 @@ export enum SaveType {
   SAVE_IRONMAN_END = 5
 }
 
-const QUICKSAVE = "_quick_.asav";
-const AUTOSAVE_GEOSCAPE = "_autogeo_.asav";
-const AUTOSAVE_BATTLESCAPE = "_autobattle_.asav";
-
 type SavedGameSaver = SavedGame & {
-  save?: (filename: string) => void;
   getName?: () => string;
 };
 
@@ -32,14 +27,6 @@ function sanitizeFilename(name: string): string {
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
     .replace(/[. ]+$/g, "")
     .trim();
-}
-
-function saveGame(save: SavedGame, filename: string): void {
-  const saver = save as SavedGameSaver;
-  if (!saver.save) {
-    throw new Error("SavedGame.save is not translated yet.");
-  }
-  saver.save(filename);
 }
 
 export class SaveGameState extends State {
@@ -58,13 +45,13 @@ export class SaveGameState extends State {
       this._type = filenameOrType;
       switch (filenameOrType) {
         case SaveType.SAVE_QUICK:
-          this._filename = QUICKSAVE;
+          this._filename = SavedGame.QUICKSAVE;
           break;
         case SaveType.SAVE_AUTO_GEOSCAPE:
-          this._filename = AUTOSAVE_GEOSCAPE;
+          this._filename = SavedGame.AUTOSAVE_GEOSCAPE;
           break;
         case SaveType.SAVE_AUTO_BATTLESCAPE:
-          this._filename = AUTOSAVE_BATTLESCAPE;
+          this._filename = SavedGame.AUTOSAVE_BATTLESCAPE;
           break;
         case SaveType.SAVE_IRONMAN:
         case SaveType.SAVE_IRONMAN_END: {
@@ -123,7 +110,7 @@ export class SaveGameState extends State {
     }
 
     try {
-      saveGame(this.game().getSavedGame() || new SavedGame(), this._filename);
+      (this.game().getSavedGame() || new SavedGame()).save(this._filename);
       if (this._type === SaveType.SAVE_IRONMAN_END) {
         Options.baseXResolution = Options.baseXGeoscape;
         Options.baseYResolution = Options.baseYGeoscape;

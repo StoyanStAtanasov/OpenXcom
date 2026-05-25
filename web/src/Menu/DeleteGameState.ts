@@ -1,4 +1,5 @@
 import { Options } from "../Engine/Options.ts";
+import { deleteFile } from "../Engine/CrossPlatform.ts";
 import { State } from "../Engine/State.ts";
 import type { Action } from "../Engine/Action.ts";
 import { Text, ALIGN_CENTER } from "../Interface/Text.ts";
@@ -59,9 +60,7 @@ export class DeleteGameState extends State {
     this.game().popState();
     let ok = false;
     try {
-      localStorage.removeItem(this._filename);
-      localStorage.removeItem(this._filename.replace(/^browser:\/\/localStorage\/openxcom\/saves\//, "openxcom.save."));
-      ok = true;
+      ok = deleteFile(this._filename);
     } catch {
       ok = false;
     }

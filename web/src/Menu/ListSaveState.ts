@@ -1,28 +1,11 @@
 import type { Action } from "../Engine/Action.ts";
+import { fileExists, moveFile, sanitizeFilename } from "../Engine/CrossPlatform.ts";
+import { Options } from "../Engine/Options.ts";
 import { TextButton } from "../Interface/TextButton.ts";
 import { TextEdit } from "../Interface/TextEdit.ts";
 import { ListGamesState } from "./ListGamesState.ts";
 import { SaveGameState } from "./SaveGameState.ts";
 import { OPT_BATTLESCAPE, type OptionsOrigin } from "./OptionsBaseState.ts";
-
-function sanitizeFilename(name: string): string {
-  return name
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
-    .replace(/[. ]+$/g, "")
-    .trim();
-}
-
-function getMasterUserFolder(): string {
-  return "";
-}
-
-function fileExists(_path: string): boolean {
-  return false;
-}
-
-function moveFile(_src: string, _dest: string): void {
-  console.log("CrossPlatform.moveFile is not translated yet.");
-}
 
 export class ListSaveState extends ListGamesState {
   private _edtSave: TextEdit;
@@ -119,12 +102,11 @@ export class ListSaveState extends ListGamesState {
 
   saveGame(): void {
     this.game().getSavedGame()?.setName(this._edtSave.getText());
-    const sanitized = sanitizeFilename(this._edtSave.getText());
-    let newFilename = sanitized.length > 0 ? sanitized : "save";
+    let newFilename = sanitizeFilename(this._edtSave.getText());
     if (this._selectedRow > 0) {
       const oldFilename = this._saves[this._selectedRow - 1]?.fileName || "";
       if (oldFilename !== `${newFilename}.sav`) {
-        const userFolder = getMasterUserFolder();
+        const userFolder = Options.getMasterUserFolder();
         while (fileExists(`${userFolder}${newFilename}.sav`)) {
           newFilename += "_";
         }
@@ -133,7 +115,7 @@ export class ListSaveState extends ListGamesState {
         moveFile(oldPath, newPath);
       }
     } else {
-      const userFolder = getMasterUserFolder();
+      const userFolder = Options.getMasterUserFolder();
       while (fileExists(`${userFolder}${newFilename}.sav`)) {
         newFilename += "_";
       }

@@ -11,6 +11,7 @@ import { SDL_BUTTON_RIGHT } from "../types.ts";
 import type { Game } from "../Engine/Game.ts";
 import { OPT_BATTLESCAPE, type OptionsOrigin } from "./OptionsBaseState.ts";
 import { DeleteGameState } from "./DeleteGameState.ts";
+import { SavedGame, type SaveInfo } from "../Savegame/SavedGame.ts";
 
 export const SORT_NAME_ASC = 0;
 export const SORT_NAME_DESC = 1;
@@ -18,16 +19,7 @@ export const SORT_DATE_ASC = 2;
 export const SORT_DATE_DESC = 3;
 export type SaveSort = typeof SORT_NAME_ASC | typeof SORT_NAME_DESC | typeof SORT_DATE_ASC | typeof SORT_DATE_DESC;
 
-export type SaveInfoLike = {
-  fileName: string;
-  displayName: string;
-  timestamp: number;
-  isoDate: string;
-  isoTime: string;
-  details: string;
-  mods: string[];
-  reserved: boolean;
-};
+export type SaveInfoLike = SaveInfo;
 
 const saveOrderState = {
   value: SORT_NAME_ASC as SaveSort
@@ -101,18 +93,11 @@ function compareSaveTimestamp(a: SaveInfoLike, b: SaveInfoLike, descending = fal
 }
 
 function getSaveList(game: Game, autoquick: boolean): SaveInfoLike[] {
-  const savedGame = game.getSavedGame();
-  const savedGameClass = savedGame?.constructor as unknown as {
-    getList?: (lang: unknown, autoquick: boolean) => SaveInfoLike[];
-  };
-  if (savedGameClass?.getList) {
-    try {
-      return savedGameClass.getList(game.getLanguage(), autoquick);
-    } catch (error) {
-      Logger.log(LOG_ERROR, error instanceof Error ? error.message : String(error));
-    }
+  try {
+    return SavedGame.getList(game.getLanguage(), autoquick);
+  } catch (error) {
+    Logger.log(LOG_ERROR, error instanceof Error ? error.message : String(error));
   }
-  console.log("SavedGame.getList is not translated yet.");
   return [];
 }
 

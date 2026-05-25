@@ -1,6 +1,7 @@
 import { Logger, LOG_ERROR } from "../Engine/Logger.ts";
 import { Options } from "../Engine/Options.ts";
 import { Screen } from "../Engine/Screen.ts";
+import { fileExists } from "../Engine/CrossPlatform.ts";
 import { State } from "../Engine/State.ts";
 import { Text } from "../Interface/Text.ts";
 import { ErrorMessageState } from "./ErrorMessageState.ts";
@@ -15,24 +16,8 @@ type SoundDepthModLike = {
   getSoundByDepth?: (depth: number, sound: number, error?: boolean) => { stopLoop?: () => void } | null;
 };
 
-const QUICKSAVE = "_quick_.asav";
-const AUTOSAVE_GEOSCAPE = "_autogeo_.asav";
-const AUTOSAVE_BATTLESCAPE = "_autobattle_.asav";
-
-type SavedGameLoader = SavedGame & {
-  load?: (filename: string, mod: unknown) => void;
-};
-
-function saveExists(_filename: string): boolean {
-  return true;
-}
-
-function loadSavegame(save: SavedGame, filename: string, mod: unknown): void {
-  const loader = save as SavedGameLoader;
-  if (!loader.load) {
-    throw new Error("SavedGame.load is not translated yet.");
-  }
-  loader.load(filename, mod);
+function saveExists(filename: string): boolean {
+  return fileExists(`${Options.getMasterUserFolder()}${filename}`);
 }
 
 export class LoadGameState extends State {
@@ -50,13 +35,13 @@ export class LoadGameState extends State {
     if (typeof filenameOrType === "number") {
       switch (filenameOrType) {
         case 1:
-          this._filename = QUICKSAVE;
+          this._filename = SavedGame.QUICKSAVE;
           break;
         case 2:
-          this._filename = AUTOSAVE_GEOSCAPE;
+          this._filename = SavedGame.AUTOSAVE_GEOSCAPE;
           break;
         case 3:
-          this._filename = AUTOSAVE_BATTLESCAPE;
+          this._filename = SavedGame.AUTOSAVE_BATTLESCAPE;
           break;
         default:
           break;
@@ -69,7 +54,7 @@ export class LoadGameState extends State {
 
   override init(): void {
     super.init();
-    if (this._filename === QUICKSAVE && !saveExists(this._filename)) {
+    if (this._filename === SavedGame.QUICKSAVE && !saveExists(this._filename)) {
       this.game().popState();
     }
   }
@@ -104,7 +89,7 @@ export class LoadGameState extends State {
     this.game().popState();
     const save = new SavedGame();
     try {
-      loadSavegame(save, this._filename, this.game().getMod());
+      save.load(this._filename, this.game().getMod());
       this.game().setSavedGame(save);
       if (save.getEnding() !== GameEnding.END_NONE) {
         Options.baseXResolution = Screen.ORIGINAL_WIDTH;

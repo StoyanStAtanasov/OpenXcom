@@ -1,6 +1,8 @@
 import type { Action } from "../Engine/Action.ts";
+import { Options } from "../Engine/Options.ts";
 import { TextButton } from "../Interface/TextButton.ts";
 import { SDL_BUTTON_LEFT } from "../types.ts";
+import { SavedGame } from "../Savegame/SavedGame.ts";
 import { LoadGameState } from "./LoadGameState.ts";
 import { ConfirmLoadState } from "./ConfirmLoadState.ts";
 import { ListGamesState, type SaveInfoLike } from "./ListGamesState.ts";
@@ -8,25 +10,17 @@ import { ListLoadOriginalState } from "./ListLoadOriginalState.ts";
 import { type OptionsOrigin } from "./OptionsBaseState.ts";
 
 function sanitizeModName(name: string): string {
-  const index = name.indexOf(" ver: ");
-  return index === -1 ? name : name.slice(0, index);
-}
-
-function getActiveMaster(): string {
-  return "xcom1";
+  return SavedGame.sanitizeModName(name);
 }
 
 function needsConfirmation(saveInfo: SaveInfoLike): boolean {
-  if (saveInfo.mods.length === 0) {
-    return false;
-  }
-  const activeMaster = getActiveMaster();
   for (const mod of saveInfo.mods) {
-    if (sanitizeModName(mod) === activeMaster) {
-      return false;
+    const name = sanitizeModName(mod);
+    if (!Options.mods.some(([id, enabled]) => id === name && enabled)) {
+      return true;
     }
   }
-  return true;
+  return false;
 }
 
 export class ListLoadState extends ListGamesState {

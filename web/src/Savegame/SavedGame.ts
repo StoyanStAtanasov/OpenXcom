@@ -3,7 +3,9 @@ import { AlienBase, type AlienBaseSave } from "./AlienBase.ts";
 import { AlienMission, type AlienMissionSaveNode } from "./AlienMission.ts";
 import { Country, type CountrySave } from "./Country.ts";
 import { GameTime } from "./GameTime.ts";
-import { getBrowserFile, putBrowserFile } from "../Engine/CrossPlatform.ts";
+import { getBrowserFile, getDateModified, getFolderContents, noExt, putBrowserFile, timeToString } from "../Engine/CrossPlatform.ts";
+import type { Language } from "../Engine/Language.ts";
+import { Logger, LOG_DEBUG, LOG_ERROR } from "../Engine/Logger.ts";
 import type { Mod } from "../Mod/Mod.ts";
 import type { RuleManufacture } from "../Mod/RuleManufacture.ts";
 import type { RuleResearch } from "../Mod/RuleResearch.ts";
@@ -55,8 +57,15 @@ type SavedGameBaseNode = {
 
 type SavedGameNode = {
   name?: string;
+  version?: string;
+  engine?: string;
+  build?: string;
   time?: GameTimeSave;
   ironman?: boolean;
+  savedAt?: number;
+  mods?: string[];
+  mission?: string;
+  turn?: number;
   difficulty?: number;
   end?: number;
   monthsPassed?: number;
@@ -97,6 +106,17 @@ type ResearchProjectSavable = {
 
 type ProductionSavable = {
   save?: () => ProductionSave;
+};
+
+export type SaveInfo = {
+  fileName: string;
+  displayName: string;
+  timestamp: number;
+  isoDate: string;
+  isoTime: string;
+  details: string;
+  mods: string[];
+  reserved: boolean;
 };
 
 function intValue(value: unknown, fallback: number): number {
@@ -158,6 +178,23 @@ function researchByName(mod: Mod | null | undefined, name: string): RuleResearch
   return name ? mod?.getResearch(name) || null : null;
 }
 
+function localized(lang: Language | null | undefined, id: string): string {
+  return String(lang?.getString(id) || id);
+}
+
+function parseSavedGameFile(file: string): { brief: SavedGameNode; doc: SavedGameNode } {
+  const fullname = `${Options.getMasterUserFolder()}${file}`;
+  const raw = getBrowserFile(fullname) ?? getBrowserFile(file);
+  if (raw == null) {
+    throw new Error(`Save file ${file} not found.`);
+  }
+  const parsed = JSON.parse(raw) as SavedGameNode | [SavedGameNode, SavedGameNode];
+  if (Array.isArray(parsed)) {
+    return { brief: parsed[0] || {}, doc: parsed[1] || {} };
+  }
+  return { brief: {}, doc: parsed || {} };
+}
+
 export enum GameDifficulty {
   DIFF_BEGINNER = 0,
   DIFF_EXPERIENCED,
@@ -173,6 +210,10 @@ export enum GameEnding {
 }
 
 export class SavedGame {
+  static readonly QUICKSAVE = "_quick_.asav";
+  static readonly AUTOSAVE_GEOSCAPE = "_autogeo_.asav";
+  static readonly AUTOSAVE_BATTLESCAPE = "_autobattle_.asav";
+
   private _name = "";
   private _difficulty = GameDifficulty.DIFF_BEGINNER;
   private _end = GameEnding.END_NONE;
@@ -215,25 +256,101 @@ export class SavedGame {
     this._bases.push(new Base());
   }
 
+  static sanitizeModName(name: string): string {
+    const versionInfoBreakPoint = name.indexOf(" ver: ");
+    return versionInfoBreakPoint === -1 ? name : name.slice(0, versionInfoBreakPoint);
+  }
+
+  static getList(lang: Language | null, autoquick: boolean): SaveInfo[] {
+    const info: SaveInfo[] = [];
+    const curMaster = Options.getActiveMaster();
+    const saves = getFolderContents(Options.getMasterUserFolder(), "sav");
+    if (autoquick) {
+      saves.unshift(...getFolderContents(Options.getMasterUserFolder(), "asav"));
+    }
+    for (const file of saves) {
+      try {
+        const saveInfo = SavedGame.getSaveInfo(file, lang);
+        if (!SavedGame.isCurrentGameType(saveInfo, curMaster)) {
+          continue;
+        }
+        info.push(saveInfo);
+      } catch (error) {
+        Logger.log(LOG_ERROR, `${file}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    return info;
+  }
+
+  static getSaveInfo(file: string, lang: Language | null): SaveInfo {
+    const { brief, doc } = parseSavedGameFile(file);
+    const save: SaveInfo = {
+      fileName: file,
+      displayName: "",
+      timestamp: intValue(brief.savedAt ?? doc.savedAt, getDateModified(`${Options.getMasterUserFolder()}${file}`)),
+      isoDate: "",
+      isoTime: "",
+      details: "",
+      mods: stringArray(brief.mods ?? doc.mods),
+      reserved: false
+    };
+
+    if (save.fileName === SavedGame.QUICKSAVE) {
+      save.displayName = localized(lang, "STR_QUICK_SAVE_SLOT");
+      save.reserved = true;
+    } else if (save.fileName === SavedGame.AUTOSAVE_GEOSCAPE) {
+      save.displayName = localized(lang, "STR_AUTO_SAVE_GEOSCAPE_SLOT");
+      save.reserved = true;
+    } else if (save.fileName === SavedGame.AUTOSAVE_BATTLESCAPE) {
+      save.displayName = localized(lang, "STR_AUTO_SAVE_BATTLESCAPE_SLOT");
+      save.reserved = true;
+    } else {
+      save.displayName = stringValue(brief.name ?? doc.name, noExt(file));
+    }
+
+    const [isoDate, isoTime] = timeToString(save.timestamp);
+    save.isoDate = isoDate;
+    save.isoTime = isoTime;
+
+    if (typeof brief.turn === "number") {
+      const mission = localized(lang, stringValue(brief.mission, ""));
+      const turn = String(lang?.getString("STR_TURN").arg(Math.trunc(brief.turn)) || `STR_TURN ${Math.trunc(brief.turn)}`);
+      save.details = `${localized(lang, "STR_BATTLESCAPE")}: ${mission}, ${turn}`;
+    } else {
+      const time = loadGameTime(brief.time ?? doc.time, new GameTime(6, 1, 1, 1999, 12, 0, 0));
+      const day = lang ? time.getDayString(lang) : String(time.getDay());
+      save.details = `${localized(lang, "STR_GEOSCAPE")}: ${day} ${localized(lang, time.getMonthString())} ${time.getYear()}, ${time.getHour()}:${time.getMinute().toString().padStart(2, "0")}`;
+    }
+    if (boolValue(brief.ironman ?? doc.ironman, false)) {
+      save.details += ` (${localized(lang, "STR_IRONMAN")})`;
+    }
+    return save;
+  }
+
   save(filename = this._name): void {
     const doc = this.saveNode();
+    const mods = Options.mods
+      .filter(([, enabled]) => enabled)
+      .map(([id]) => `${id} ver: ${Options.getModInfo(id).getVersion()}`);
     const brief: SavedGameNode = {
       name: this._name,
+      version: "OpenXcom TS",
+      engine: "browser",
+      build: "",
       time: saveGameTime(this._time),
-      ironman: this._ironman
+      ironman: this._ironman,
+      savedAt: Date.now(),
+      mods
     };
+    if (this._battleGame) {
+      brief.mission = this._battleGame.getMissionType();
+      brief.turn = this._battleGame.getTurn();
+    }
     putBrowserFile(`${Options.getMasterUserFolder()}${filename || this._name || "save.sav"}`, JSON.stringify([brief, doc]));
   }
 
   load(filename: string, mod: Mod | null): void {
-    const path = `${Options.getMasterUserFolder()}${filename}`;
-    const raw = getBrowserFile(path) ?? getBrowserFile(filename);
-    if (raw == null) {
-      throw new Error(`Save file ${filename} not found.`);
-    }
-    const parsed = JSON.parse(raw) as SavedGameNode | [SavedGameNode, SavedGameNode];
-    const brief = Array.isArray(parsed) ? parsed[0] || {} : {};
-    const doc = Array.isArray(parsed) ? parsed[1] || {} : parsed;
+    const { brief, doc } = parseSavedGameFile(filename);
     this._time = loadGameTime(brief.time ?? doc.time, this._time);
     this._name = stringValue(brief.name ?? doc.name, this._name || filename);
     this._ironman = boolValue(brief.ironman ?? doc.ironman, this._ironman);
@@ -1232,5 +1349,23 @@ export class SavedGame {
         vector.shift();
       }
     }
+  }
+
+  private static isCurrentGameType(saveInfo: SaveInfo, curMaster: string): boolean {
+    let matchMasterMod = false;
+    if (saveInfo.mods.length === 0) {
+      matchMasterMod = curMaster === "xcom1";
+    } else {
+      for (const mod of saveInfo.mods) {
+        if (SavedGame.sanitizeModName(mod) === curMaster) {
+          matchMasterMod = true;
+          break;
+        }
+      }
+    }
+    if (!matchMasterMod) {
+      Logger.log(LOG_DEBUG, `skipping save from inactive master: ${saveInfo.fileName}`);
+    }
+    return matchMasterMod;
   }
 }
