@@ -56,6 +56,7 @@ import { RuleCountry, parseCountriesRul } from "./RuleCountry.ts";
 import { RuleCraft, parseCraftsRul } from "./RuleCraft.ts";
 import { RuleCraftWeapon, parseCraftWeaponsRul } from "./RuleCraftWeapon.ts";
 import { RuleItem, parseItemsRul } from "./RuleItem.ts";
+import { RuleCommendations, parseCommendationsRul } from "./RuleCommendations.ts";
 import { Craft } from "../Savegame/Craft.ts";
 import type { Base } from "../Savegame/Base.ts";
 import { RuleSoldier, parseSoldiersRul } from "./RuleSoldier.ts";
@@ -289,6 +290,8 @@ export class Mod {
   private alienDeploymentsIndex: string[] = [];
   private items = new Map<string, RuleItem>();
   private itemsIndex: string[] = [];
+  private commendations = new Map<string, RuleCommendations>();
+  private commendationsIndex: string[] = [];
   private invs = new Map<string, RuleInventory>();
   private invsIndex: string[] = [];
   private mapDataSets = new Map<string, MapDataSet>();
@@ -342,6 +345,7 @@ export class Mod {
     await this.loadAlienRaces();
     await this.loadAlienDeployments();
     await this.loadRuleItems();
+    await this.loadRuleCommendations();
     await this.loadRuleInventories();
     await this.loadRuleArmors();
     await this.loadRuleUnits();
@@ -639,6 +643,18 @@ export class Mod {
 
   getItemsList(): string[] {
     return this.itemsIndex;
+  }
+
+  getCommendation(id: string, error = false): RuleCommendations | null {
+    const commendation = this.commendations.get(id) || null;
+    if (!commendation && error) {
+      throw new Error(`Commendation ${id} not found.`);
+    }
+    return commendation;
+  }
+
+  getCommendationsList(): Map<string, RuleCommendations> {
+    return new Map([...this.commendations.entries()].sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   }
 
   getInventories(): Map<string, RuleInventory> {
@@ -2002,6 +2018,37 @@ export class Mod {
     }
   }
 
+  private async loadRuleCommendations(): Promise<void> {
+    this.commendations.clear();
+    this.commendationsIndex = [];
+    const visited = new Set<string>();
+    for (const files of this.rulesetFilesByMod.values()) {
+      for (const file of files) {
+        const normalized = file.replaceAll("\\", "/");
+        if (visited.has(normalized.toLowerCase())) {
+          continue;
+        }
+        visited.add(normalized.toLowerCase());
+        const source = await this.fetchOptionalText(normalized);
+        if (!source || !source.includes("commendations:")) {
+          continue;
+        }
+        for (const definition of parseCommendationsRul(source)) {
+          const type = definition.type || "";
+          if (!type) {
+            continue;
+          }
+          const rule = new RuleCommendations();
+          rule.load(definition);
+          if (!this.commendations.has(type)) {
+            this.commendationsIndex.push(type);
+          }
+          this.commendations.set(type, rule);
+        }
+      }
+    }
+  }
+
   private async loadRuleInventories(): Promise<void> {
     const inventoriesResponse = await this.fetchRuleset("inventories.rul");
     if (!inventoriesResponse.ok) {
@@ -2169,6 +2216,13 @@ export class Mod {
         soldier.setCraft(transportCraft);
       }
       base.getSoldiers().push(soldier);
+      if (this.commendations.has("STR_MEDAL_ORIGINAL8_NAME")) {
+        const diary = soldier.getDiary();
+        diary.awardOriginalEightCommendation();
+        for (const commendation of diary.getSoldierCommendations()) {
+          commendation.makeOld();
+        }
+      }
     }
   }
 

@@ -190,12 +190,14 @@
     "name": "Soldier diary screens",
     "area": "Basescape/Savegame",
     "status": "integrated-verified",
-    "slicePercent": 90,
+    "slicePercent": 96,
     "sourceFiles": [
       "src/Basescape/SoldierDiaryOverviewState.cpp",
       "src/Basescape/SoldierDiaryPerformanceState.cpp",
       "src/Basescape/SoldierDiaryMissionState.cpp",
       "src/Savegame/SoldierDiary.cpp",
+      "src/Mod/RuleCommendations.cpp",
+      "src/Mod/Mod.cpp",
       "src/Savegame/MissionStatistics.h",
       "src/Basescape/SoldierInfoState.cpp",
       "src/Savegame/Soldier.cpp",
@@ -206,15 +208,16 @@
       "web/src/Basescape/SoldierDiaryPerformanceState.ts",
       "web/src/Basescape/SoldierDiaryMissionState.ts",
       "web/src/Savegame/SoldierDiary.ts",
+      "web/src/Mod/RuleCommendations.ts",
+      "web/src/Mod/Mod.ts",
       "web/src/Savegame/MissionStatistics.ts",
       "web/src/Basescape/SoldierInfoState.ts",
       "web/src/Savegame/Soldier.ts",
       "web/src/Savegame/SavedGame.ts"
     ],
-    "verification": "npm run build passed; Playwright VERIFY_SOLDIER_DIARY passed for SoldierInfo diary button, overview mission row, performance screen, and mission detail; tsc --noEmit now passes after source-backed SavedGame difficulty coefficient translation",
+    "verification": "npm run build passed; Playwright VERIFY_SOLDIER_DIARY passed for SoldierInfo diary button, overview mission row, performance screen, and mission detail; tsc --noEmit now passes after source-backed SavedGame difficulty coefficient translation; npm run verify:soldier-diary-commendations passed for source-shaped RuleCommendations parsing, Mod::getCommendation/getCommendationsList std::map ordering, no-noun awards, modular noun awards, and killCriteria career awards; npm run verify:startup-browser and npm run verify:active-mod-runtime passed after active-ruleset commendation loading",
     "boundaries": [
-      "Commendation rules pending",
-      "Full diary save/load/debriefing update integration remains with persistence and battlescape slices"
+      "Broader full-campaign save/load and debriefing edge coverage remains with persistence and battlescape slices"
     ]
   },
   {

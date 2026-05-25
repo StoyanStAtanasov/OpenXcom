@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-25T23:17:24.549Z",
+  "generatedAt": "2026-05-25T23:31:23.910Z",
   "role": "resume",
   "objective": "Faithfully translate OpenXcom C++ source into the browser TypeScript port.",
   "sourceOfTruth": {
@@ -27,17 +27,17 @@
       "sessionId": "019e521f-e642-7db1-b68d-3f765878eb44",
       "model": "gpt-5.5",
       "reasoningEffort": "xhigh",
-      "lastEventAt": "2026-05-25T23:17:17.925Z",
-      "latestInputTokens": 211355,
+      "lastEventAt": "2026-05-25T23:31:16.101Z",
+      "latestInputTokens": 181056,
       "contextWindow": 258400,
-      "contextLeftPercent": 18.2,
+      "contextLeftPercent": 29.9,
       "primaryLimit": {
-        "used_percent": 51,
+        "used_percent": 58,
         "window_minutes": 300,
         "resets_at": 1779756514
       },
       "weeklyLimit": {
-        "used_percent": 90,
+        "used_percent": 91,
         "window_minutes": 10080,
         "resets_at": 1780175101
       },
@@ -45,38 +45,51 @@
     }
   },
   "activeSlice": {
-    "name": "Adlib YM3812 music playback",
-    "area": "Engine",
+    "name": "Basescape craft management",
+    "area": "Basescape",
     "status": "integrated-verified",
-    "slicePercent": 90,
-    "nextAction": "Replace the ScriptProcessor bridge with AudioWorklet only if latency/deprecation becomes observable, and add native-vs-browser PCM parity checks if a native OpenXcom/fmopl harness is available.",
+    "slicePercent": 100,
+    "nextAction": "Move to the next documented runtime boundary outside craft management, such as original-save conversion loading, saved-battle persistence, or remaining battlescape/geoscape runtime polish",
     "sourceFiles": [
-      "src/Engine/AdlibMusic.cpp",
-      "src/Engine/AdlibMusic.h",
-      "src/Engine/Adlib/adlplayer.cpp",
-      "src/Engine/Adlib/adlplayer.h",
-      "src/Engine/Adlib/fmopl.cpp",
-      "src/Engine/Adlib/fmopl.h",
-      "src/Engine/Music.cpp",
-      "src/Engine/Music.h",
+      "src/Basescape/CraftsState.cpp",
+      "src/Basescape/CraftInfoState.cpp",
+      "src/Basescape/CraftWeaponsState.cpp",
+      "src/Basescape/CraftSoldiersState.cpp",
+      "src/Basescape/CraftEquipmentState.cpp",
+      "src/Basescape/CraftArmorState.cpp",
+      "src/Battlescape/BattlescapeGenerator.cpp",
+      "src/Battlescape/Inventory.cpp",
+      "src/Battlescape/InventoryState.cpp",
       "src/Mod/Mod.cpp",
-      "src/Mod/Mod.h"
+      "src/Mod/Mod.h",
+      "src/Savegame/Base.cpp",
+      "src/Savegame/Craft.cpp",
+      "src/Savegame/Soldier.cpp",
+      "src/Savegame/Vehicle.cpp"
     ],
     "targetFiles": [
-      "web/src/Engine/AdlibMusic.ts",
-      "web/src/Engine/Adlib/adlplayer.ts",
-      "web/src/Engine/Adlib/fmopl.ts",
-      "web/src/Engine/Music.ts",
+      "web/src/Basescape/CraftsState.ts",
+      "web/src/Basescape/CraftInfoState.ts",
+      "web/src/Basescape/CraftWeaponsState.ts",
+      "web/src/Basescape/CraftSoldiersState.ts",
+      "web/src/Basescape/CraftEquipmentState.ts",
+      "web/src/Basescape/CraftArmorState.ts",
+      "web/src/Battlescape/BattlescapeGenerator.ts",
+      "web/src/Battlescape/Inventory.ts",
+      "web/src/Battlescape/InventoryState.ts",
       "web/src/Mod/Mod.ts",
-      "web/scripts/verify-adlib-music-player.mjs",
-      "web/scripts/verify-startup-browser.mjs",
-      "web/package.json"
+      "web/src/Savegame/Base.ts",
+      "web/src/Savegame/Craft.ts",
+      "web/src/Savegame/Soldier.ts",
+      "web/src/Savegame/Vehicle.ts",
+      "web/scripts/verify-craft-management.mjs"
     ],
-    "verification": "npm run build passed; npm run typecheck passed; npm run verify:adlib-music-player passed for compiled-browser proof that Mod::loadMusic MUSIC_ADLIB now loads ADLIB.CAT through AdlibMusic, AdlibMusic::play follows the source setup/volume/custom-player route, the translated YM3812UpdateOne mixer produces nonzero samples from real XCOM/SOUND/ADLIB.CAT data, and the old AdlibMusic browser-boundary warning is absent. npm run verify:music-source-priority, npm run verify:startup-browser, and npm run verify:active-mod-runtime passed afterward to protect digital-stream priority, startup audio activation, and active-master resource loading.",
-    "verificationMarkers": [],
+    "verification": "npm run build; Playwright VERIFY_BASESCAPE_MANAGEMENT passed; npm run verify:craft-management passed for build/typecheck, Craft real Vehicle list/count/space helpers, Base.getUsedStores vehicle rule-size accounting and getIgnoredStores rearming clip subtraction, CraftEquipmentState add/remove HWP behavior through real Craft.getVehicles() storage with source ammo/space/capacity math, btnInventoryClick -> BattlescapeGenerator.runInventory -> InventoryState handoff with a 2x2x1 SavedBattleGame inventory map, InventoryState template create/apply, clear inventory, autoequip, InventoryState X1/X2 next/previous unit cycling, Inventory.mouseClick Ctrl quick-move, explicit drag/drop to ground, right-click proximity grenade activation/deactivation, right-click timed grenade PrimeGrenadeState handoff, compatible ammo loading, and ground item stacking from that craft handoff; npm run verify:geoscape-confirmations passed after shared BattlescapeGenerator/Mod changes",
+    "verificationMarkers": [
+      "VERIFY_BASESCAPE_MANAGEMENT"
+    ],
     "boundaries": [
-      "The browser uses a WebAudio ScriptProcessor callback as the SDL_mixer hook adapter; the Adlib command interpreter and YM3812 mixer body are source-shaped, but callback scheduling is browser-native.",
-      "No native PCM golden-output harness is currently wired, so verification proves real CAT loading and non-silent translated synthesis rather than sample-exact native parity."
+      "Negative warning variants such as wrong ammo, already-loaded weapon, and not-enough-TU remain broader battlescape inventory QA rather than craft-management handoff coverage"
     ]
   },
   "integrationQueue": [],
@@ -129,7 +142,7 @@
     "Regenerate this packet after changing translation-slices.json or finishing a verified micro-path."
   ],
   "promptSkeletons": {
-    "readonly": "Read-only sidecar for OpenXcom TS port slice \"Adlib YM3812 music playback\" (90%).\nDo not edit files.\nInspect only the exact file list provided by the main agent plus this context packet.\nNext action: Replace the ScriptProcessor bridge with AudioWorklet only if latency/deprecation becomes observable, and add native-vs-browser PCM parity checks if a native OpenXcom/fmopl harness is available..\nBoundaries: The browser uses a WebAudio ScriptProcessor callback as the SDL_mixer hook adapter; the Adlib command interpreter and YM3812 mixer body are source-shaped, but callback scheduling is browser-native.; No native PCM golden-output harness is currently wired, so verification proves real CAT loading and non-silent translated synthesis rather than sample-exact native parity..\nReturn summary-first: files inspected, source facts, risks, recommended integration/verifier checks.",
-    "worker": "Worker for OpenXcom TS port slice \"Adlib YM3812 music playback\" (90%).\nYou are not alone in the codebase; do not revert edits by others.\nSource files: src/Engine/AdlibMusic.cpp; src/Engine/AdlibMusic.h; src/Engine/Adlib/adlplayer.cpp; src/Engine/Adlib/adlplayer.h; src/Engine/Adlib/fmopl.cpp; src/Engine/Adlib/fmopl.h; src/Engine/Music.cpp; src/Engine/Music.h; src/Mod/Mod.cpp; src/Mod/Mod.h.\nTarget files/write scope: web/src/Engine/AdlibMusic.ts; web/src/Engine/Adlib/adlplayer.ts; web/src/Engine/Adlib/fmopl.ts; web/src/Engine/Music.ts; web/src/Mod/Mod.ts; web/scripts/verify-adlib-music-player.mjs; web/scripts/verify-startup-browser.mjs; web/package.json.\nForbidden unless explicitly assigned: AGENTS.md, web/PORTING.md, web/translation-slices.json, hot shared integration files.\nTranslate directly from C++: preserve class names, ids, coordinates, resource names, algorithms, and state-stack behavior.\nNext action: Replace the ScriptProcessor bridge with AudioWorklet only if latency/deprecation becomes observable, and add native-vs-browser PCM parity checks if a native OpenXcom/fmopl harness is available..\nBoundaries to keep explicit: The browser uses a WebAudio ScriptProcessor callback as the SDL_mixer hook adapter; the Adlib command interpreter and YM3812 mixer body are source-shaped, but callback scheduling is browser-native.; No native PCM golden-output harness is currently wired, so verification proves real CAT loading and non-silent translated synthesis rather than sample-exact native parity..\nFinal format: changed files; build/typecheck/verifier result; pending source boundaries; risks/integration notes."
+    "readonly": "Read-only sidecar for OpenXcom TS port slice \"Basescape craft management\" (100%).\nDo not edit files.\nInspect only the exact file list provided by the main agent plus this context packet.\nNext action: Move to the next documented runtime boundary outside craft management, such as original-save conversion loading, saved-battle persistence, or remaining battlescape/geoscape runtime polish.\nBoundaries: Negative warning variants such as wrong ammo, already-loaded weapon, and not-enough-TU remain broader battlescape inventory QA rather than craft-management handoff coverage.\nReturn summary-first: files inspected, source facts, risks, recommended integration/verifier checks.",
+    "worker": "Worker for OpenXcom TS port slice \"Basescape craft management\" (100%).\nYou are not alone in the codebase; do not revert edits by others.\nSource files: src/Basescape/CraftsState.cpp; src/Basescape/CraftInfoState.cpp; src/Basescape/CraftWeaponsState.cpp; src/Basescape/CraftSoldiersState.cpp; src/Basescape/CraftEquipmentState.cpp; src/Basescape/CraftArmorState.cpp; src/Battlescape/BattlescapeGenerator.cpp; src/Battlescape/Inventory.cpp; src/Battlescape/InventoryState.cpp; src/Mod/Mod.cpp; src/Mod/Mod.h; src/Savegame/Base.cpp; src/Savegame/Craft.cpp; src/Savegame/Soldier.cpp; src/Savegame/Vehicle.cpp.\nTarget files/write scope: web/src/Basescape/CraftsState.ts; web/src/Basescape/CraftInfoState.ts; web/src/Basescape/CraftWeaponsState.ts; web/src/Basescape/CraftSoldiersState.ts; web/src/Basescape/CraftEquipmentState.ts; web/src/Basescape/CraftArmorState.ts; web/src/Battlescape/BattlescapeGenerator.ts; web/src/Battlescape/Inventory.ts; web/src/Battlescape/InventoryState.ts; web/src/Mod/Mod.ts; web/src/Savegame/Base.ts; web/src/Savegame/Craft.ts; web/src/Savegame/Soldier.ts; web/src/Savegame/Vehicle.ts; web/scripts/verify-craft-management.mjs.\nForbidden unless explicitly assigned: AGENTS.md, web/PORTING.md, web/translation-slices.json, hot shared integration files.\nTranslate directly from C++: preserve class names, ids, coordinates, resource names, algorithms, and state-stack behavior.\nNext action: Move to the next documented runtime boundary outside craft management, such as original-save conversion loading, saved-battle persistence, or remaining battlescape/geoscape runtime polish.\nBoundaries to keep explicit: Negative warning variants such as wrong ammo, already-loaded weapon, and not-enough-TU remain broader battlescape inventory QA rather than craft-management handoff coverage.\nFinal format: changed files; build/typecheck/verifier result; pending source boundaries; risks/integration notes."
   }
 }

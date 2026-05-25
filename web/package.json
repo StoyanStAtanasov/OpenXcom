@@ -23,6 +23,7 @@
     "verify:base-transfer-persistence": "node scripts/verify-base-transfer-persistence.mjs",
     "verify:research-manufacture-persistence": "node scripts/verify-research-manufacture-persistence.mjs",
     "verify:debriefing": "node scripts/verify-debriefing.mjs",
+    "verify:soldier-diary-commendations": "node scripts/verify-soldier-diary-commendations.mjs",
     "verify:craft-management": "node scripts/verify-craft-management.mjs",
     "verify:battle-runtime": "node scripts/verify-battle-runtime.mjs",
     "verify:save-menu": "node scripts/verify-save-menu.mjs",
