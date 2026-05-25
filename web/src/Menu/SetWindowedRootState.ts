@@ -4,7 +4,7 @@ import type { Action } from "../Engine/Action.ts";
 import { Text, ALIGN_CENTER } from "../Interface/Text.ts";
 import { TextButton } from "../Interface/TextButton.ts";
 import { Window, POPUP_BOTH } from "../Interface/Window.ts";
-import type { OptionsOrigin } from "./OptionsBaseState.ts";
+import { OPT_BATTLESCAPE, type OptionsOrigin } from "./OptionsBaseState.ts";
 import type { OptionsVideoState } from "./OptionsVideoState.ts";
 
 export class SetWindowedRootState extends State {
@@ -20,7 +20,7 @@ export class SetWindowedRootState extends State {
     this._btnOk = new TextButton(50, 20, 70, 120);
     this._btnCancel = new TextButton(50, 20, 200, 120);
     this._txtTitle = new Text(204, 58, 58, 60);
-    this.setInterface("optionsMenu");
+    this.setInterface("optionsMenu", false, this.game().getSavedGame()?.getSavedBattle?.() ?? null);
     this.add(this._window, "confirmVideo", "optionsMenu");
     this.add(this._btnOk, "confirmVideo", "optionsMenu");
     this.add(this._btnCancel, "confirmVideo", "optionsMenu");
@@ -40,6 +40,10 @@ export class SetWindowedRootState extends State {
     this._txtTitle.setBig();
     this._txtTitle.setWordWrap(true);
     this._txtTitle.setText(String(this.tr("STR_FIXED_WINDOW_POSITION")));
+
+    if (this._origin === OPT_BATTLESCAPE) {
+      this.applyBattlescapeTheme();
+    }
   }
 
   btnOkClick(_action?: Action): void {

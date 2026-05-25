@@ -40,6 +40,7 @@ export class TextList extends InteractiveSurface {
   private _scrollPos = 4;
   private _arrowPos = -1;
   private _arrowType: ArrowOrientation = ARROW_VERTICAL;
+  private _arrowColor = -1;
   private _leftClick: ((action: Action) => void) | null = null;
   private _leftPress: ((action: Action) => void) | null = null;
   private _leftRelease: ((action: Action) => void) | null = null;
@@ -287,6 +288,11 @@ export class TextList extends InteractiveSurface {
 
   getArrowsRightEdge(): number {
     return this._arrowsRightEdge;
+  }
+
+  setArrowColor(color: number): void {
+    this._arrowColor = color;
+    this.invalidate();
   }
 
   onLeftArrowClick(handler: ((action: Action) => void) | null): void {
@@ -551,7 +557,7 @@ export class TextList extends InteractiveSurface {
     if (this._arrowPos < 0) {
       return;
     }
-    const color = this._color || 1;
+    const color = this._arrowColor >= 0 ? this._arrowColor : (this._color || 1);
     const leftX = this._arrowPos + 2;
     const rightX = this._arrowPos + 14;
     const topY = y + 1;

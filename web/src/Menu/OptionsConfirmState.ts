@@ -27,7 +27,7 @@ export class OptionsConfirmState extends State {
     this._txtTimer = new Text(206, 20, 57, 100);
     this._timer = new Timer(1000);
 
-    this.setInterface("optionsMenu");
+    this.setInterface("optionsMenu", false, this.game().getSavedGame()?.getSavedBattle?.() ?? null);
     this.add(this._window, "confirmVideo", "optionsMenu");
     this.add(this._btnYes, "confirmVideo", "optionsMenu");
     this.add(this._btnNo, "confirmVideo", "optionsMenu");

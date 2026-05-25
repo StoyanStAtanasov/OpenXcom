@@ -137,7 +137,7 @@ export class ListGamesState extends State {
     this._sortName = new ArrowButton(ARROW_NONE, 11, 8, 16, 32);
     this._sortDate = new ArrowButton(ARROW_NONE, 11, 8, 204, 32);
 
-    this.setInterface("geoscape", true);
+    this.setInterface("geoscape", true, this.game().getSavedGame()?.getSavedBattle?.() ?? null);
 
     this.add(this._window, "window", "saveMenus");
     this.add(this._btnCancel, "button", "saveMenus");

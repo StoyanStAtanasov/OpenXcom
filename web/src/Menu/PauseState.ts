@@ -27,7 +27,7 @@ export class PauseState extends State {
     this._btnCancel = new TextButton(180, 18, x + 18, 150);
     this._txtTitle = new Text(206, 17, x + 5, 32);
 
-    this.setInterface("pauseMenu");
+    this.setInterface("pauseMenu", false, this.game().getSavedGame()?.getSavedBattle?.() ?? null);
     this.add(this._window, "window", "pauseMenu");
     this.add(this._btnLoad, "button", "pauseMenu");
     this.add(this._btnSave, "button", "pauseMenu");

@@ -8,6 +8,13 @@ import type { Game } from "./Game.ts";
 import { INT_MAX, type RuleInterface } from "../Mod/RuleInterface.ts";
 import { Mod } from "../Mod/Mod.ts";
 import { BattlescapeButton } from "../Interface/BattlescapeButton.ts";
+import { ComboBox } from "../Interface/ComboBox.ts";
+import { TextList } from "../Interface/TextList.ts";
+import { Window } from "../Interface/Window.ts";
+
+type BattlePaletteOwner = {
+  setPaletteByDepth: (state: State) => void;
+};
 
 export class State {
   protected static _game: Game;
@@ -23,7 +30,7 @@ export class State {
     this._palette = Palette.createDefault();
   }
 
-  setInterface(category: string, alterPal = false): void {
+  setInterface(category: string, alterPal = false, battleGame: BattlePaletteOwner | null = null): void {
     let backPal = -1;
     let pal = "PAL_GEOSCAPE";
     this._ruleInterface = State._game.getMod()?.getInterface(category) || null;
@@ -45,6 +52,10 @@ export class State {
           backPal = color;
         }
       }
+    }
+    if (battleGame) {
+      battleGame.setPaletteByDepth(this);
+      return;
     }
     if (!pal) {
       pal = "PAL_GEOSCAPE";
@@ -176,7 +187,26 @@ export class State {
     }
   }
 
-  applyBattlescapeTheme(): void {}
+  applyBattlescapeTheme(): void {
+    const element = State._game.getMod()?.getInterface("mainMenu")?.getElement("battlescapeTheme");
+    if (!element) {
+      return;
+    }
+    const background = State._game.getMod()?.getSurface("TAC00.SCR") || null;
+    for (const surface of this._surfaces) {
+      surface.setColor(element.color);
+      surface.setHighContrast(true);
+      if (surface instanceof Window && background) {
+        surface.setBackground(background);
+      }
+      if (surface instanceof TextList) {
+        surface.setArrowColor(element.border);
+      }
+      if (surface instanceof ComboBox) {
+        surface.setArrowColor(element.border);
+      }
+    }
+  }
 
   static setGamePtr(game: Game): void {
     State._game = game;
@@ -204,7 +234,7 @@ export class State {
   }
 
   setPaletteByName(palette: string, immediately = true): void {
-    this.setPalette(Palette.clone(State._game.getMod()?.getPalette(palette) || Palette.createDefault()), 0, 256, immediately);
+    this.setPalette(this.paletteForInterface(palette, -1), 0, 256, immediately);
   }
 
   resize(dX: { value: number }, dY: { value: number }): void {

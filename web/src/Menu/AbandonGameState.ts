@@ -28,7 +28,7 @@ export class AbandonGameState extends State {
     this._btnNo = new TextButton(50, 20, x + 148, 140);
     this._txtTitle = new Text(206, 17, x + 5, 70);
 
-    this.setInterface("geoscape");
+    this.setInterface("geoscape", false, this.game().getSavedGame()?.getSavedBattle?.() ?? null);
     this.add(this._window, "genericWindow", "geoscape");
     this.add(this._btnYes, "genericButton2", "geoscape");
     this.add(this._btnNo, "genericButton2", "geoscape");

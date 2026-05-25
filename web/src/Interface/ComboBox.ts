@@ -20,6 +20,7 @@ export class ComboBox extends InteractiveSurface {
   private _sel = 0;
   private _change: ((action: Action) => void) | null = null;
   private _color = 0;
+  private _arrowColor = -1;
   private _lang: Language | null = null;
 
   constructor(private _state: State, width: number, height: number, x = 0, y = 0, private _popupAboveButton = false) {
@@ -55,7 +56,9 @@ export class ComboBox extends InteractiveSurface {
   }
 
   setArrowColor(color: number): void {
+    this._arrowColor = color;
     this._button.setSecondaryColor(color);
+    this.invalidate();
   }
 
   getSelected(): number {
@@ -95,7 +98,7 @@ export class ComboBox extends InteractiveSurface {
     this._button.blit(this);
     const arrowX = this.getWidth() - 9;
     const midY = Math.trunc(this.getHeight() / 2);
-    const color = this._color + 5;
+    const color = this._arrowColor >= 0 ? this._arrowColor : this._color + 5;
     if (this._popupAboveButton) {
       this.drawLine(arrowX, midY + 2, arrowX + 4, midY - 2, color);
       this.drawLine(arrowX + 4, midY - 2, arrowX + 8, midY + 2, color);

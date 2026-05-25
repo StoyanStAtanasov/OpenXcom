@@ -71,7 +71,7 @@ export class ListLoadOriginalState extends State {
     this._txtTime = new Text(30, 9, 195, 24);
     this._txtDate = new Text(90, 9, 225, 24);
 
-    this.setInterface("geoscape", true);
+    this.setInterface("geoscape", true, this.game().getSavedGame()?.getSavedBattle?.() ?? null);
 
     this.add(this._window, "window", "saveMenus");
     this.add(this._btnNew, "button", "saveMenus");

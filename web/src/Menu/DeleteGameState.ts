@@ -24,7 +24,7 @@ export class DeleteGameState extends State {
     this._btnNo = new TextButton(60, 18, 200, 122);
     this._txtMessage = new Text(246, 32, 37, 70);
 
-    this.setInterface("saveMenus");
+    this.setInterface("saveMenus", false, this.game().getSavedGame()?.getSavedBattle?.() ?? null);
     this.add(this._window, "confirmDelete", "saveMenus");
     this.add(this._btnYes, "confirmDelete", "saveMenus");
     this.add(this._btnNo, "confirmDelete", "saveMenus");

@@ -51,7 +51,7 @@ export class OptionsBaseState extends State {
     this._btnDefault = new TextButton(100, 16, 212, 176);
     this._txtTooltip = new Text(305, 25, 8, 148);
 
-    this.setInterface("optionsMenu");
+    this.setInterface("optionsMenu", false, this.game().getSavedGame()?.getSavedBattle?.() ?? null);
     this.add(this._window, "window", "optionsMenu");
     this.add(this._btnVideo, "button", "optionsMenu");
     this.add(this._btnAudio, "button", "optionsMenu");

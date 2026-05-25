@@ -973,6 +973,54 @@
     ]
   },
   {
+    "name": "Interface battlescape theme and palette depth",
+    "area": "Engine/Menu",
+    "status": "integrated-verified",
+    "slicePercent": 100,
+    "nextAction": "Continue broader UI/runtime polish after the source battlescape-origin save/options/pause menu palette branch is covered.",
+    "sourceFiles": [
+      "src/Engine/State.cpp",
+      "src/Engine/State.h",
+      "src/Interface/TextList.cpp",
+      "src/Interface/TextList.h",
+      "src/Interface/ComboBox.cpp",
+      "src/Interface/ComboBox.h",
+      "src/Menu/AbandonGameState.cpp",
+      "src/Menu/ConfirmLoadState.cpp",
+      "src/Menu/DeleteGameState.cpp",
+      "src/Menu/ListGamesState.cpp",
+      "src/Menu/ListLoadOriginalState.cpp",
+      "src/Menu/OptionsBaseState.cpp",
+      "src/Menu/OptionsConfirmState.cpp",
+      "src/Menu/OptionsDefaultsState.cpp",
+      "src/Menu/PauseState.cpp",
+      "src/Menu/SetWindowedRootState.cpp",
+      "src/Savegame/SavedBattleGame.cpp"
+    ],
+    "targetFiles": [
+      "web/src/Engine/State.ts",
+      "web/src/Interface/TextList.ts",
+      "web/src/Interface/ComboBox.ts",
+      "web/src/Menu/AbandonGameState.ts",
+      "web/src/Menu/ConfirmLoadState.ts",
+      "web/src/Menu/DeleteGameState.ts",
+      "web/src/Menu/ListGamesState.ts",
+      "web/src/Menu/ListLoadOriginalState.ts",
+      "web/src/Menu/OptionsBaseState.ts",
+      "web/src/Menu/OptionsConfirmState.ts",
+      "web/src/Menu/OptionsDefaultsState.ts",
+      "web/src/Menu/PauseState.ts",
+      "web/src/Menu/SetWindowedRootState.ts",
+      "web/scripts/verify-interface-battlescape-theme.mjs",
+      "web/package.json"
+    ],
+    "verification": "npm run build passed; npm run typecheck passed; npm run verify:interface-battlescape-theme passed for browser proof that State::applyBattlescapeTheme sets the source battlescapeTheme color/high-contrast flags, applies TAC00.SCR to Window surfaces, propagates TextList/ComboBox arrow colors, and that State::setInterface delegates palette selection to SavedBattleGame::setPaletteByDepth with battlescape cursor-color update.",
+    "boundaries": [
+      "The simplified browser ComboBox still uses a compact button/dropdown adapter, but the source arrow-color hook consumed by battlescape menu theming is now preserved.",
+      "This slice covers battlescape-origin save/options/pause menu palette/theme behavior, not unrelated native FLC palette animation."
+    ]
+  },
+  {
     "name": "Whole source path parity sweep",
     "area": "All",
     "status": "integrated-verified",

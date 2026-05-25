@@ -21,7 +21,7 @@ export class ConfirmLoadState extends State {
     this._btnNo = new TextButton(50, 20, 200, 120);
     this._txtText = new Text(204, 58, 58, 60);
 
-    this.setInterface("saveMenus");
+    this.setInterface("saveMenus", false, this.game().getSavedGame()?.getSavedBattle?.() ?? null);
     this.add(this._window, "confirmLoad", "saveMenus");
     this.add(this._btnYes, "confirmLoad", "saveMenus");
     this.add(this._btnNo, "confirmLoad", "saveMenus");

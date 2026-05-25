@@ -20,7 +20,7 @@ export class OptionsDefaultsState extends State {
     this._btnNo = new TextButton(60, 18, 200, 122);
     this._txtTitle = new Text(246, 32, 37, 70);
 
-    this.setInterface("optionsMenu");
+    this.setInterface("optionsMenu", false, this.game().getSavedGame()?.getSavedBattle?.() ?? null);
     this.add(this._window, "confirmDefaults", "optionsMenu");
     this.add(this._btnYes, "confirmDefaults", "optionsMenu");
     this.add(this._btnNo, "confirmDefaults", "optionsMenu");
