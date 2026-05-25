@@ -497,6 +497,85 @@ const verifier = String.raw`async page => {
     assert(chainedStates.length === 1, "ExplosionBState did not queue chained terrain explosion");
     assert(chainedStates[0]._center.equals(new Position(40, 24, 0)), "ExplosionBState chained terrain center lost the source +8,+8 voxel offset");
 
+    const explosionSounds = [];
+    const explosionCenters = [];
+    const makeExplosionParent = ({ depth = 0, side = UnitFaction.FACTION_PLAYER, targetFaction = UnitFaction.FACTION_HOSTILE } = {}) => {
+      const explosions = [];
+      const tile = {
+        getPosition: () => new Position(1, 1, 0),
+        getUnit: () => ({ getFaction: () => targetFaction })
+      };
+      const parent = {
+        intervals: [],
+        invalidated: 0,
+        getDepth: () => depth,
+        getSave: () => ({
+          getSide: () => side,
+          getTile: () => tile
+        }),
+        getMap: () => ({
+          setBlastFlash: value => { parent.blastFlash = value; },
+          getExplosions: () => explosions,
+          getCamera: () => ({
+            centerOnPosition: (pos, smooth) => explosionCenters.push({ pos: pos.clone(), smooth }),
+            setViewLevel: level => { parent.viewLevel = level; }
+          }),
+          getSoundAngle: pos => pos.x + pos.y + pos.z,
+          invalidate: () => { parent.invalidated++; }
+        }),
+        getMod: () => ({
+          getSoundByDepth: (sound, soundDepth) => ({
+            play: (...args) => explosionSounds.push({ sound, depth: soundDepth, args })
+          })
+        }),
+        setStateInterval: value => parent.intervals.push(value),
+        popState: () => { parent.popped = true; }
+      };
+      return { parent, explosions };
+    };
+    const areaItem = {
+      getRules: () => ({
+        getPower: () => 90,
+        isStrengthApplied: () => false,
+        getBattleType: () => BattleType.BT_GRENADE,
+        getExplosionRadius: () => 5,
+        getHitAnimation: () => 88
+      })
+    };
+    const areaExplosion = makeExplosionParent({ depth: 1 });
+    new ExplosionBState(areaExplosion.parent, new Position(1 * 16 + 8, 1 * 16 + 8, 12), areaItem, null).init();
+    assert(areaExplosion.explosions.length === 18, "ExplosionBState area explosion sprite count did not follow power/5");
+    assert(areaExplosion.explosions[0].getCurrentFrame() === 80, "ExplosionBState underwater area animation did not subtract EXPLODE_FRAMES");
+    assert(explosionSounds.length === 1 && explosionSounds[0].sound === Mod.LARGE_EXPLOSION && explosionSounds[0].depth === 1, "ExplosionBState area explosion did not play LARGE_EXPLOSION by depth");
+
+    const hitItem = {
+      getRules: () => ({
+        getPower: () => 30,
+        isStrengthApplied: () => false,
+        getBattleType: () => BattleType.BT_FIREARM,
+        getExplosionRadius: () => 0,
+        getExplosionSpeed: () => 1,
+        getHitAnimation: () => 12,
+        getHitSound: () => 77,
+        getMeleeAnimation: () => 21
+      })
+    };
+    const hitExplosion = makeExplosionParent({ depth: 0 });
+    new ExplosionBState(hitExplosion.parent, new Position(2 * 16 + 8, 3 * 16 + 8, 12), hitItem, null).init();
+    assert(hitExplosion.explosions.length === 1 && hitExplosion.explosions[0].getCurrentFrame() === 12, "ExplosionBState bullet-hit animation mismatch");
+    assert(explosionSounds.at(-1).sound === 77 && explosionSounds.at(-1).args[1] === 5, "ExplosionBState bullet-hit sound/angle mismatch");
+
+    const centersBeforeHostileCosmetic = explosionCenters.length;
+    const hostileCosmetic = makeExplosionParent({ side: UnitFaction.FACTION_HOSTILE, targetFaction: UnitFaction.FACTION_PLAYER });
+    new ExplosionBState(hostileCosmetic.parent, new Position(1 * 16 + 8, 1 * 16 + 8, 24), hitItem, null, null, false, true).init();
+    assert(hostileCosmetic.explosions.length === 1 && hostileCosmetic.explosions[0].getCurrentFrame() === 21, "ExplosionBState cosmetic hit did not use melee animation");
+    assert(hostileCosmetic.parent.viewLevel === 1, "ExplosionBState cosmetic hit did not set source view level");
+    assert(explosionCenters.length === centersBeforeHostileCosmetic + 1, "ExplosionBState cosmetic hit did not center hostile camera on player target");
+    const cosmeticCenterCount = explosionCenters.length;
+    const playerCosmetic = makeExplosionParent({ side: UnitFaction.FACTION_PLAYER, targetFaction: UnitFaction.FACTION_HOSTILE });
+    new ExplosionBState(playerCosmetic.parent, new Position(1 * 16 + 8, 1 * 16 + 8, 24), hitItem, null, null, false, true).init();
+    assert(explosionCenters.length === cosmeticCenterCount, "ExplosionBState cosmetic camera centered outside the source hostile-vs-player condition");
+
     const dangerSave = new FakeSave(5, 5, 1);
     const dangerEngine = new TileEngine(dangerSave, aftermathVoxelData);
     dangerEngine.setDangerZone(new Position(2, 2, 0), 2, null);
@@ -794,6 +873,7 @@ const verifier = String.raw`async page => {
       casualtyDeaths: deadSoldiers.length,
       hitAftermathExplosions: queuedExplosions.length,
       blastKilledBy: blastVictim.getKilledBy(),
+      explosionSounds: explosionSounds.length,
       hostileGrenadeDanger: dangerCalls.length,
       shotFireSound: shotSounds[0].sound,
       shotgunSecondaryHits: shotgunHitCalls.length,

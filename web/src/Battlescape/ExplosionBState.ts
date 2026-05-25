@@ -1,8 +1,9 @@
 import { RNG } from "../Engine/RNG.ts";
+import { Mod } from "../Mod/Mod.ts";
 import { BattleType, ItemDamageType } from "../Mod/RuleItem.ts";
 import { SpecialAbility } from "../Mod/Unit.ts";
 import type { BattleItem } from "../Savegame/BattleItem.ts";
-import type { BattleUnit } from "../Savegame/BattleUnit.ts";
+import { UnitFaction, type BattleUnit } from "../Savegame/BattleUnit.ts";
 import type { Tile } from "../Savegame/Tile.ts";
 import { BattleState } from "./BattleState.ts";
 import type { BattlescapeGame } from "./BattlescapeGame.ts";
@@ -75,9 +76,12 @@ export class ExplosionBState extends BattleState {
         this._parent.popState();
         return;
       }
-      let frame = itemRules?.getHitAnimation() ?? 0;
-      if (frame < 0) {
-        frame = 0;
+      let frame = Mod.EXPLOSION_OFFSET;
+      if (itemRules) {
+        frame = itemRules.getHitAnimation();
+      }
+      if (this._parent.getDepth() > 0) {
+        frame -= Explosion.EXPLODE_FRAMES;
       }
       let frameDelay = 0;
       const counter = Math.max(1, Math.trunc((this._power / 5) / 5));
@@ -95,6 +99,11 @@ export class ExplosionBState extends BattleState {
         }
       }
       this._parent.setStateInterval(Math.trunc(BattlescapeState.DEFAULT_ANIM_SPEED / 2));
+      this._parent.getMod()?.getSoundByDepth(
+        this._power <= 80 ? Mod.SMALL_EXPLOSION : Mod.LARGE_EXPLOSION,
+        this._parent.getDepth(),
+        false
+      )?.play();
       if (tile) {
         map.getCamera().centerOnPosition(tile.getPosition(), false);
       }
@@ -104,15 +113,21 @@ export class ExplosionBState extends BattleState {
 
     this._parent.setStateInterval(Math.max(1, Math.trunc((BattlescapeState.DEFAULT_ANIM_SPEED / 2) - (10 * (itemRules?.getExplosionSpeed() || 0)))));
     let anim = itemRules?.getHitAnimation() ?? -1;
+    const sound = itemRules?.getHitSound() ?? -1;
     if (this._cosmetic) {
-      anim = itemRules?.getMeleeAnimation() ?? anim;
+      anim = itemRules?.getMeleeAnimation() ?? -1;
     }
     if (anim !== -1) {
       map.getExplosions().push(new Explosion(this._center, anim, 0, false, this._cosmetic));
     }
     map.getCamera().setViewLevel(Math.trunc(this._center.z / 24));
-    if (this._cosmetic && this._parent.getSave().getSide() !== tile?.getUnit()?.getFaction() && tile) {
+    const target = tile?.getUnit() || null;
+    if (this._cosmetic && this._parent.getSave().getSide() === UnitFaction.FACTION_HOSTILE && target?.getFaction() === UnitFaction.FACTION_PLAYER && tile) {
       map.getCamera().centerOnPosition(tile.getPosition(), false);
+    }
+    if (sound !== -1 && !this._cosmetic) {
+      this._parent.getMod()?.getSoundByDepth(sound, this._parent.getDepth(), false)
+        ?.play(-1, map.getSoundAngle(this._center.divide(new Position(16, 16, 24))));
     }
     map.invalidate();
   }

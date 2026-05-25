@@ -120,6 +120,9 @@ export class Mod {
   static GRAPHS_CURSOR = 252;
   static BUTTON_PRESS = 0;
   static WINDOW_POPUP = [1, 2, 3];
+  static SMALL_EXPLOSION = 2;
+  static LARGE_EXPLOSION = 5;
+  static EXPLOSION_OFFSET = 0;
   static ITEM_DROP = 38;
   static ITEM_THROW = 39;
   static ITEM_RELOAD = 17;
@@ -1222,6 +1225,12 @@ export class Mod {
         this.turnAIUseBlaster = value;
       } else if (match[1] === "buttonPress") {
         Mod.BUTTON_PRESS = value;
+      } else if (match[1] === "smallExplosion") {
+        Mod.SMALL_EXPLOSION = value;
+      } else if (match[1] === "largeExplosion") {
+        Mod.LARGE_EXPLOSION = value;
+      } else if (match[1] === "explosionOffset") {
+        Mod.EXPLOSION_OFFSET = value;
       } else if (match[1] === "itemDrop") {
         Mod.ITEM_DROP = value;
       } else if (match[1] === "itemThrow") {
