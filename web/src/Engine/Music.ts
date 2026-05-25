@@ -9,6 +9,7 @@ export class Music {
   private static _paused = false;
   private static _currentAudio: HTMLAudioElement | null = null;
   private static _currentUrl: string | null = null;
+  private static _volume = 1.0;
 
   load(filename: string): void;
   load(data: ArrayBuffer | Uint8Array | number[], size?: number): void;
@@ -49,7 +50,7 @@ export class Music {
     const url = URL.createObjectURL(new Blob([this._music.slice()], { type: mime }));
     audio.src = url;
     audio.loop = loop !== 0;
-    audio.volume = Math.max(0, Math.min(128, Options.musicVolume)) / 128;
+    audio.volume = Music._volume;
     Music._currentAudio = audio;
     Music._currentUrl = url;
     void audio.play().catch(error => {
@@ -79,6 +80,17 @@ export class Music {
 
   static isPlaying(): boolean {
     return Music._playing && !Music._paused;
+  }
+
+  static setVolume(volume: number): void {
+    Music._volume = Math.max(0, Math.min(1, volume));
+    if (Music._currentAudio) {
+      Music._currentAudio.volume = Music._volume;
+    }
+  }
+
+  static getVolume(): number {
+    return Music._volume;
   }
 
   getPlayCount(): number {

@@ -1,8 +1,10 @@
 import { Action } from "./Action.ts";
 import { Language } from "./Language.ts";
 import { Logger, LOG_INFO, LOG_WARNING } from "./Logger.ts";
+import { Music } from "./Music.ts";
 import { Options } from "./Options.ts";
 import { Screen } from "./Screen.ts";
+import { Sound } from "./Sound.ts";
 import { State } from "./State.ts";
 import { Mod } from "../Mod/Mod.ts";
 import type { SavedGame } from "../Savegame/SavedGame.ts";
@@ -34,6 +36,7 @@ export class Game {
     this._cursor = new Cursor(9, 13);
     this._fpsCounter = new FpsCounter(30, 12, 15, 5);
     this.installEventHandlers(canvas);
+    this.initAudio();
     Logger.log(LOG_INFO, "Browser canvas initialized successfully.");
   }
 
@@ -54,7 +57,28 @@ export class Game {
     this._quit = true;
   }
 
-  setVolume(_sound: number, _music: number, _ui: number): void {}
+  setVolume(sound: number, music: number, ui: number): void {
+    if (!Options.mute) {
+      if (sound >= 0) {
+        const soundVolume = Game.volumeExponent(sound);
+        Sound.setVolume(-1, soundVolume);
+        const savedBattle = this._save?.getSavedBattle?.() || null;
+        if (savedBattle) {
+          Sound.setVolume(3, soundVolume * savedBattle.getAmbientVolume());
+        } else {
+          Sound.setVolume(3, soundVolume / 2);
+        }
+      }
+      if (music >= 0) {
+        Music.setVolume(Game.volumeExponent(music));
+      }
+      if (ui >= 0) {
+        const uiVolume = Game.volumeExponent(ui);
+        Sound.setVolume(1, uiVolume);
+        Sound.setVolume(2, uiVolume);
+      }
+    }
+  }
 
   static volumeExponent(volume: number): number {
     return (Math.exp(Math.log(Game.VOLUME_GRADIENT + 1.0) * volume / 128.0) - 1.0) / Game.VOLUME_GRADIENT;
@@ -143,6 +167,7 @@ export class Game {
   initAudio(): void {
     Logger.log(LOG_WARNING, "Browser audio starts on first playback after user activation.");
     Options.mute = false;
+    this.setVolume(Options.soundVolume, Options.musicVolume, Options.uiVolume);
   }
 
   enqueue(event: SdlEvent): void {

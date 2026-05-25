@@ -1,14 +1,14 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T18:32:41.444Z",
+    "generatedAt": "2026-05-25T18:47:55.997Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
     "sourceCodeFiles": 646,
     "targetTsFiles": 341,
     "webOnlyTsFiles": 5,
-    "integratedVerifiedSlices": 19,
-    "trackedSlices": 20,
+    "integratedVerifiedSlices": 20,
+    "trackedSlices": 21,
     "slicePathWarnings": 0
   },
   "areas": [
@@ -113,7 +113,7 @@
     }
   ],
   "statusRollups": {
-    "integrated-verified": 19,
+    "integrated-verified": 20,
     "partial-integrated-verified": 1
   },
   "nextQueue": [
@@ -121,7 +121,7 @@
       "name": "Original save conversion folder ingestion data",
       "area": "Savegame",
       "status": "partial-integrated-verified",
-      "nextAction": "Continue broader playability/debriefing/runtime parity; the latest Menu/Geoscape source-route marker scan is clean and save/load persistence remains verified browser storage behavior."
+      "nextAction": "Continue remaining adapter/runtime edge parity; the latest Menu/Geoscape source-route marker scan is clean and save/load persistence remains verified browser storage behavior."
     }
   ],
   "slices": [
@@ -471,7 +471,7 @@
       "area": "Menu/Geoscape",
       "status": "integrated-verified",
       "slicePercent": 100,
-      "nextAction": "Continue broader playability/debriefing/runtime parity; the latest Menu/Geoscape marker scan is clean.",
+      "nextAction": "Continue remaining adapter/runtime edge parity; the latest Menu/Geoscape marker scan is clean and core playability routes are covered elsewhere.",
       "sourceFiles": [
         "src/Menu/NewBattleState.cpp",
         "src/Geoscape/InterceptState.cpp",
@@ -596,7 +596,7 @@
       "area": "Savegame",
       "status": "partial-integrated-verified",
       "slicePercent": 99.9998,
-      "nextAction": "Continue broader playability/debriefing/runtime parity; the latest Menu/Geoscape source-route marker scan is clean and save/load persistence remains verified browser storage behavior.",
+      "nextAction": "Continue remaining adapter/runtime edge parity; the latest Menu/Geoscape source-route marker scan is clean and save/load persistence remains verified browser storage behavior.",
       "sourceFiles": [
         "src/Mod/RuleConverter.cpp",
         "src/Mod/RuleConverter.h",
@@ -812,7 +812,7 @@
       "area": "Battlescape",
       "status": "integrated-verified",
       "slicePercent": 98,
-      "nextAction": "Move remaining debriefing work to broader full save/load and visual-polish boundaries; prioritize another documented runtime boundary next",
+      "nextAction": "Move remaining debriefing work to visual-polish and campaign carry-through boundaries; prioritize another documented runtime adapter edge next",
       "sourceFiles": [
         "src/Battlescape/DebriefingState.cpp",
         "src/Battlescape/DebriefingState.h",
@@ -872,7 +872,7 @@
       "area": "Battlescape",
       "status": "integrated-verified",
       "slicePercent": 100,
-      "nextAction": "Continue broader full mission-end playthrough coverage and remaining battlescape runtime/adapter boundaries.",
+      "nextAction": "Continue remaining battlescape runtime/adapter edge parity after the full mission-end handoff coverage.",
       "sourceFiles": [
         "src/Battlescape/BattlescapeState.cpp",
         "src/Battlescape/BattlescapeState.h",
@@ -916,6 +916,36 @@
       "boundaries": [
         "The verifier drives nextStage directly with source-shaped fake fixtures; a later playthrough verifier should reach it through real generated multi-stage mission completion.",
         "Deeper generated map content fidelity remains owned by the broader BattlescapeGenerator map/script/deployment slices."
+      ]
+    },
+    {
+      "name": "Engine audio volume and reserved channels",
+      "area": "Engine",
+      "status": "integrated-verified",
+      "slicePercent": 100,
+      "nextAction": "Continue remaining browser adapter edge parity, especially larger ruleset/mod selection and visual/audio native backend seams.",
+      "sourceFiles": [
+        "src/Engine/Game.cpp",
+        "src/Engine/Game.h",
+        "src/Engine/Sound.cpp",
+        "src/Engine/Sound.h",
+        "src/Engine/Music.cpp",
+        "src/Engine/Music.h",
+        "src/Interface/TextButton.cpp",
+        "src/Interface/Window.cpp"
+      ],
+      "targetFiles": [
+        "web/src/Engine/Game.ts",
+        "web/src/Engine/Sound.ts",
+        "web/src/Engine/Music.ts",
+        "web/src/Interface/TextButton.ts",
+        "web/src/Interface/Window.ts",
+        "web/scripts/verify-battle-runtime.mjs"
+      ],
+      "verification": "npm run build passed; npm run typecheck passed; npm run verify:battle-runtime passed for browser proof that Game::setVolume applies the source exponential volume curve, Sound channel -1 controls default sound, channel 3 is halved without a saved battle and scaled by SavedBattleGame::getAmbientVolume() with one, Music receives the source music curve, UI channels 1 and 2 receive the source UI curve, muted setVolume calls preserve current adapter volumes, TextButton/Window popup sounds now use the source reserved UI channel group rotation, and Sound.stop() clears owned looping-sound state so ambient playback can restart after global halt.",
+      "boundaries": [
+        "Browser WebAudio still adapts SDL_mixer channels rather than reproducing native mixer internals exactly.",
+        "Full YM3812/Adlib playback, FLC audio, and native backend parity remain separate browser adapter seams."
       ]
     },
     {
@@ -976,9 +1006,9 @@
       "Basescape": 9114,
       "Battlescape": 19948,
       "(root)": 335,
-      "Engine": 7942,
+      "Engine": 8020,
       "Geoscape": 8501,
-      "Interface": 2785,
+      "Interface": 2787,
       "Menu": 4740,
       "Mod": 12724,
       "Savegame": 14224,

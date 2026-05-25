@@ -1,11 +1,12 @@
 import { InteractiveSurface } from "../Engine/InteractiveSurface.ts";
+import { Sound } from "../Engine/Sound.ts";
 import { Text, ALIGN_CENTER, ALIGN_MIDDLE } from "./Text.ts";
 import type { Action } from "../Engine/Action.ts";
 import type { State } from "../Engine/State.ts";
 import { SDL_BUTTON_LEFT, SDL_BUTTON_WHEELDOWN, SDL_BUTTON_WHEELUP } from "../types.ts";
 
 export class TextButton extends InteractiveSurface {
-  static soundPress: { play: () => void } | null = null;
+  static soundPress: { play: (channel?: number) => void } | null = null;
 
   private _color = 0;
   private _text: Text;
@@ -150,7 +151,7 @@ export class TextButton extends InteractiveSurface {
     }
     if (button != null && this.isButtonHandled(button)) {
       if (TextButton.soundPress && !this._group && button !== SDL_BUTTON_WHEELUP && button !== SDL_BUTTON_WHEELDOWN) {
-        TextButton.soundPress.play();
+        TextButton.soundPress.play(Sound.groupAvailable(0));
       }
       this._comboBox?.toggle();
       this.draw();

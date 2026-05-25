@@ -1,4 +1,5 @@
 import { Surface } from "../Engine/Surface.ts";
+import { Sound } from "../Engine/Sound.ts";
 import { Timer } from "../Engine/Timer.ts";
 import { RNG } from "../Engine/RNG.ts";
 import type { State } from "../Engine/State.ts";
@@ -11,7 +12,7 @@ export type WindowPopup = typeof POPUP_NONE | typeof POPUP_HORIZONTAL | typeof P
 
 export class Window extends Surface {
   private static POPUP_SPEED = 0.05;
-  static soundPopup: Array<{ play: () => void } | null> = [null, null, null];
+  static soundPopup: Array<{ play: (channel?: number) => void } | null> = [null, null, null];
 
   private _dx: number;
   private _dy: number;
@@ -73,7 +74,7 @@ export class Window extends Surface {
   popup(): void {
     if (this._popupStep === 0.0) {
       const sound = RNG.seedless(0, 2);
-      Window.soundPopup[sound]?.play();
+      Window.soundPopup[sound]?.play(Sound.groupAvailable(0));
     }
     if (this._popupStep < 1.0) {
       this._popupStep += Window.POPUP_SPEED;

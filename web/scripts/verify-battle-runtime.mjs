@@ -63,6 +63,9 @@ const verifier = String.raw`async page => {
       { GameEnding },
       { Mod },
       { Options, SCROLL_AUTO, SCROLL_TRIGGER, PATH_FULL },
+      { Game },
+      { Sound },
+      { Music },
       { SDL_BUTTON_LEFT, SDL_BUTTON_MIDDLE, SDL_BUTTON_WHEELUP, SDL_KEYDOWN, SDL_KEYUP, SDL_MOUSEBUTTONDOWN, SDL_MOUSEBUTTONUP, SDL_MOUSEMOTION }
     ] = await Promise.all([
       import("/web/dist/Battlescape/Pathfinding.js"),
@@ -94,6 +97,9 @@ const verifier = String.raw`async page => {
       import("/web/dist/Savegame/SavedGame.js"),
       import("/web/dist/Mod/Mod.js"),
       import("/web/dist/Engine/Options.js"),
+      import("/web/dist/Engine/Game.js"),
+      import("/web/dist/Engine/Sound.js"),
+      import("/web/dist/Engine/Music.js"),
       import("/web/dist/types.js")
     ]);
 
@@ -102,6 +108,57 @@ const verifier = String.raw`async page => {
         throw new Error(message);
       }
     };
+
+    const assertApprox = (actual, expected, message) => {
+      if (Math.abs(actual - expected) > 1e-9) {
+        throw new Error(message + ": " + actual + " != " + expected);
+      }
+    };
+
+    const browserGame = window.openxcomGame;
+    const oldSave = browserGame.getSavedGame();
+    const oldMute = Options.mute;
+    const oldDefaultSound = Sound.getVolume(-1);
+    const oldUi1 = Sound.getVolume(1);
+    const oldUi2 = Sound.getVolume(2);
+    const oldAmbient = Sound.getVolume(3);
+    const oldMusic = Music.getVolume();
+    try {
+      Options.mute = false;
+      browserGame.setSavedGame({ getSavedBattle: () => ({ getAmbientVolume: () => 0.25 }) });
+      browserGame.setVolume(64, 32, 96);
+      assertApprox(Sound.getVolume(-1), Game.volumeExponent(64), "Game.setVolume should apply source exponent to sound channels");
+      assertApprox(Sound.getVolume(3), Game.volumeExponent(64) * 0.25, "Game.setVolume should scale ambient channel by SavedBattleGame ambient volume");
+      assertApprox(Music.getVolume(), Game.volumeExponent(32), "Game.setVolume should apply source exponent to music");
+      assertApprox(Sound.getVolume(1), Game.volumeExponent(96), "Game.setVolume should apply source exponent to UI channel 1");
+      assertApprox(Sound.getVolume(2), Game.volumeExponent(96), "Game.setVolume should apply source exponent to UI channel 2");
+      browserGame.setSavedGame(null);
+      browserGame.setVolume(64, -1, -1);
+      assertApprox(Sound.getVolume(3), Game.volumeExponent(64) / 2, "Game.setVolume should halve ambient channel without a saved battle");
+      const firstUiChannel = Sound.groupAvailable(0);
+      const secondUiChannel = Sound.groupAvailable(0);
+      assert(firstUiChannel !== secondUiChannel && [1, 2].includes(firstUiChannel) && [1, 2].includes(secondUiChannel), "Sound.groupAvailable(0) should rotate reserved UI channels 1 and 2");
+      const loopSound = new Sound();
+      let loopStopped = false;
+      loopSound._loopSource = { stop: () => { loopStopped = true; } };
+      Sound._loopingSounds.add(loopSound);
+      Sound.stop();
+      assert(loopStopped && loopSound._loopSource === null && !Sound._loopingSounds.has(loopSound), "Sound.stop should clear owned looping sound state");
+      Sound.setVolume(-1, 0.123);
+      Music.setVolume(0.234);
+      Options.mute = true;
+      browserGame.setVolume(128, 128, 128);
+      assertApprox(Sound.getVolume(-1), 0.123, "Game.setVolume should preserve sound volume while muted");
+      assertApprox(Music.getVolume(), 0.234, "Game.setVolume should preserve music volume while muted");
+    } finally {
+      Options.mute = oldMute;
+      browserGame.setSavedGame(oldSave);
+      Sound.setVolume(-1, oldDefaultSound);
+      Sound.setVolume(1, oldUi1);
+      Sound.setVolume(2, oldUi2);
+      Sound.setVolume(3, oldAmbient);
+      Music.setVolume(oldMusic);
+    }
 
     const makeBattleStateUnit = ({ id, faction = UnitFaction.FACTION_PLAYER, allowInventory = true }) => {
       const armor = new Armor("STR_TEST_ARMOR_" + id);

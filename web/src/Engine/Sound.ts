@@ -9,6 +9,10 @@ export class Sound {
   private _lastAngle = 0;
   private _lastDistance = 0;
   private static _context: AudioContext | null = null;
+  private static _defaultVolume = 1.0;
+  private static _channelVolumes = new Map<number, number>();
+  private static _loopingSounds = new Set<Sound>();
+  private static _groupCursor = new Map<number, number>([[0, 1]]);
 
   load(filename: string): void;
   load(data: ArrayBuffer | Uint8Array | number[], size?: number): void;
@@ -46,17 +50,46 @@ export class Sound {
       const source = context.createBufferSource();
       const gain = context.createGain();
       source.buffer = buffer;
-      gain.gain.value = Math.max(0, Options.soundVolume) / 128;
+      gain.gain.value = Sound.getVolume(channel);
       source.connect(gain);
       gain.connect(context.destination);
       source.start();
     });
   }
 
-  static stop(): void {}
+  static stop(): void {
+    for (const sound of [...Sound._loopingSounds]) {
+      sound.stopLoop();
+    }
+  }
+
+  static setVolume(channel: number, volume: number): void {
+    const clamped = Math.max(0, Math.min(1, volume));
+    if (channel < 0) {
+      Sound._defaultVolume = clamped;
+      return;
+    }
+    Sound._channelVolumes.set(channel, clamped);
+  }
+
+  static getVolume(channel = -1): number {
+    if (channel >= 0) {
+      return Sound._channelVolumes.get(channel) ?? Sound._defaultVolume;
+    }
+    return Sound._defaultVolume;
+  }
+
+  static groupAvailable(group: number): number {
+    if (group === 0) {
+      const current = Sound._groupCursor.get(group) ?? 1;
+      Sound._groupCursor.set(group, current === 1 ? 2 : 1);
+      return current;
+    }
+    return -1;
+  }
 
   loop(): void {
-    if (Options.mute || !this._sound) {
+    if (Options.mute || !this._sound || this._loopSource) {
       return;
     }
     const context = Sound.audioContext();
@@ -72,11 +105,18 @@ export class Sound {
       const gain = context.createGain();
       source.buffer = buffer;
       source.loop = true;
-      gain.gain.value = Math.max(0, Options.soundVolume) / 128;
+      gain.gain.value = Sound.getVolume(3);
       source.connect(gain);
       gain.connect(context.destination);
+      source.onended = () => {
+        if (this._loopSource === source) {
+          this._loopSource = null;
+          Sound._loopingSounds.delete(this);
+        }
+      };
       source.start();
       this._loopSource = source;
+      Sound._loopingSounds.add(this);
     });
   }
 
@@ -87,6 +127,7 @@ export class Sound {
       } catch {
         // SDL_mixer stop is forgiving; keep the browser path equally tolerant.
       }
+      Sound._loopingSounds.delete(this);
       this._loopSource = null;
     }
   }
