@@ -1,5 +1,6 @@
 import { MovementType } from "./Armor.ts";
 import { ItemDamageType } from "./RuleItem.ts";
+import type { SurfaceSet } from "../Engine/SurfaceSet.ts";
 
 export enum SpecialTileType {
   TILE = 0,
@@ -38,6 +39,7 @@ export enum TilePart {
 
 export type MapDataSetLike = {
   getObject?: (id: number) => MapData | null;
+  getSurfaceset?: () => SurfaceSet | null;
 };
 
 export class MapData {

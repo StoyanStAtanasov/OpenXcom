@@ -74,6 +74,8 @@ type ResourceManifest = {
   ufoTerrainDir?: string | null;
   ufoMapsDir?: string | null;
   ufoRoutesDir?: string | null;
+  ufoUfographFiles?: string[];
+  ufoUnitFiles?: string[];
   ufoLoftempsDat?: string | null;
   ufoBasebitsPck?: string | null;
   ufoBasebitsTab?: string | null;
@@ -105,6 +107,8 @@ type ResourceManifest = {
   tftdTerrainDir?: string | null;
   tftdMapsDir?: string | null;
   tftdRoutesDir?: string | null;
+  tftdUfographFiles?: string[];
+  tftdUnitFiles?: string[];
   tftdLoftempsDat?: string | null;
   tftdBasebitsPck?: string | null;
   tftdBasebitsTab?: string | null;
@@ -125,6 +129,8 @@ export class Mod {
   static SMALL_EXPLOSION = 2;
   static LARGE_EXPLOSION = 5;
   static EXPLOSION_OFFSET = 0;
+  static SMOKE_OFFSET = 8;
+  static UNDERWATER_SMOKE_OFFSET = 0;
   static ITEM_DROP = 38;
   static ITEM_THROW = 39;
   static ITEM_RELOAD = 17;
@@ -1086,6 +1092,15 @@ export class Mod {
       this.surfaceSets.set("FLOOROB.PCK", floorob);
     }
 
+    const ufographFiles = [
+      ...(this.manifest.ufoUfographFiles || []),
+      ...(this.manifest.tftdUfographFiles || [])
+    ];
+    await this.loadPckSurfaceSetFromManifest("CURSOR.PCK", 32, 40, ufographFiles);
+    await this.loadPckSurfaceSetFromManifest("SMOKE.PCK", 32, 40, ufographFiles);
+    await this.loadPckSurfaceSetFromManifest("HIT.PCK", 32, 40, ufographFiles);
+    await this.loadPckSurfaceSetFromManifest("X1.PCK", 128, 64, ufographFiles);
+
     const scangDat = await this.fetchOptionalBinary(this.manifest.ufoScangDat);
     if (scangDat) {
       const scang = new SurfaceSet(4, 4);
@@ -1112,6 +1127,93 @@ export class Mod {
     } else {
       this.surfaceSets.set("MEDIBITS.DAT", this.createFallbackMedibits());
     }
+
+    const unitFiles = [
+      ...(this.manifest.ufoUnitFiles || []),
+      ...(this.manifest.tftdUnitFiles || [])
+    ];
+    await this.loadUnitSurfaceSets(unitFiles);
+    const handob = this.surfaceSets.get("HANDOB.PCK");
+    if (handob && !this.surfaceSets.has("HANDOB2.PCK")) {
+      this.surfaceSets.set("HANDOB2.PCK", this.cloneSurfaceSet(handob));
+    }
+    if (!this.surfaceSets.has("Projectiles")) {
+      this.surfaceSets.set("Projectiles", new SurfaceSet(3, 3));
+    }
+    if (!this.surfaceSets.has("UnderwaterProjectiles")) {
+      this.surfaceSets.set("UnderwaterProjectiles", new SurfaceSet(3, 3));
+    }
+    for (const name of ["BIGOBS.PCK", "FLOOROB.PCK", "HANDOB.PCK", "SMOKE.PCK", "HIT.PCK", "BASEBITS.PCK"]) {
+      this.surfaceSets.get(name)?.setMaxSharedFrames(this.surfaceSets.get(name)?.getTotalFrames() || 0);
+    }
+    this.surfaceSets.get("Projectiles")?.setMaxSharedFrames(385);
+    this.surfaceSets.get("UnderwaterProjectiles")?.setMaxSharedFrames(385);
+    const smokeSharedFrames = this.surfaceSets.get("SMOKE.PCK")?.getMaxSharedFrames();
+    if (smokeSharedFrames != null) {
+      this.surfaceSets.get("X1.PCK")?.setMaxSharedFrames(smokeSharedFrames);
+    }
+  }
+
+  private async loadPckSurfaceSetFromManifest(name: string, width: number, height: number, files: string[]): Promise<SurfaceSet | null> {
+    if (this.surfaceSets.has(name)) {
+      return this.surfaceSets.get(name) || null;
+    }
+    const pck = this.findManifestFile(files, name);
+    const tab = this.findManifestFile(files, name.replace(/\.PCK$/i, ".TAB"));
+    const pckBytes = await this.fetchOptionalBinary(pck);
+    const tabBytes = await this.fetchOptionalBinary(tab);
+    if (!pckBytes || !tabBytes) {
+      return null;
+    }
+    const set = new SurfaceSet(width, height);
+    set.loadPck(pckBytes, tabBytes);
+    this.surfaceSets.set(name, set);
+    return set;
+  }
+
+  private async loadUnitSurfaceSets(files: string[]): Promise<void> {
+    const pcks = files
+      .filter(file => this.fileName(file).endsWith(".PCK"))
+      .sort((a, b) => this.fileName(a).localeCompare(this.fileName(b)));
+    for (const pck of pcks) {
+      const name = this.fileName(pck);
+      if (this.surfaceSets.has(name)) {
+        continue;
+      }
+      const tab = this.findManifestFile(files, name.replace(/\.PCK$/i, ".TAB"));
+      const pckBytes = await this.fetchOptionalBinary(pck);
+      const tabBytes = await this.fetchOptionalBinary(tab);
+      if (!pckBytes || !tabBytes) {
+        continue;
+      }
+      const set = new SurfaceSet(name === "BIGOBS.PCK" ? 32 : 32, name === "BIGOBS.PCK" ? 48 : 40);
+      set.loadPck(pckBytes, tabBytes);
+      this.surfaceSets.set(name, set);
+    }
+  }
+
+  private cloneSurfaceSet(source: SurfaceSet): SurfaceSet {
+    const clone = new SurfaceSet(source.getWidth(), source.getHeight());
+    for (const [frame, surface] of source.getFrames()) {
+      const dest = clone.addFrame(frame);
+      dest.setPalette(surface.getPalette());
+      for (let y = 0; y < surface.getHeight(); ++y) {
+        for (let x = 0; x < surface.getWidth(); ++x) {
+          dest.setPixel(x, y, surface.getPixel(x, y));
+        }
+      }
+    }
+    clone.setMaxSharedFrames(source.getMaxSharedFrames());
+    return clone;
+  }
+
+  private findManifestFile(files: string[], name: string): string | null {
+    const wanted = name.toUpperCase();
+    return files.find(file => this.fileName(file) === wanted) || null;
+  }
+
+  private fileName(path: string): string {
+    return path.split(/[\\/]/).pop()?.toUpperCase() || path.toUpperCase();
   }
 
   private async loadMCDPatches(): Promise<void> {
@@ -1239,6 +1341,10 @@ export class Mod {
         Mod.LARGE_EXPLOSION = value;
       } else if (match[1] === "explosionOffset") {
         Mod.EXPLOSION_OFFSET = value;
+      } else if (match[1] === "smokeOffset") {
+        Mod.SMOKE_OFFSET = value;
+      } else if (match[1] === "underwaterSmokeOffset") {
+        Mod.UNDERWATER_SMOKE_OFFSET = value;
       } else if (match[1] === "itemDrop") {
         Mod.ITEM_DROP = value;
       } else if (match[1] === "itemThrow") {

@@ -2,6 +2,7 @@ import { BattleActionType, type BattleAction } from "../Battlescape/BattleAction
 import { TilePart, SpecialTileType } from "../Mod/MapData.ts";
 import { Position, type PositionLike } from "../Battlescape/Position.ts";
 import { RNG } from "../Engine/RNG.ts";
+import type { Surface } from "../Engine/Surface.ts";
 import { Armor, MovementType } from "../Mod/Armor.ts";
 import { BattleType, ItemDamageType, type RuleItem } from "../Mod/RuleItem.ts";
 import { InventoryType, type RuleInventory } from "../Mod/RuleInventory.ts";
@@ -288,6 +289,7 @@ export class BattleUnit {
   private _inventory: BattleItem[] = [];
   private _specWeapon: Array<BattleItem | null> = Array.from({ length: BattleUnit.SPEC_WEAPON_MAX }, () => null);
   private _visible = false;
+  private _cache: Array<Surface | null> = Array.from({ length: 5 }, () => null);
   private _cacheInvalid = true;
   private _expBravery = 0;
   private _expReactions = 0;
@@ -748,6 +750,10 @@ export class BattleUnit {
     return this._walkPhase % 8;
   }
 
+  getDiagonalWalkingPhase(): number {
+    return Math.trunc(this._walkPhase / 8) * 8;
+  }
+
   getFallingPhase(): number {
     return this._fallPhase;
   }
@@ -855,8 +861,17 @@ export class BattleUnit {
     this._status = UnitStatus.STATUS_STANDING;
   }
 
-  setCache(_cache: unknown = null, _part = 0): void {
-    this._cacheInvalid = true;
+  setCache(cache: Surface | number | null = null, part = 0): void {
+    if (!cache || typeof cache === "number") {
+      this._cacheInvalid = true;
+      return;
+    }
+    this._cache[part] = cache;
+    this._cacheInvalid = false;
+  }
+
+  getCache(part = 0): Surface | null {
+    return this._cache[part] || null;
   }
 
   directionTo(point: PositionLike): number {

@@ -5,6 +5,7 @@ import { ItemDamageType } from "../Mod/RuleItem.ts";
 import type { RuleInventory } from "../Mod/RuleInventory.ts";
 import { BattleActionType } from "../Battlescape/BattleAction.ts";
 import { Position } from "../Battlescape/Position.ts";
+import type { Surface } from "../Engine/Surface.ts";
 import { BattleItem } from "./BattleItem.ts";
 import { BattleUnit } from "./BattleUnit.ts";
 import { serializeInt, unserializeInt } from "./SerializationHelper.ts";
@@ -168,6 +169,14 @@ export class Tile {
     this._objects[part] = dat;
     this._mapDataID[part] = mapDataID;
     this._mapDataSetID[part] = mapDataSetID;
+  }
+
+  getSprite(part: TilePart): Surface | null {
+    const object = this._objects[part];
+    if (!object) {
+      return null;
+    }
+    return object.getDataset()?.getSurfaceset?.()?.getFrame(object.getSprite(this._currentFrame[part])) || null;
   }
 
   isVoid(): boolean {

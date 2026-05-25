@@ -38,10 +38,13 @@ const verifier = String.raw`async page => {
       { Camera },
       { Map: BattleMap, CursorType },
       { Action },
+      { Surface },
+      { SurfaceSet },
       { Position },
       { MovementType },
       { UnitFaction, UnitStatus, UnitSide, UnitBodyPart },
-      { TilePart, VoxelType },
+      { Tile },
+      { MapData, TilePart, VoxelType },
       { BattlescapeGame, BattleActionType },
       { ItemDamageType, BattleType },
       { SpecialAbility },
@@ -57,9 +60,12 @@ const verifier = String.raw`async page => {
       import("/web/dist/Battlescape/Camera.js"),
       import("/web/dist/Battlescape/Map.js"),
       import("/web/dist/Engine/Action.js"),
+      import("/web/dist/Engine/Surface.js"),
+      import("/web/dist/Engine/SurfaceSet.js"),
       import("/web/dist/Battlescape/Position.js"),
       import("/web/dist/Mod/Armor.js"),
       import("/web/dist/Savegame/BattleUnit.js"),
+      import("/web/dist/Savegame/Tile.js"),
       import("/web/dist/Mod/MapData.js"),
       import("/web/dist/Battlescape/BattlescapeGame.js"),
       import("/web/dist/Mod/RuleItem.js"),
@@ -841,6 +847,66 @@ const verifier = String.raw`async page => {
     assert(battleMap._launch === true, "Map.setProjectile did not arm source smooth-camera launch flag");
     battleMap.init();
     assert(battleMap.getProjectile() === null, "Map.init did not reset projectile ownership");
+
+    const tileSurfaceSet = new SurfaceSet(32, 40);
+    const tileFrame = tileSurfaceSet.addFrame(3);
+    tileFrame.setPixel(0, 0, 77);
+    const mapData = new MapData({ getSurfaceset: () => tileSurfaceSet });
+    mapData.setSprite(0, 3);
+    const spriteTile = new Tile(new Position(0, 0, 0));
+    spriteTile.setMapData(mapData, 0, 0, TilePart.O_FLOOR);
+    assert(spriteTile.getSprite(TilePart.O_FLOOR) === tileFrame, "Tile.getSprite did not resolve MapData -> SurfaceSet frame");
+
+    const spriteSave = {
+      getMapSizeX: () => 1,
+      getMapSizeY: () => 1,
+      getMapSizeZ: () => 1,
+      getTiles: () => [spriteTile],
+      getTile: posLike => {
+        const pos = Position.from(posLike);
+        return pos.x === 0 && pos.y === 0 && pos.z === 0 ? spriteTile : null;
+      },
+      getUnits: () => [],
+      getSelectedUnit: () => null,
+      getDepth: () => 0,
+      getDebugMode: () => false,
+      getBattleState: () => ({ getMouseOverIcons: () => true })
+    };
+    const spriteMap = new BattleMap({ getSavedGame: () => ({ getSavedBattle: () => spriteSave }), getMod: () => ({ getSurfaceSet: () => null }) }, 64, 64, 0, 0, 64);
+    spriteMap.getCamera().setMapOffset(new Position(20, 20, 0));
+    spriteMap.draw();
+    assert(spriteMap.getPixel(20, 20) !== 0, "Map.drawTerrain did not blit the Tile.getSprite floor frame");
+
+    const unitSet = new SurfaceSet(32, 40);
+    const unitFrame = unitSet.addFrame(0);
+    unitFrame.setPixel(0, 0, 82);
+    const handSet = new SurfaceSet(32, 40);
+    const unitCaches = [];
+    let unitCacheInvalid = true;
+    const cacheUnit = {
+      getArmor: () => ({ getSpriteSheet: () => "TESTUNIT.PCK", getSize: () => 1, getDrawingRoutine: () => 0 }),
+      isCacheInvalid: () => unitCacheInvalid,
+      getCache: part => unitCaches[part] || null,
+      setCache: (surface, part) => {
+        unitCaches[part] = surface;
+        unitCacheInvalid = !surface;
+      },
+      getRecolor: () => [],
+      getItem: () => null,
+      isOut: () => false,
+      getDirection: () => 0,
+      getStatus: () => UnitStatus.STATUS_STANDING,
+      getFallingPhase: () => 0,
+      getWalkingPhase: () => 0
+    };
+    const cacheMap = new BattleMap({
+      getSavedGame: () => ({ getSavedBattle: () => spriteSave }),
+      getMod: () => ({
+        getSurfaceSet: name => name === "TESTUNIT.PCK" ? unitSet : (name === "HANDOB.PCK" || name === "HANDOB2.PCK" ? handSet : null)
+      })
+    }, 64, 64, 0, 0, 64);
+    cacheMap.cacheUnit(cacheUnit);
+    assert(unitCaches[0] && unitCaches[0].getPixel(16, 0) !== 0 && unitCacheInvalid === false, "Map.cacheUnit did not populate indexed unit cache pixels");
     Options.battleEdgeScroll = previousEdgeScroll;
     Options.battleScrollSpeed = previousScrollSpeed;
     Options.battleDragScrollButton = previousDragButton;

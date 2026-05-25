@@ -1,15 +1,20 @@
 import { InteractiveSurface } from "../Engine/InteractiveSurface.ts";
 import { Options } from "../Engine/Options.ts";
 import { Palette } from "../Engine/Palette.ts";
+import { Surface } from "../Engine/Surface.ts";
 import { Timer } from "../Engine/Timer.ts";
 import type { Action } from "../Engine/Action.ts";
 import type { State } from "../Engine/State.ts";
-import { UnitFaction } from "../Savegame/BattleUnit.ts";
+import { Mod } from "../Mod/Mod.ts";
+import { TilePart } from "../Mod/MapData.ts";
+import { UnitFaction, UnitStatus, type BattleUnit } from "../Savegame/BattleUnit.ts";
 import { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
+import type { Tile } from "../Savegame/Tile.ts";
 import { Camera } from "./Camera.ts";
 import { Explosion } from "./Explosion.ts";
 import { Position } from "./Position.ts";
 import type { Projectile } from "./Projectile.ts";
+import { UnitSprite } from "./UnitSprite.ts";
 
 export enum CursorType {
   CT_NONE = 0,
@@ -22,6 +27,7 @@ export enum CursorType {
 
 export type MapGameLike = {
   getSavedGame?: () => { getSavedBattle?: () => SavedBattleGame | null } | null;
+  getMod?: () => Mod | null;
 };
 
 function resolveSave(source: SavedBattleGame | MapGameLike): SavedBattleGame {
@@ -43,6 +49,7 @@ export class Map extends InteractiveSurface {
   static readonly BULLET_SPRITES = 35;
 
   private _save: SavedBattleGame;
+  private _mod: Mod | null = null;
   private _spriteWidth = 32;
   private _spriteHeight = 40;
   private _selectorX = 0;
@@ -71,6 +78,7 @@ export class Map extends InteractiveSurface {
   constructor(gameOrSave: SavedBattleGame | MapGameLike, width: number, height: number, x: number, y: number, visibleMapHeight = height, spriteWidth = 32, spriteHeight = 40) {
     super(width, height, x, y);
     this._save = resolveSave(gameOrSave);
+    this._mod = gameOrSave instanceof SavedBattleGame ? null : gameOrSave.getMod?.() || null;
     this._spriteWidth = spriteWidth;
     this._spriteHeight = spriteHeight;
     this._visibleMapHeight = visibleMapHeight;
@@ -261,11 +269,50 @@ export class Map extends InteractiveSurface {
     return this._flashScreen;
   }
 
-  cacheUnit(_unit: unknown): void {
+  cacheUnit(unit: BattleUnit | unknown): void {
+    const battleUnit = unit as BattleUnit | null;
+    const armor = battleUnit?.getArmor?.();
+    if (!battleUnit || !armor) {
+      this.invalidate();
+      return;
+    }
+
+    const unitSurface = this._mod?.getSurfaceSet(armor.getSpriteSheet()) || null;
+    if (!unitSurface) {
+      this.invalidate();
+      return;
+    }
+    if (!battleUnit.isCacheInvalid()) {
+      this.invalidate();
+      return;
+    }
+
+    const unitSprite = new UnitSprite(this._spriteWidth * 2, this._spriteHeight, 0, 0, this._save.getDepth?.() !== 0);
+    unitSprite.setPalette(this.getPalette());
+    unitSprite.setSurfaces(
+      unitSurface,
+      this._mod?.getSurfaceSet("HANDOB.PCK") || null,
+      this._mod?.getSurfaceSet("HANDOB2.PCK") || this._mod?.getSurfaceSet("HANDOB.PCK") || null
+    );
+
+    const numOfParts = armor.getSize() * armor.getSize();
+    for (let i = 0; i < numOfParts; ++i) {
+      const cache = battleUnit.getCache(i) || new Surface(this._spriteWidth * 2, this._spriteHeight);
+      cache.setPalette(this.getPalette());
+      unitSprite.setBattleUnit(battleUnit, i);
+      unitSprite.setAnimationFrame(this._animFrame);
+      cache.clear();
+      unitSprite.draw();
+      cache.copy(unitSprite);
+      battleUnit.setCache(cache, i);
+    }
     this.invalidate();
   }
 
   cacheUnits(): void {
+    for (const unit of this._save.getUnits()) {
+      this.cacheUnit(unit);
+    }
     this.invalidate();
   }
 
@@ -293,13 +340,15 @@ export class Map extends InteractiveSurface {
   private drawTerrain(): void {
     const offset = this._camera.getMapOffset();
     const viewLevel = this._camera.getViewLevel();
-    const minZ = this._camera.getShowAllLayers() ? 0 : viewLevel;
-    for (let z = minZ; z <= viewLevel; ++z) {
-      for (let y = 0; y < this._save.getMapSizeY(); ++y) {
-        for (let x = 0; x < this._save.getMapSizeX(); ++x) {
+    const endZ = this._camera.getShowAllLayers() ? this._save.getMapSizeZ() - 1 : viewLevel;
+    this.lock();
+    for (let z = 0; z <= endZ; ++z) {
+      const topLayer = z === endZ;
+      for (let x = 0; x < this._save.getMapSizeX(); ++x) {
+        for (let y = 0; y < this._save.getMapSizeY(); ++y) {
           const pos = new Position(x, y, z);
           const tile = this._save.getTile(pos);
-          if (!tile || tile.isVoid()) {
+          if (!tile) {
             continue;
           }
           const screen = this._camera.convertMapToScreen(pos);
@@ -308,60 +357,344 @@ export class Map extends InteractiveSurface {
           if (sx < -this._spriteWidth || sx > this.getWidth() + this._spriteWidth || sy < -this._spriteHeight || sy > this.getHeight() + this._spriteHeight) {
             continue;
           }
-          const shade = Math.max(0, Math.min(4, 4 - tile.getShade()));
-          const baseColor = Palette.blockOffset(4) + 3 + shade;
-          this.drawTileDiamond(sx, sy, baseColor);
-          if (this._showObstacles && tile.isObstacle()) {
+
+          const tileShade = this.isDiscovered(tile, 2) ? tile.getShade?.() ?? 0 : 16;
+          let obstacleShade = tileShade;
+          if (this._showObstacles && tile.isObstacle?.()) {
+            if (tileShade > 7) obstacleShade = 7;
+            if (tileShade < 2) obstacleShade = 2;
+            obstacleShade += ([0, 1, 2, 1, 0, 1, 2, 1][this._animFrame] * 2 - 2);
+          }
+
+          const floorDrawn = this.drawTilePart(tile, TilePart.O_FLOOR, sx, sy, tile.getObstacle?.(TilePart.O_FLOOR) ? obstacleShade : tileShade);
+          if (!floorDrawn) {
+            const shade = Math.max(0, Math.min(4, 4 - tileShade));
+            this.drawTileDiamond(sx, sy, Palette.blockOffset(4) + 3 + shade);
+          }
+          if (this._showObstacles && tile.isObstacle?.()) {
             this.drawTileDiamond(sx, sy, Palette.blockOffset(3) + 10);
           }
-          if (tile.getMarkerColor() > 0) {
+
+          this.drawCursor(tile, x, y, z, sx, sy, false);
+
+          for (const delta of [new Position(0, -1, 0), new Position(-1, -1, 0), new Position(-1, 0, 0)]) {
+            this.drawUnit(this._save.getTile(pos.add(delta)), tile, new Position(sx, sy, 0), tileShade, obstacleShade, topLayer);
+          }
+
+          if (!(tile.isVoid?.() ?? false)) {
+            const westWall = tile.getMapData?.(TilePart.O_WESTWALL) || null;
+            if (westWall) {
+              const wallShade = (westWall.isDoor?.() || westWall.isUFODoor?.()) && this.isDiscovered(tile, 0) ? tile.getShade?.() ?? tileShade : tileShade;
+              this.drawTilePart(tile, TilePart.O_WESTWALL, sx, sy, tile.getObstacle?.(TilePart.O_WESTWALL) ? obstacleShade : wallShade);
+            }
+            const northWall = tile.getMapData?.(TilePart.O_NORTHWALL) || null;
+            if (northWall) {
+              const wallShade = (northWall.isDoor?.() || northWall.isUFODoor?.()) && this.isDiscovered(tile, 1) ? tile.getShade?.() ?? tileShade : tileShade;
+              this.drawTilePart(tile, TilePart.O_NORTHWALL, sx, sy, tile.getObstacle?.(TilePart.O_NORTHWALL) ? obstacleShade : wallShade, Boolean(westWall));
+            }
+            const object = tile.getMapData?.(TilePart.O_OBJECT) || null;
+            if (object && (object.getBigWall() < 6 || object.getBigWall() === 9)) {
+              this.drawTilePart(tile, TilePart.O_OBJECT, sx, sy, tile.getObstacle?.(TilePart.O_OBJECT) ? obstacleShade : tileShade);
+            }
+            this.drawGroundItem(tile, sx, sy, tileShade);
+          }
+
+          this.drawUnit(tile, tile, new Position(sx, sy, 0), tileShade, obstacleShade, topLayer);
+
+          for (const delta of [new Position(-1, 1, 0), new Position(0, 1, 0), new Position(1, 1, 0), new Position(1, 0, 0), new Position(1, -1, 0)]) {
+            this.drawUnit(this._save.getTile(pos.add(delta)), tile, new Position(sx, sy, 0), tileShade, obstacleShade, topLayer);
+          }
+
+          this.drawSmokeAndFire(tile, sx, sy, tileShade);
+
+          const object = tile.getMapData?.(TilePart.O_OBJECT) || null;
+          if (object && object.getBigWall() >= 6 && object.getBigWall() !== 9) {
+            this.drawTilePart(tile, TilePart.O_OBJECT, sx, sy, tile.getObstacle?.(TilePart.O_OBJECT) ? obstacleShade : tileShade);
+          }
+
+          this.drawCursor(tile, x, y, z, sx, sy, true);
+
+          if ((tile.getMarkerColor?.() ?? 0) > 0) {
             this.drawTileDiamond(sx, sy, Palette.blockOffset(tile.getMarkerColor()) + 10);
           }
-          if (tile.getPreview() >= 0) {
-            this.drawPreviewMarker(sx, sy, tile.getPreview(), tile.getMarkerColor() || PathPreviewColor.YELLOW);
+          if ((tile.getPreview?.() ?? -1) >= 0) {
+            this.drawPreviewMarker(sx, sy, tile.getPreview(), tile.getMarkerColor?.() || PathPreviewColor.YELLOW);
           }
         }
       }
     }
-    this.drawUnits();
     this.drawProjectile();
-    this.drawExplosions();
-    if (this._cursorType !== CursorType.CT_NONE) {
-      const pos = new Position(this._selectorX, this._selectorY, viewLevel);
-      const screen = this._camera.convertMapToScreen(pos);
-      this.drawTileDiamond(screen.x + offset.x, screen.y + offset.y, Palette.blockOffset(13) + 12, false);
-    }
+    this.unlock();
     if (this._flashScreen) {
-      this.drawRect(0, 0, this.getWidth(), this.getHeight(), Palette.blockOffset(15) + 8);
+      this.applyBlastFlash();
+    } else {
+      this.drawExplosions();
     }
   }
 
-  private drawUnits(): void {
-    const offset = this._camera.getMapOffset();
-    const viewLevel = this._camera.getViewLevel();
-    const minZ = this._camera.getShowAllLayers() ? 0 : viewLevel;
-    const units = [...this._save.getUnits()].sort((a, b) => {
-      const ap = a.getPosition();
-      const bp = b.getPosition();
-      return ap.z - bp.z || ap.y - bp.y || ap.x - bp.x;
-    });
-    for (const unit of units) {
-      const pos = unit.getPosition();
-      if (pos.z < minZ || pos.z > viewLevel) {
-        continue;
-      }
-      const tile = this._save.getTile(pos);
-      if (!tile || tile.isVoid()) {
-        continue;
-      }
-      const screen = this._camera.convertMapToScreen(pos);
-      const sx = screen.x + offset.x;
-      const sy = screen.y + offset.y;
-      if (sx < -this._spriteWidth || sx > this.getWidth() + this._spriteWidth || sy < -this._spriteHeight || sy > this.getHeight() + this._spriteHeight) {
-        continue;
-      }
-      this.drawUnitMarker(sx, sy, unit.getFaction(), unit === this._save.getSelectedUnit());
+  private drawTilePart(tile: Tile, part: TilePart, sx: number, sy: number, shade: number, half = false): boolean {
+    const sprite = tile.getSprite?.(part) || null;
+    if (!sprite) {
+      return false;
     }
+    const yOffset = tile.getMapData?.(part)?.getYOffset?.() || 0;
+    sprite.blitNShade(this, sx, sy - yOffset, shade, half);
+    return true;
+  }
+
+  private drawGroundItem(tile: Tile, sx: number, sy: number, shade: number): void {
+    const sprite = tile.getTopItemSprite?.() ?? -1;
+    if (sprite === -1) {
+      return;
+    }
+    this._mod?.getSurfaceSet("FLOOROB.PCK")?.getFrame(sprite)?.blitNShade(this, sx, sy + (tile.getTerrainLevel?.() || 0), shade);
+  }
+
+  private drawSmokeAndFire(tile: Tile, sx: number, sy: number, tileShade: number): void {
+    if (!(tile.getSmoke?.() || 0) || !this.isDiscovered(tile, 2)) {
+      return;
+    }
+    let frameNumber = 0;
+    let shade = 0;
+    if (!(tile.getFire?.() || 0)) {
+      frameNumber += (this._save.getDepth?.() || 0) > 0 ? Mod.UNDERWATER_SMOKE_OFFSET : Mod.SMOKE_OFFSET;
+      frameNumber += Math.trunc(Math.floor(((tile.getSmoke?.() || 0) / 6.0) - 0.1));
+      shade = tileShade;
+    }
+    const animOffset = Math.trunc(this._animFrame / 2) + (tile.getAnimationOffset?.() || 0);
+    frameNumber += animOffset > 3 ? animOffset - 4 : animOffset;
+    this._mod?.getSurfaceSet("SMOKE.PCK")?.getFrame(frameNumber)?.blitNShade(this, sx, sy, shade);
+  }
+
+  private drawCursor(tile: Tile, itX: number, itY: number, itZ: number, sx: number, sy: number, front: boolean): void {
+    if (this._cursorType === CursorType.CT_NONE ||
+      this._selectorX <= itX - this._cursorSize ||
+      this._selectorY <= itY - this._cursorSize ||
+      this._selectorX >= itX + 1 ||
+      this._selectorY >= itY + 1 ||
+      (this._save.getBattleState?.()?.getMouseOverIcons?.() ?? false)) {
+      return;
+    }
+    let frameNumber = -1;
+    const unit = tile.getUnit?.() || null;
+    const visibleUnit = unit && (unit.getVisible?.() || this._save.getDebugMode?.());
+    if (this._camera.getViewLevel() === itZ) {
+      if (this._cursorType !== CursorType.CT_AIM) {
+        frameNumber = visibleUnit ? (front ? 3 : 0) + (this._animFrame % 2) : (front ? 3 : 0);
+      } else {
+        frameNumber = visibleUnit ? 7 + Math.trunc(this._animFrame / 2) : 6;
+      }
+    } else if (!front && this._camera.getViewLevel() > itZ) {
+      frameNumber = 2;
+    }
+    if (frameNumber >= 0) {
+      this._mod?.getSurfaceSet("CURSOR.PCK")?.getFrame(frameNumber)?.blitNShade(this, sx, sy, 0);
+    }
+  }
+
+  private drawUnit(unitTile: Tile | null, currTile: Tile, currTileScreenPosition: Position, shade: number, obstacleShade: number, topLayer: boolean): void {
+    if (!unitTile) {
+      return;
+    }
+    let unit = unitTile.getUnit?.() || null;
+    let unitFromBelow = false;
+    if (!unit) {
+      if (!unitTile.getPosition) {
+        return;
+      }
+      const below = this._save.getTile(unitTile.getPosition().add(new Position(0, 0, -1)));
+      if (below && unitTile.hasNoFloor?.(below)) {
+        unit = below.getUnit?.() || null;
+        unitFromBelow = Boolean(unit);
+      }
+      if (!unit) {
+        return;
+      }
+    }
+    if (!(unit.getVisible?.() || this._save.getDebugMode?.())) {
+      return;
+    }
+
+    const unitOffset = unitTile.getPosition().subtract(unit.getPosition());
+    const part = unitOffset.x + unitOffset.y * 2;
+    let tmpSurface = unit.getCache?.(part) || null;
+    if (!tmpSurface && unit.isCacheInvalid?.()) {
+      this.cacheUnit(unit);
+      tmpSurface = unit.getCache?.(part) || null;
+    }
+
+    const moving = unit.getStatus?.() === UnitStatus.STATUS_WALKING || unit.getStatus?.() === UnitStatus.STATUS_FLYING;
+    if (moving) {
+      const direction = unit.getDirection();
+      const partCurr = currTile.getPosition();
+      const partDest = unit.getDestination().add(unitOffset);
+      const partLast = unit.getLastPosition().add(unitOffset);
+      const isTileDestPos = this.positionHaveSameXY(partDest, partCurr);
+      const isTileLastPos = this.positionHaveSameXY(partLast, partCurr);
+      if (this.positionHaveSameXY(partLast, partDest)) {
+        if (currTile !== unitTile) {
+          return;
+        }
+      } else if (isTileDestPos) {
+        if (direction === 7) {
+          return;
+        }
+      } else if (isTileLastPos) {
+        if (direction === 3) {
+          return;
+        }
+      } else {
+        const leftPos = partCurr.add(new Position(-1, 0, 0));
+        const rightPos = partCurr.add(new Position(0, -1, 0));
+        if (!topLayer && (partDest.z > partCurr.z || partLast.z > partCurr.z)) {
+          return;
+        }
+        if (!((direction === 1 && (partDest.equals(rightPos) || partLast.equals(leftPos))) ||
+          (direction === 5 && (partDest.equals(leftPos) || partLast.equals(rightPos))))) {
+          return;
+        }
+      }
+    } else if (unitTile !== currTile) {
+      return;
+    }
+
+    const unitScreenPosition = this._camera.convertMapToScreen(unitTile.getPosition().add(new Position(0, 0, unitFromBelow ? -1 : 0)));
+    const mapOffset = this._camera.getMapOffset();
+    const walking = this.calculateWalkingOffset(unit);
+    const tileShade = this.isDiscovered(currTile, 2) ? currTile.getShade?.() ?? 0 : 16;
+    let unitShade = Math.trunc((tileShade * (16 - walking.shadeOffset) + shade * walking.shadeOffset) / 16);
+    if (!moving && unitTile.getObstacle?.(4)) {
+      unitShade = obstacleShade;
+    }
+
+    if (tmpSurface) {
+      tmpSurface.blitNShade(
+        this,
+        unitScreenPosition.x + mapOffset.x + walking.offset.x - Math.trunc(this._spriteWidth / 2),
+        unitScreenPosition.y + mapOffset.y + walking.offset.y,
+        unitShade
+      );
+    } else if (unitTile === currTile) {
+      this.drawUnitMarker(currTileScreenPosition.x, currTileScreenPosition.y, unit.getFaction(), unit === this._save.getSelectedUnit?.());
+    }
+
+    if ((unit.getFire?.() || 0) > 0) {
+      const fireFrame = 4 + Math.trunc(this._animFrame / 2);
+      this._mod?.getSurfaceSet("SMOKE.PCK")?.getFrame(fireFrame)?.blitNShade(
+        this,
+        unitScreenPosition.x + mapOffset.x + walking.offset.x,
+        unitScreenPosition.y + mapOffset.y + walking.offset.y,
+        0
+      );
+    }
+
+    const breathFrame = unit.getBreathFrame?.() || 0;
+    if (breathFrame > 0) {
+      const breath = this._mod?.getSurfaceSet("BREATH-1.PCK")?.getFrame(breathFrame - 1) || null;
+      breath?.blitNShade(
+        this,
+        unitScreenPosition.x + mapOffset.x + walking.offset.x,
+        unitScreenPosition.y + mapOffset.y + walking.offset.y + (22 - (unit.getHeight?.() || 22)) - 30,
+        tileShade
+      );
+    }
+  }
+
+  private calculateWalkingOffset(unit: BattleUnit): { offset: Position; shadeOffset: number } {
+    const offset = new Position();
+    const offsetX = [1, 1, 1, 0, -1, -1, -1, 0];
+    const offsetY = [1, 0, -1, -1, -1, 0, 1, 1];
+    const phase = unit.getWalkingPhase() + (unit.getDiagonalWalkingPhase?.() || 0);
+    const dir = unit.getDirection();
+    let midphase = 4 + 4 * (dir % 2);
+    const endphase = 8 + 8 * (dir % 2);
+    const size = unit.getArmor().getSize();
+    const shadeOffset = endphase === 16 ? phase : phase * 2;
+
+    if (size > 1) {
+      if (dir < 1 || dir > 5) midphase = endphase;
+      else if (dir === 5) midphase = 12;
+      else if (dir === 1) midphase = 5;
+      else midphase = 1;
+    }
+    if (unit.getVerticalDirection()) {
+      midphase = 4;
+    } else if (unit.getStatus() === UnitStatus.STATUS_WALKING || unit.getStatus() === UnitStatus.STATUS_FLYING) {
+      if (phase < midphase) {
+        offset.x = phase * 2 * offsetX[dir];
+        offset.y = -phase * offsetY[dir];
+      } else {
+        offset.x = (phase - endphase) * 2 * offsetX[dir];
+        offset.y = -(phase - endphase) * offsetY[dir];
+      }
+    }
+
+    if (unit.getStatus() === UnitStatus.STATUS_WALKING || unit.getStatus() === UnitStatus.STATUS_FLYING) {
+      if (phase < midphase) {
+        let fromLevel = this.getTerrainLevel(unit.getPosition(), size);
+        let toLevel = this.getTerrainLevel(unit.getDestination(), size);
+        if (unit.getPosition().z > unit.getDestination().z) {
+          toLevel += 24 * (unit.getPosition().z - unit.getDestination().z);
+        } else if (unit.getPosition().z < unit.getDestination().z) {
+          toLevel = -24 * (unit.getDestination().z - unit.getPosition().z) + Math.abs(toLevel);
+        }
+        offset.y += Math.trunc((fromLevel * (endphase - phase)) / endphase) + Math.trunc((toLevel * phase) / endphase);
+      } else {
+        let fromLevel = this.getTerrainLevel(unit.getLastPosition(), size);
+        let toLevel = this.getTerrainLevel(unit.getDestination(), size);
+        if (unit.getLastPosition().z > unit.getDestination().z) {
+          fromLevel -= 24 * (unit.getLastPosition().z - unit.getDestination().z);
+        } else if (unit.getLastPosition().z < unit.getDestination().z) {
+          fromLevel = 24 * (unit.getDestination().z - unit.getLastPosition().z) - Math.abs(fromLevel);
+        }
+        offset.y += Math.trunc((fromLevel * (endphase - phase)) / endphase) + Math.trunc((toLevel * phase) / endphase);
+      }
+    } else {
+      offset.y += this.getTerrainLevel(unit.getPosition(), size);
+      if ((this._save.getDepth?.() || 0) > 0) {
+        unit.setFloorAbove(false);
+        if (this._camera.getViewLevel() > unit.getPosition().z) {
+          for (let z = Math.min(this._camera.getViewLevel(), this._save.getMapSizeZ() - 1); z !== unit.getPosition().z; --z) {
+            if (!this._save.getTile(new Position(unit.getPosition().x, unit.getPosition().y, z))?.hasNoFloor?.(null)) {
+              unit.setFloorAbove(true);
+              break;
+            }
+          }
+        }
+      }
+    }
+    return { offset, shadeOffset };
+  }
+
+  private getTerrainLevel(pos: Position, size: number): number {
+    let lowestLevel = 0;
+    for (let x = 0; x < size; ++x) {
+      for (let y = 0; y < size; ++y) {
+        const level = this._save.getTile(pos.add(new Position(x, y, 0)))?.getTerrainLevel?.() ?? 0;
+        if (level < lowestLevel) {
+          lowestLevel = level;
+        }
+      }
+    }
+    return lowestLevel;
+  }
+
+  private positionHaveSameXY(a: Position, b: Position): boolean {
+    return a.x === b.x && a.y === b.y;
+  }
+
+  private isDiscovered(tile: Tile, part: number): boolean {
+    return tile.isDiscovered?.(part) ?? true;
+  }
+
+  private applyBlastFlash(): void {
+    for (let y = 0; y < this.getHeight(); ++y) {
+      for (let x = 0; x < this.getWidth(); ++x) {
+        const pixel = this.getPixel(x, y);
+        this.setPixel(x, y, Math.trunc(pixel / 16) * 16);
+      }
+    }
+    this._flashScreen = false;
   }
 
   private drawUnitMarker(sx: number, sy: number, faction: UnitFaction, selected: boolean): void {
@@ -392,9 +725,21 @@ export class Map extends InteractiveSurface {
     }
 
     if (this._projectile.getItem()) {
+      const sprite = this._projectile.getSprite();
+      if (sprite) {
+        sprite.blitNShade(this, screen.x - 16, screen.y - 26, 0);
+        return;
+      }
       const color = Palette.blockOffset(10) + 14;
       this.drawRect(screen.x - 2, screen.y - 2, 5, 5, Palette.blockOffset(0) + 4);
       this.drawRect(screen.x - 1, screen.y - 1, 3, 3, color);
+      return;
+    }
+
+    const projectileSet = this._mod?.getSurfaceSet((this._save.getDepth?.() || 0) > 0 ? "UnderwaterProjectiles" : "Projectiles") || null;
+    const particle = projectileSet?.getFrame(this._projectile.getParticle(0)) || null;
+    if (particle) {
+      particle.blitNShade(this, screen.x - Math.trunc(particle.getWidth() / 2), screen.y - Math.trunc(particle.getHeight() / 2), 0);
       return;
     }
 
@@ -417,17 +762,32 @@ export class Map extends InteractiveSurface {
       }
 
       if (explosion.isBig()) {
+        const sprite = this._mod?.getSurfaceSet("X1.PCK")?.getFrame(frame) || null;
+        if (sprite) {
+          sprite.blitNShade(this, screen.x - Math.trunc(sprite.getWidth() / 2), screen.y - Math.trunc(sprite.getHeight() / 2), 0);
+          continue;
+        }
         const frameIndex = frame % Explosion.EXPLODE_FRAMES;
         const radius = 3 + frameIndex * 2;
         const color = frameIndex < 3 ? Palette.blockOffset(15) + 12 : Palette.blockOffset(2) + 11;
         this.drawCircle(screen.x, screen.y, radius, color);
         this.drawCircle(screen.x, screen.y, Math.max(1, Math.trunc(radius / 2)), Palette.blockOffset(13) + 12);
       } else if (explosion.isHit()) {
+        const sprite = this._mod?.getSurfaceSet("HIT.PCK")?.getFrame(frame) || null;
+        if (sprite) {
+          sprite.blitNShade(this, screen.x - 15, screen.y - 25, 0);
+          continue;
+        }
         const size = 8 - Math.min(4, frame % Explosion.HIT_FRAMES);
         this.drawRect(screen.x - Math.trunc(size / 2), screen.y - Math.trunc(size / 2), size, size, Palette.blockOffset(2) + 12);
         this.drawLine(screen.x - size, screen.y, screen.x + size, screen.y, Palette.blockOffset(15) + 10);
         this.drawLine(screen.x, screen.y - size, screen.x, screen.y + size, Palette.blockOffset(15) + 10);
       } else {
+        const sprite = this._mod?.getSurfaceSet("SMOKE.PCK")?.getFrame(frame) || null;
+        if (sprite) {
+          sprite.blitNShade(this, screen.x - 15, screen.y - 15, 0);
+          continue;
+        }
         const step = Math.min(5, frame % Explosion.BULLET_FRAMES);
         this.drawRect(screen.x - 1 - step, screen.y - 1, 3 + step * 2, 3, Palette.blockOffset(15) + 11);
         this.drawRect(screen.x - 1, screen.y - 1 - step, 3, 3 + step * 2, Palette.blockOffset(2) + 13);

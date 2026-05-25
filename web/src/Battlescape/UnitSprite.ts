@@ -94,10 +94,6 @@ export class UnitSprite extends Surface {
     if (!src) {
       return;
     }
-    if (!this._colorSize || !this._color) {
-      src.blit(this);
-      return;
-    }
     for (let y = 0; y < src.getHeight(); ++y) {
       for (let x = 0; x < src.getWidth(); ++x) {
         const pixel = src.getPixel(x, y);
@@ -105,13 +101,29 @@ export class UnitSprite extends Surface {
           continue;
         }
         let dest = pixel;
-        for (const [from, to] of this._color) {
-          if ((pixel & (15 << 4)) === from) {
-            dest = to + (pixel & 15);
-            break;
+        if (this._colorSize && this._color) {
+          for (const [from, to] of this._color) {
+            if ((pixel & (15 << 4)) === from) {
+              dest = to + (pixel & 15);
+              break;
+            }
           }
         }
         this.setPixel(src.getX() + x, src.getY() + y, dest);
+      }
+    }
+  }
+
+  private drawPlain(src: Surface | null): void {
+    if (!src) {
+      return;
+    }
+    for (let y = 0; y < src.getHeight(); ++y) {
+      for (let x = 0; x < src.getWidth(); ++x) {
+        const pixel = src.getPixel(x, y);
+        if (pixel) {
+          this.setPixel(src.getX() + x, src.getY() + y, pixel);
+        }
       }
     }
   }
@@ -248,12 +260,12 @@ export class UnitSprite extends Surface {
     const itemL = this._itemL && this._itemSurfaceL?.getFrame(this._itemL.getRules().getHandSprite() + direction);
     if (itemR) {
       itemR.setX(16);
-      itemR.blit(this);
+      this.drawPlain(itemR);
       itemR.setX(0);
     }
     if (itemL) {
       itemL.setX(16);
-      itemL.blit(this);
+      this.drawPlain(itemL);
       itemL.setX(0);
     }
   }
