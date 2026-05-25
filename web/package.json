@@ -26,6 +26,7 @@
     "verify:craft-management": "node scripts/verify-craft-management.mjs",
     "verify:battle-runtime": "node scripts/verify-battle-runtime.mjs",
     "verify:save-menu": "node scripts/verify-save-menu.mjs",
+    "verify:menu-geoscape-routes": "node scripts/verify-menu-geoscape-routes.mjs",
     "verify:saveconverter-metadata": "node scripts/verify-saveconverter-metadata.mjs"
   },
   "engines": {

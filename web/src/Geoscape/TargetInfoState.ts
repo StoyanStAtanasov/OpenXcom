@@ -5,15 +5,9 @@ import { ALIGN_CENTER, ALIGN_MIDDLE, Text } from "../Interface/Text.ts";
 import { TextButton } from "../Interface/TextButton.ts";
 import { TextEdit } from "../Interface/TextEdit.ts";
 import { POPUP_BOTH, Window } from "../Interface/Window.ts";
+import type { TargetLike } from "../Savegame/Target.ts";
 import type { Globe } from "./Globe.ts";
 import { InterceptState } from "./InterceptState.ts";
-
-type TargetLike = {
-  getName: (...args: any[]) => string;
-  getDefaultName?: (...args: any[]) => string;
-  setName?: (name: string) => void;
-  getFollowers?: () => Array<{ getName: (...args: any[]) => string }>;
-};
 
 /**
  * Generic window used to display all the crafts targeting a certain point on the map.

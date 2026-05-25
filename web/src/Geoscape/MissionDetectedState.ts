@@ -6,6 +6,7 @@ import { TextButton } from "../Interface/TextButton.ts";
 import { POPUP_BOTH, Window } from "../Interface/Window.ts";
 import type { MissionSite } from "../Savegame/MissionSite.ts";
 import type { Globe } from "./Globe.ts";
+import { InterceptState } from "./InterceptState.ts";
 
 type GeoscapeStateLike = {
   getGlobe(): Globe;
@@ -81,7 +82,7 @@ export class MissionDetectedState extends State {
   btnInterceptClick(_action?: Action): void {
     this._state.timerReset?.();
     centerGlobe(this._state.getGlobe(), this._mission.getLongitude(), this._mission.getLatitude());
-    console.log("InterceptState is not translated yet.");
+    this.game().pushState(new InterceptState(this._state.getGlobe(), null, this._mission));
   }
 
   btnCenterClick(_action?: Action): void {

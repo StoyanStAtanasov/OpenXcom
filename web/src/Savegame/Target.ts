@@ -11,6 +11,7 @@ export type TargetLike = CoordinateTarget & {
   getType?(): string;
   getId?(): number;
   setId?(id: number): void;
+  setName?(name: string): void;
   saveId?(): TargetSaveNode;
   getDefaultName?(lang: Language): string;
   getMarkerName?(): string;

@@ -1,6 +1,7 @@
 import { BattlescapeState } from "../Battlescape/BattlescapeState.ts";
 import { BattlescapeGenerator } from "../Battlescape/BattlescapeGenerator.ts";
 import { Position } from "../Battlescape/Position.ts";
+import { CraftInfoState } from "../Basescape/CraftInfoState.ts";
 import { Options } from "../Engine/Options.ts";
 import { State } from "../Engine/State.ts";
 import type { Action } from "../Engine/Action.ts";
@@ -276,7 +277,10 @@ export class NewBattleState extends State {
   }
 
   btnEquipClick(_action: Action | null): void {
-    console.log("CraftInfoState is not translated yet.");
+    const base = this.game().getSavedGame()?.getBases()[0] || null;
+    if (base) {
+      this.game().pushState(new CraftInfoState(base, 0));
+    }
   }
 
   cbxMissionChange(_action: Action | null): void {

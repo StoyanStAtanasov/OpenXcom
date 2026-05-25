@@ -8,6 +8,7 @@ import { TextList } from "../Interface/TextList.ts";
 import { POPUP_BOTH, Window } from "../Interface/Window.ts";
 import { Ufo, UfoStatus } from "../Savegame/Ufo.ts";
 import type { Globe } from "./Globe.ts";
+import { InterceptState } from "./InterceptState.ts";
 
 type GeoscapeStateLike = {
   getGlobe(): Globe;
@@ -174,7 +175,7 @@ export class UfoDetectedState extends State {
   btnInterceptClick(_action?: Action): void {
     this._state.timerReset?.();
     centerGlobe(this._state.getGlobe(), this._ufo.getLongitude(), this._ufo.getLatitude());
-    console.log("InterceptState is not translated yet.");
+    this.game().pushState(new InterceptState(this._state.getGlobe(), null, this._ufo));
   }
 
   btnCentreClick(_action?: Action): void {

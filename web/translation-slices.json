@@ -341,6 +341,36 @@
     ]
   },
   {
+    "name": "Menu and geoscape source route markers",
+    "area": "Menu/Geoscape",
+    "status": "integrated-verified",
+    "slicePercent": 100,
+    "nextAction": "Continue broader playability/debriefing/runtime parity; the latest Menu/Geoscape marker scan is clean.",
+    "sourceFiles": [
+      "src/Menu/NewBattleState.cpp",
+      "src/Geoscape/InterceptState.cpp",
+      "src/Geoscape/MissionDetectedState.cpp",
+      "src/Geoscape/UfoDetectedState.cpp",
+      "src/Geoscape/SelectDestinationState.cpp"
+    ],
+    "targetFiles": [
+      "web/src/Menu/NewBattleState.ts",
+      "web/src/Geoscape/InterceptState.ts",
+      "web/src/Geoscape/MissionDetectedState.ts",
+      "web/src/Geoscape/UfoDetectedState.ts",
+      "web/src/Geoscape/SelectDestinationState.ts",
+      "web/src/Geoscape/TargetInfoState.ts",
+      "web/src/Savegame/Target.ts",
+      "web/scripts/verify-menu-geoscape-routes.mjs",
+      "web/package.json"
+    ],
+    "verification": "npm run verify:menu-geoscape-routes passed for five C++ source route checks and a 70-file Menu/Geoscape marker scan; npm run typecheck passed after TargetInfoState was moved onto the shared Savegame TargetLike contract; npm run build passed; npm run verify:geoscape-confirmations passed.",
+    "boundaries": [
+      "NewBattleState full sandbox base/inventory/equipment generation remains broader NewBattle runtime parity, not a missing child-state route.",
+      "Broader globe visual fidelity, dogfight polish, debriefing/recovery, and battlescape runtime parity remain outside this call-edge slice."
+    ]
+  },
+  {
     "name": "End-game statistics screen",
     "area": "Menu",
     "status": "integrated-verified",
@@ -406,7 +436,7 @@
     "area": "Savegame",
     "status": "partial-integrated-verified",
     "slicePercent": 99.9998,
-    "nextAction": "Translate remaining user-facing Menu/Geoscape markers such as NewBattle CraftInfo and interception/destination popup routes; keep save/load persistence as verified browser storage behavior.",
+    "nextAction": "Continue broader playability/debriefing/runtime parity; the latest Menu/Geoscape source-route marker scan is clean and save/load persistence remains verified browser storage behavior.",
     "sourceFiles": [
       "src/Mod/RuleConverter.cpp",
       "src/Mod/RuleConverter.h",
@@ -540,7 +570,7 @@
       "SaveConverter DAT reader parity now includes the TFTD SITE.DAT artifact-site counter branch; original tactical GAME_# slots still show the source-matching unsupported-battlescape-save error rather than inventing tactical DAT conversion.",
       "SavedGame now persists and restores battleGame payloads when SavedBattleGame is registered; ListLoadOriginalState mirrors the C++ post-load saved-battle resume branch; SavedBattleGame binary tile/moduleMap/loadMapResources/prepareNewTurn/randomizeItemLocations/resetTiles/setDebugMode paths, ammo link rule-skip behavior, Tile/BattleUnit tileBelow placement transitions, UnitWalkBState/UnitFallBState movement occupancy tileBelow handoffs, Pathfinding Bresenham/A* and vertical movement, TileEngine::calculateLine, TileEngine::canTargetUnit potential-unit targeting, AIModule::getSpottingUnits source parity, BattlescapeGame::checkForCasualties kill/death accounting, TileEngine::hit fatal-wound/morale/explode-on-death aftermath, TileEngine::explode fatal-wound killedBy credit, ExplosionBState chained terrain explosion ordering plus audio/cosmetic camera parity, ProjectileFlyBState lift-off/drop sounds/cache/bullet side effects, hostile grenade danger-zone marking, shotgun secondary pellet cascades, terminal out-of-bounds weapon-lowering/cache side effects, post-projectile reaction-fire/abortTurn cleanup, arcing projectile fired-shot accounting, UnitWalkBState door/footstep/flying movement sound playback, Camera/Map scroll/obstacle/smooth-camera lifecycle controls, Tile.getSprite terrain sprite lookup, first Map.drawTerrain terrain sprite blit, Map.cacheUnit/UnitSprite indexed cache production, Surface.blitNShade GraphSubset clipping, Map.drawUnit source unit masks and source-strict cache-miss no-op, Map.drawProjectileOnTile tile-loop projectile drawing, path/waypoint NumberText overlays, source vapor Particle clouds through transparency LUTs, selected-unit arrow drawing, projectile camera recenter/smooth-camera tracking, UFO Extender accuracy text, special cursor frame overlay, cursor-size semantics, hidden-movement message fallback, Map::setPalette message/mapdata propagation, and animate() unit breathe/constant-animation cache upkeep are covered by browser verification or scoped source audit. Remaining work has moved beyond these Map.cpp display branches into broader playability/debriefing runtime and tactical state parity.",
       "Browser original-save ingestion now imports selected GAME_# folder files into localStorage, rejects no-op selections, missing SAVEINFO.DAT, and invalid SAVEINFO.DAT with explicit errors, and displays corrupt-slot errors in ListLoadOriginalState. Remaining UX polish is drag/drop/detail presentation rather than core ingestion diagnostics.",
-      "Standard JSON/localStorage save/load menu behavior now translates the C++ SavedGame::getList/getSaveInfo and menu file-operation paths; remaining user-facing Menu/Geoscape markers are NewBattle CraftInfo and interception/destination popup routes rather than save/load persistence."
+      "Standard JSON/localStorage save/load menu behavior now translates the C++ SavedGame::getList/getSaveInfo and menu file-operation paths; NewBattle CraftInfo and interception/destination popup routes are now covered by the Menu/Geoscape route-marker slice."
     ]
   },
   {

@@ -9,6 +9,7 @@ import { Craft } from "../Savegame/Craft.ts";
 import type { TargetLike } from "../Savegame/Target.ts";
 import { Waypoint } from "../Savegame/Waypoint.ts";
 import { SDL_BUTTON_LEFT, SDL_BUTTON_RIGHT } from "../types.ts";
+import { ConfirmCydoniaState } from "./ConfirmCydoniaState.ts";
 import type { Globe } from "./Globe.ts";
 import { MultipleTargetsState } from "./MultipleTargetsState.ts";
 
@@ -20,10 +21,6 @@ type GlobeRuntime = Globe & {
   setCraftRange?: (lon: number, lat: number, range: number) => void;
   getTargets?: (x: number, y: number, craft: boolean) => TargetLike[];
 };
-
-function pushConfirmCydoniaBoundary(): void {
-  console.log("ConfirmCydoniaState is not translated yet.");
-}
 
 /**
  * Screen that allows the player to pick a target for a craft on the globe.
@@ -236,7 +233,7 @@ export class SelectDestinationState extends State {
 
   btnCydoniaClick(_action?: Action): void {
     if (this._craft.getNumSoldiers() > 0 || this._craft.getNumVehicles() > 0) {
-      pushConfirmCydoniaBoundary();
+      this.game().pushState(new ConfirmCydoniaState(this._craft));
     }
   }
 

@@ -9,13 +9,11 @@ import { POPUP_HORIZONTAL, Window } from "../Interface/Window.ts";
 import { BasescapeState } from "../Basescape/BasescapeState.ts";
 import type { Base } from "../Savegame/Base.ts";
 import { Craft } from "../Savegame/Craft.ts";
+import type { TargetLike } from "../Savegame/Target.ts";
 import { SDL_BUTTON_RIGHT } from "../types.ts";
+import { ConfirmDestinationState } from "./ConfirmDestinationState.ts";
 import type { Globe } from "./Globe.ts";
 import { SelectDestinationState } from "./SelectDestinationState.ts";
-
-type TargetLike = {
-  getName: (...args: any[]) => string;
-};
 
 type CraftRuntime = Craft & {
   getLowFuel?: () => boolean;
@@ -34,10 +32,6 @@ function coloredCount(count: number): string {
 
 function craftLaunchAlways(): boolean {
   return (Options as typeof Options & { craftLaunchAlways?: boolean }).craftLaunchAlways ?? false;
-}
-
-function pushConfirmDestinationBoundary(): void {
-  console.log("ConfirmDestinationState is not translated yet.");
 }
 
 /**
@@ -153,7 +147,7 @@ export class InterceptState extends State {
       if (this._target === null) {
         this.game().pushState(new SelectDestinationState(craft, this._globe));
       } else {
-        pushConfirmDestinationBoundary();
+        this.game().pushState(new ConfirmDestinationState(craft, this._target));
       }
     }
   }
