@@ -34,6 +34,7 @@ const verifier = String.raw`async page => {
       { TileEngine },
       { ExplosionBState },
       { ProjectileFlyBState },
+      { UnitWalkBState },
       { Position },
       { MovementType },
       { UnitFaction, UnitStatus, UnitSide, UnitBodyPart },
@@ -47,6 +48,7 @@ const verifier = String.raw`async page => {
       import("/web/dist/Battlescape/TileEngine.js"),
       import("/web/dist/Battlescape/ExplosionBState.js"),
       import("/web/dist/Battlescape/ProjectileFlyBState.js"),
+      import("/web/dist/Battlescape/UnitWalkBState.js"),
       import("/web/dist/Battlescape/Position.js"),
       import("/web/dist/Mod/Armor.js"),
       import("/web/dist/Savegame/BattleUnit.js"),
@@ -576,6 +578,160 @@ const verifier = String.raw`async page => {
     new ExplosionBState(playerCosmetic.parent, new Position(1 * 16 + 8, 1 * 16 + 8, 24), hitItem, null, null, false, true).init();
     assert(explosionCenters.length === cosmeticCenterCount, "ExplosionBState cosmetic camera centered outside the source hostile-vs-player condition");
 
+    const walkSounds = [];
+    const walkMap = {
+      getCamera: () => ({ isOnScreen: () => true }),
+      getSoundAngle: pos => pos.x + pos.y + pos.z,
+      cacheUnit: () => {}
+    };
+    const makeWalkSoundState = unit => {
+      const state = Object.create(UnitWalkBState.prototype);
+      state._unit = unit;
+      state._falling = false;
+      state._parent = {
+        getMap: () => walkMap,
+        getSave: () => ({
+          getDebugMode: () => false,
+          getTile: () => null
+        }),
+        getMod: () => ({
+          getSoundByDepth: (sound, depth) => ({
+            play: (...args) => walkSounds.push({ sound, depth, args })
+          })
+        }),
+        getDepth: () => 0
+      };
+      return state;
+    };
+    const walkPos = new Position(2, 3, 0);
+    const makeWalkUnit = ({ moveSound = -1, phase = 0, status = UnitStatus.STATUS_WALKING, movement = MovementType.MT_WALK, footstep = 4 } = {}) => ({
+      getArmor: () => ({ getSize: () => 1 }),
+      getVisible: () => true,
+      getPosition: () => walkPos.clone(),
+      getMoveSound: () => moveSound,
+      getWalkingPhase: () => phase,
+      getStatus: () => status,
+      getMovementType: () => movement,
+      getTile: () => ({
+        getPosition: () => walkPos.clone(),
+        getFootstepSound: () => footstep
+      })
+    });
+    makeWalkSoundState(makeWalkUnit({ moveSound: 66, phase: 0 })).playMovementSound();
+    makeWalkSoundState(makeWalkUnit({ moveSound: -1, phase: 3, footstep: 4 })).playMovementSound();
+    makeWalkSoundState(makeWalkUnit({ moveSound: -1, phase: 7, footstep: 4 })).playMovementSound();
+    makeWalkSoundState(makeWalkUnit({ moveSound: -1, phase: 1, status: UnitStatus.STATUS_FLYING, movement: MovementType.MT_FLY })).playMovementSound();
+    assert(JSON.stringify(walkSounds.map(entry => entry.sound)) === JSON.stringify([
+      66,
+      Mod.WALK_OFFSET + 8,
+      Mod.WALK_OFFSET + 9,
+      Mod.FLYING_SOUND
+    ]), "UnitWalkBState movement sound sequence mismatch: " + JSON.stringify(walkSounds));
+
+    const doorSounds = [];
+    const startedWalks = [];
+    const makeDoorParent = door => {
+      const destination = new Position(2, 1, 0);
+      const fakeTile = {
+        getUnit: () => null,
+        getFire: () => 0
+      };
+      return {
+        destination,
+        parent: {
+          getMap: () => ({
+            getCamera: () => ({ isOnScreen: () => true }),
+            getSoundAngle: pos => pos.x + pos.y + pos.z,
+            cacheUnit: () => {}
+          }),
+          getSave: () => ({
+            getDebugMode: () => false,
+            getSide: () => UnitFaction.FACTION_PLAYER,
+            getTile: pos => pos.z < 0 ? null : fakeTile
+          }),
+          getTileEngine: () => ({
+            unitOpensDoor: () => door,
+            calculateFOV: () => {},
+            calculateUnitLighting: () => {},
+            checkReactionFire: () => false
+          }),
+          getPathfinding: () => ({
+            getStartDirection: () => 2,
+            getStrafeMove: () => false,
+            getTUCost: (_pos, _dir, out) => {
+              out.x = destination.x;
+              out.y = destination.y;
+              out.z = destination.z;
+              return 4;
+            },
+            dequeuePath: () => 2,
+            abortPath: () => {}
+          }),
+          getPanicHandled: () => true,
+          checkReservedTU: () => true,
+          setStateInterval: () => {},
+          getMod: () => ({
+            getSoundByDepth: (sound, depth) => ({
+              play: (...args) => doorSounds.push({ sound, depth, args })
+            })
+          }),
+          getDepth: () => 0,
+          popState: () => {}
+        }
+      };
+    };
+    const makeDoorUnit = () => ({
+      isKneeled: () => false,
+      isOut: () => false,
+      getArmor: () => ({ getSize: () => 1 }),
+      getVisible: () => true,
+      getPosition: () => new Position(1, 1, 0),
+      getLastPosition: () => new Position(1, 1, 0),
+      getDestination: () => new Position(2, 1, 0),
+      getStatus: () => UnitStatus.STATUS_STANDING,
+      getFaction: () => UnitFaction.FACTION_PLAYER,
+      getUnitsSpottedThisTurn: () => [],
+      getCharging: () => null,
+      getSpecialAbility: () => 0,
+      getTimeUnits: () => 50,
+      getEnergy: () => 50,
+      getDirection: () => 2,
+      getMovementType: () => MovementType.MT_WALK,
+      getFloatHeight: () => 0,
+      getHeight: () => 20,
+      spendTimeUnits: () => true,
+      spendEnergy: () => true,
+      startWalking: (_dir, dest) => startedWalks.push(dest.clone()),
+      setFaceDirection: () => {},
+      setCache: () => {},
+      getTile: () => ({ hasNoFloor: () => false, getPosition: () => new Position(1, 1, 0) }),
+      getBaseStats: () => ({ strength: 0 }),
+      setHiding: () => {},
+      getTurretType: () => -1,
+      lookAt: () => {},
+      isHiding: () => false
+    });
+    const normalDoor = makeDoorParent(0);
+    const normalDoorState = Object.create(UnitWalkBState.prototype);
+    normalDoorState._unit = makeDoorUnit();
+    normalDoorState._pf = normalDoor.parent.getPathfinding();
+    normalDoorState._terrain = normalDoor.parent.getTileEngine();
+    normalDoorState._parent = normalDoor.parent;
+    normalDoorState._action = { run: false, desperate: false, target: normalDoor.destination, finalFacing: -1, finalAction: false, TU: 0 };
+    normalDoorState._falling = false;
+    normalDoorState.think();
+    assert(doorSounds.at(-1).sound === Mod.DOOR_OPEN && startedWalks.length === 1, "UnitWalkBState normal door did not play DOOR_OPEN before walking");
+    const slidingDoor = makeDoorParent(1);
+    const slidingDoorState = Object.create(UnitWalkBState.prototype);
+    slidingDoorState._unit = makeDoorUnit();
+    slidingDoorState._pf = slidingDoor.parent.getPathfinding();
+    slidingDoorState._terrain = slidingDoor.parent.getTileEngine();
+    slidingDoorState._parent = slidingDoor.parent;
+    slidingDoorState._action = { run: false, desperate: false, target: slidingDoor.destination, finalFacing: -1, finalAction: false, TU: 0 };
+    slidingDoorState._falling = false;
+    slidingDoorState.think();
+    assert(doorSounds.at(-1).sound === Mod.SLIDING_DOOR_OPEN && startedWalks.length === 1, "UnitWalkBState sliding door did not play SLIDING_DOOR_OPEN and wait");
+
     const dangerSave = new FakeSave(5, 5, 1);
     const dangerEngine = new TileEngine(dangerSave, aftermathVoxelData);
     dangerEngine.setDangerZone(new Position(2, 2, 0), 2, null);
@@ -979,6 +1135,8 @@ const verifier = String.raw`async page => {
       hitAftermathExplosions: queuedExplosions.length,
       blastKilledBy: blastVictim.getKilledBy(),
       explosionSounds: explosionSounds.length,
+      movementSounds: walkSounds.length,
+      doorSounds: doorSounds.length,
       hostileGrenadeDanger: dangerCalls.length,
       shotFireSound: shotSounds[0].sound,
       shotgunSecondaryHits: shotgunHitCalls.length,

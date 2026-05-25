@@ -155,6 +155,7 @@ type TileLike = {
   getPosition?: () => Position;
   getUnit?: () => BattleUnit | null;
   getDangerous?: () => boolean;
+  getFootstepSound?: (tileBelow: Tile | null) => number;
   getMapData?: (part: TilePart) => { getSpecialType?: () => number } | null;
   hasNoFloor?: (tileBelow: Tile | null) => boolean;
   setUnit?: (unit: BattleUnit | null, tileBelow?: Tile | null) => void;

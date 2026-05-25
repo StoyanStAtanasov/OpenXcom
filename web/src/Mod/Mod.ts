@@ -120,12 +120,16 @@ export class Mod {
   static GRAPHS_CURSOR = 252;
   static BUTTON_PRESS = 0;
   static WINDOW_POPUP = [1, 2, 3];
+  static DOOR_OPEN = 3;
+  static SLIDING_DOOR_OPEN = 20;
   static SMALL_EXPLOSION = 2;
   static LARGE_EXPLOSION = 5;
   static EXPLOSION_OFFSET = 0;
   static ITEM_DROP = 38;
   static ITEM_THROW = 39;
   static ITEM_RELOAD = 17;
+  static WALK_OFFSET = 22;
+  static FLYING_SOUND = 15;
   static UFO_FIRE = 8;
   static UFO_HIT = 12;
   static UFO_CRASH = 10;
@@ -1225,6 +1229,10 @@ export class Mod {
         this.turnAIUseBlaster = value;
       } else if (match[1] === "buttonPress") {
         Mod.BUTTON_PRESS = value;
+      } else if (match[1] === "doorSound") {
+        Mod.DOOR_OPEN = value;
+      } else if (match[1] === "slidingDoorSound") {
+        Mod.SLIDING_DOOR_OPEN = value;
       } else if (match[1] === "smallExplosion") {
         Mod.SMALL_EXPLOSION = value;
       } else if (match[1] === "largeExplosion") {
@@ -1237,6 +1245,10 @@ export class Mod {
         Mod.ITEM_THROW = value;
       } else if (match[1] === "itemReload") {
         Mod.ITEM_RELOAD = value;
+      } else if (match[1] === "walkOffset") {
+        Mod.WALK_OFFSET = value;
+      } else if (match[1] === "flyingSound") {
+        Mod.FLYING_SOUND = value;
       } else if (match[1] === "ufoFire") {
         Mod.UFO_FIRE = value;
       } else if (match[1] === "ufoHit") {

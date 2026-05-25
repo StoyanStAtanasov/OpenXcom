@@ -1,5 +1,6 @@
 import { Options } from "../Engine/Options.ts";
 import { MovementType } from "../Mod/Armor.ts";
+import { Mod } from "../Mod/Mod.ts";
 import { ItemDamageType } from "../Mod/RuleItem.ts";
 import { SpecialAbility } from "../Mod/Unit.ts";
 import { UnitFaction, UnitStatus, type BattleUnit } from "../Savegame/BattleUnit.ts";
@@ -235,7 +236,16 @@ export class UnitWalkBState extends BattleState {
 
         if (dir < Pathfinding.DIR_UP) {
           const door = terrain.unitOpensDoor(unit, false, dir);
-          if (door === 3 || door === 1) {
+          if (door === 3) {
+            return;
+          }
+          if (door === 0) {
+            this._parent.getMod()?.getSoundByDepth(Mod.DOOR_OPEN, this._parent.getDepth(), false)
+              ?.play(-1, this._parent.getMap().getSoundAngle(unit.getPosition()));
+          }
+          if (door === 1) {
+            this._parent.getMod()?.getSoundByDepth(Mod.SLIDING_DOOR_OPEN, this._parent.getDepth(), false)
+              ?.play(-1, this._parent.getMap().getSoundAngle(unit.getPosition()));
             return;
           }
         }
@@ -361,7 +371,54 @@ export class UnitWalkBState extends BattleState {
     this._parent.setStateInterval(unit?.getFaction() === UnitFaction.FACTION_PLAYER ? Options.battleXcomSpeed : Options.battleAlienSpeed);
   }
 
-  private playMovementSound(): void {}
+  private playMovementSound(): void {
+    const unit = this._unit;
+    if (!unit) {
+      return;
+    }
+    const size = unit.getArmor().getSize() - 1;
+    const map = this._parent.getMap();
+    if ((!unit.getVisible() && !this._parent.getSave().getDebugMode()) ||
+      !map.getCamera().isOnScreen(unit.getPosition(), true, size, false)) {
+      return;
+    }
+
+    const angle = map.getSoundAngle(unit.getPosition());
+    const moveSound = unit.getMoveSound();
+    if (moveSound !== -1) {
+      if (unit.getWalkingPhase() === 0) {
+        this._parent.getMod()?.getSoundByDepth(moveSound, this._parent.getDepth(), false)
+          ?.play(-1, angle);
+      }
+      return;
+    }
+
+    if (unit.getStatus() === UnitStatus.STATUS_WALKING) {
+      const tile = unit.getTile();
+      const tilePos = tile?.getPosition?.();
+      if (!tile || !tilePos || !tile.getFootstepSound) {
+        return;
+      }
+      const tileBelow = this._parent.getSave().getTile(tilePos.add(new Position(0, 0, -1)));
+      const footstepSound = tile.getFootstepSound(tileBelow);
+      if (footstepSound <= -1) {
+        return;
+      }
+      if (unit.getWalkingPhase() === 3) {
+        this._parent.getMod()?.getSoundByDepth(Mod.WALK_OFFSET + footstepSound * 2, this._parent.getDepth(), false)
+          ?.play(-1, angle);
+      }
+      if (unit.getWalkingPhase() === 7) {
+        this._parent.getMod()?.getSoundByDepth(1 + Mod.WALK_OFFSET + footstepSound * 2, this._parent.getDepth(), false)
+          ?.play(-1, angle);
+      }
+    } else if (unit.getMovementType() === MovementType.MT_FLY) {
+      if (unit.getWalkingPhase() === 1 && !this._falling) {
+        this._parent.getMod()?.getSoundByDepth(Mod.FLYING_SOUND, this._parent.getDepth(), false)
+          ?.play(-1, angle);
+      }
+    }
+  }
 
   private abortPathAndPop(unit: BattleUnit, pf: Pathfinding): void {
     pf.abortPath();
