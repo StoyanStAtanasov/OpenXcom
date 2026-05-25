@@ -1,10 +1,11 @@
+import { Options } from "../Engine/Options.ts";
 import { RNG } from "../Engine/RNG.ts";
 import { MovementType } from "../Mod/Armor.ts";
 import type { Armor } from "../Mod/Armor.ts";
 import type { AlienDeployment, DeploymentData } from "../Mod/AlienDeployment.ts";
 import type { AlienRace } from "../Mod/AlienRace.ts";
 import { MapBlock, MapBlockType } from "../Mod/MapBlock.ts";
-import { TilePart } from "../Mod/MapData.ts";
+import { SpecialTileType, TilePart } from "../Mod/MapData.ts";
 import { MapDataSet } from "../Mod/MapDataSet.ts";
 import { MapDirection, MapScriptCommand, type MapScript, type Rect } from "../Mod/MapScript.ts";
 import type { RuleTerrain } from "../Mod/RuleTerrain.ts";
@@ -16,7 +17,7 @@ import type { Unit } from "../Mod/Unit.ts";
 import { BattleItem } from "../Savegame/BattleItem.ts";
 import { BattleUnit, UnitFaction } from "../Savegame/BattleUnit.ts";
 import { GameDifficulty } from "../Savegame/SavedGame.ts";
-import { Node } from "../Savegame/Node.ts";
+import { Node, NodeRank } from "../Savegame/Node.ts";
 import type { Base } from "../Savegame/Base.ts";
 import type { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
 import type { Tile } from "../Savegame/Tile.ts";
@@ -36,16 +37,36 @@ export type BattlescapeGeneratorModLike = {
   getUnit?: (type: string, error?: boolean) => Unit | null;
   getArmor?: (type: string, error?: boolean) => Armor | null;
   getAlienItemLevels?: () => number[][];
+  getDeployment?: (type: string, error?: boolean) => AlienDeployment | null;
+  getTerrain?: (type: string, error?: boolean) => RuleTerrain | null;
+  getTerrainList?: () => string[];
+  getMapScript?: (id: string) => MapScript[] | null;
 };
 
 type CraftLike = {
   getRules(): RuleCraft;
+  getBase?: () => Base | null;
+  getItems?: () => { getContents?: () => Map<string, number> };
   setInBattlescape?: (inbattle: boolean) => void;
 };
 
 type UfoLike = {
   getRules(): RuleUfo;
   setInBattlescape?: (inbattle: boolean) => void;
+};
+
+type MissionSiteLike = {
+  setInBattlescape?: (inbattle: boolean) => void;
+  getAlienRace?: () => string;
+};
+
+type AlienBaseLike = {
+  setInBattlescape?: (inbattle: boolean) => void;
+  getAlienRace?: () => string;
+};
+
+type WorldTextureLike = {
+  getRandomTerrain?: (target: unknown) => string;
 };
 
 function bytes(data: ArrayBuffer | Uint8Array): Uint8Array {
@@ -68,6 +89,10 @@ export class BattlescapeGenerator {
   private _craft: CraftLike | null = null;
   private _ufo: UfoLike | null = null;
   private _base: Base | null = null;
+  private _mission: MissionSiteLike | null = null;
+  private _alienBase: AlienBaseLike | null = null;
+  private _worldTexture: WorldTextureLike | null = null;
+  private _worldShade = 0;
   private _craftPos: Rect = { x: 0, y: 0, w: 0, h: 0 };
   private _ufoPos: Rect[] = [];
   private _craftDeployed = false;
@@ -76,6 +101,8 @@ export class BattlescapeGenerator {
   private _alienItemLevel = 0;
   private _unitSequence = BattleUnit.MAX_SOLDIER_ID;
   private _difficulty = GameDifficulty.DIFF_BEGINNER;
+  private _baseInventory = false;
+  private _allowAutoLoadout = !(Options as any).disableAutoEquip;
 
   constructor(private _save: SavedBattleGame, private _mod: BattlescapeGeneratorModLike | null = null) {}
 
@@ -223,8 +250,27 @@ export class BattlescapeGenerator {
     ufo?.setInBattlescape?.(true);
   }
 
+  setWorldTexture(texture: unknown | null): void {
+    this._worldTexture = texture && typeof texture === "object" ? texture as WorldTextureLike : null;
+  }
+
+  setWorldShade(shade: number): void {
+    this._worldShade = Math.max(0, Math.min(15, Math.trunc(shade)));
+  }
+
   setBase(base: Base | null): void {
     this._base = base;
+    base?.setInBattlescape(true);
+  }
+
+  setMissionSite(mission: MissionSiteLike | null): void {
+    this._mission = mission;
+    mission?.setInBattlescape?.(true);
+  }
+
+  setAlienBase(base: AlienBaseLike | null): void {
+    this._alienBase = base;
+    base?.setInBattlescape?.(true);
   }
 
   setAlienRace(alienRace: string): void {
@@ -237,6 +283,84 @@ export class BattlescapeGenerator {
 
   setDifficulty(difficulty: GameDifficulty | number): void {
     this._difficulty = difficulty as GameDifficulty;
+  }
+
+  async run(): Promise<void> {
+    this._baseInventory = false;
+    const deploymentId = this._ufo?.getRules().getType() || this._save.getMissionType();
+    const deployment = this._mod?.getDeployment?.(deploymentId, true);
+    if (!deployment) {
+      throw new Error(`BattlescapeGenerator deployment ${deploymentId} not found.`);
+    }
+
+    this._save.setTurnLimit(deployment.getTurnLimit());
+    this._save.setChronoTrigger(deployment.getChronoTrigger());
+    this._save.setCheatTurn(deployment.getCheatTurn());
+    const [width, length, height] = deployment.getDimensions();
+    this._mapsize_x = width;
+    this._mapsize_y = length;
+    this._mapsize_z = height;
+    this._unitSequence = BattleUnit.MAX_SOLDIER_ID;
+
+    if (!this._terrain) {
+      this._terrain = this.selectRunTerrain(deployment);
+    }
+    if (!this._terrain) {
+      throw new Error("Map generator encountered an error: No valid terrain found.");
+    }
+
+    this.setDepth(deployment, this._terrain);
+    if (deployment.getShade() !== -1) {
+      this._worldShade = deployment.getShade();
+    }
+
+    const terrainScript = this._mod?.getMapScript?.(this._terrain.getScript()) || null;
+    const deploymentScript = deployment.getScript() ? this._mod?.getMapScript?.(deployment.getScript()) || null : null;
+    if (!deploymentScript && deployment.getScript()) {
+      throw new Error(`Map generator encountered an error: ${deployment.getScript()} script not found.`);
+    }
+    const script = deploymentScript || terrainScript;
+    if (!script) {
+      throw new Error(`Map generator encountered an error: ${this._terrain.getScript()} script not found.`);
+    }
+
+    this._save.setObjectiveType(deployment.getObjectiveType());
+    if (deployment.getObjectivesRequired() > 0) {
+      this._save.setObjectiveCount(deployment.getObjectivesRequired());
+    }
+    await this.generateMap(script, this._terrain, width, length, height);
+    this.deployXCOM();
+
+    const unitsBefore = this._save.getUnits().length;
+    this.deployAliens(deployment);
+    if (unitsBefore === this._save.getUnits().length) {
+      throw new Error("Map generator encountered an error: no alien units could be placed on the map.");
+    }
+    this.deployCivilians(deployment.getCivilians());
+    this._save.setAborted(false);
+    this.setMusic(deployment, this._terrain);
+    this._save.setGlobalShade(this._worldShade);
+    this._save.initUtilities(this._mod || undefined);
+    this._save.getTileEngine()?.calculateSunShading();
+    this._save.getTileEngine()?.calculateTerrainLighting();
+    this._save.getTileEngine()?.calculateUnitLighting();
+    this._save.resetUnitTiles();
+  }
+
+  /**
+   * Creates a mini-battle-save for managing inventory from the Geoscape.
+   * Kids, don't try this at home!
+   */
+  runInventory(craft: CraftLike): void {
+    this._baseInventory = true;
+    this._mapsize_x = 2;
+    this._mapsize_y = 2;
+    this._mapsize_z = 1;
+    this._save.initMap(this._mapsize_x, this._mapsize_y, this._mapsize_z);
+    this._craftInventoryTile = this._save.getTiles()[0] || null;
+
+    this.setCraft(craft);
+    this.deployXCOM();
   }
 
   deployAliens(deployment: AlienDeployment): number {
@@ -320,6 +444,398 @@ export class BattlescapeGenerator {
       this.addBuiltInWeapons(rule, itemLevel, civilian);
     }
     return spawned;
+  }
+
+  private selectRunTerrain(deployment: AlienDeployment): RuleTerrain | null {
+    if (!this._mod?.getTerrain) {
+      return null;
+    }
+    const deploymentTerrains = deployment.getTerrains();
+    if (!this._worldTexture?.getRandomTerrain || deploymentTerrains.length > 0) {
+      if (deploymentTerrains.length > 0) {
+        return this._mod.getTerrain(deploymentTerrains[RNG.generate(0, deploymentTerrains.length - 1)], true);
+      }
+      const firstTerrain = this._mod.getTerrainList?.()[0] || "";
+      return firstTerrain ? this._mod.getTerrain(firstTerrain, true) : null;
+    }
+    const target = this._mission || this._alienBase || this._ufo;
+    const terrainId = this._worldTexture.getRandomTerrain(target);
+    return terrainId ? this._mod.getTerrain(terrainId, true) : null;
+  }
+
+  private setDepth(deployment: AlienDeployment, terrain: RuleTerrain): void {
+    const minDepth = deployment.getMinDepth();
+    const maxDepth = deployment.getMaxDepth();
+    if (minDepth !== 0 || maxDepth !== 0) {
+      this._save.setDepth(RNG.generate(minDepth, maxDepth));
+      return;
+    }
+    this._save.setDepth(RNG.generate(terrain.getMinDepth(), terrain.getMaxDepth()));
+  }
+
+  private setMusic(deployment: AlienDeployment, terrain: RuleTerrain): void {
+    const deploymentMusic = deployment.getMusic();
+    if (deploymentMusic.length > 0) {
+      this._save.setMusic(deploymentMusic[RNG.generate(0, deploymentMusic.length - 1)]);
+      return;
+    }
+    const terrainMusic = terrain.getMusic();
+    if (terrainMusic.length > 0) {
+      this._save.setMusic(terrainMusic[RNG.generate(0, terrainMusic.length - 1)]);
+    }
+  }
+
+  private deployXCOM(): void {
+    const base = this._base || this._craft?.getBase?.() || null;
+    this._base = base;
+    const ground = this._mod?.getInventory?.("STR_GROUND", true) || null;
+    if (!ground) {
+      throw new Error("Inventory STR_GROUND not found.");
+    }
+
+    const soldiers = base?.getSoldiers().filter(soldier => !this._craft || soldier.getCraft() === this._craft) || [];
+    let selectedFirstSoldier = false;
+    for (const soldier of soldiers) {
+      if (!soldier.getArmor()) {
+        continue;
+      }
+      const unit = new BattleUnit(soldier, this._save.getDepth());
+      unit.setTurnsSinceSpotted(255);
+      unit.clearVisibleTiles();
+      unit.setCache(0);
+      if (!this.addXCOMUnit(unit)) {
+        continue;
+      }
+      if (!this._baseInventory && !this._craftInventoryTile) {
+        this._craftInventoryTile = unit.getTile() as Tile | null;
+      }
+      this._craftInventoryTile?.setUnit(unit);
+      unit.setVisible(false);
+      unit.prepareNewTurn(false);
+      if (!selectedFirstSoldier && unit.getOriginalFaction() === UnitFaction.FACTION_PLAYER) {
+        this._save.setSelectedUnit(unit);
+        selectedFirstSoldier = true;
+      }
+    }
+    if (this._save.getUnits().every(unit => unit.getOriginalFaction() !== UnitFaction.FACTION_PLAYER)) {
+      throw new Error("Map generator encountered an error: no xcom units could be placed on the map.");
+    }
+    if (!this._save.getSelectedUnit()) {
+      this._save.selectNextPlayerUnit();
+    }
+
+    this.addCraftItemsToInventoryTile(ground);
+    this.prepareCraftInventoryLoadout(ground);
+  }
+
+  private addXCOMUnit(unit: BattleUnit): BattleUnit | null {
+    if (this._baseInventory) {
+      if (unit.hasInventory()) {
+        this._save.getUnits().push(unit);
+        this.setUnitSpecialWeapon(unit);
+        return unit;
+      }
+      return null;
+    }
+
+    if (!this._craft || !this._craftDeployed) {
+      const node = this._save.getSpawnNode(NodeRank.NR_XCOM, unit);
+      if (node && this._save.setUnitPosition(unit, node.getPosition())) {
+        this._craftInventoryTile = this._save.getTile(node.getPosition());
+        unit.setDirection(RNG.generate(0, 7));
+        this._save.getUnits().push(unit);
+        this._save.getTileEngine()?.calculateFOV(unit);
+        this.setUnitSpecialWeapon(unit);
+        return unit;
+      }
+      if (this._save.getMissionType() !== "STR_BASE_DEFENSE" && this.placeUnitNearFriend(unit)) {
+        this._craftInventoryTile = unit.getTile() as Tile | null;
+        unit.setDirection(RNG.generate(0, 7));
+        this._save.getUnits().push(unit);
+        this._save.getTileEngine()?.calculateFOV(unit);
+        this.setUnitSpecialWeapon(unit);
+        return unit;
+      }
+      return null;
+    }
+
+    const deployment = this._craft.getRules().getDeployment();
+    if (deployment.length > 0) {
+      for (const entry of deployment) {
+        const pos = new Position(entry[0] + this._craftPos.x * 10, entry[1] + this._craftPos.y * 10, entry[2] + this._craftZ);
+        const direction = entry[3];
+        let canPlace = true;
+        for (let x = 0; x < unit.getArmor().getSize(); ++x) {
+          for (let y = 0; y < unit.getArmor().getSize(); ++y) {
+            canPlace = canPlace && this.canPlaceXCOMUnit(this._save.getTile(pos.add(new Position(x, y, 0))));
+          }
+        }
+        if (canPlace && this._save.setUnitPosition(unit, pos)) {
+          this._save.getUnits().push(unit);
+          unit.setDirection(direction);
+          this.setUnitSpecialWeapon(unit);
+          return unit;
+        }
+      }
+      return null;
+    }
+
+    for (const tile of this._save.getTiles()) {
+      if (this.canPlaceXCOMUnit(tile) && this._save.setUnitPosition(unit, tile.getPosition())) {
+        this._save.getUnits().push(unit);
+        this.setUnitSpecialWeapon(unit);
+        return unit;
+      }
+    }
+    return null;
+  }
+
+  private canPlaceXCOMUnit(tile: Tile | null): boolean {
+    const floor = tile?.getMapData(TilePart.O_FLOOR) || null;
+    if (tile &&
+      floor &&
+      floor.getSpecialType() === SpecialTileType.START_POINT &&
+      !tile.getMapData(TilePart.O_OBJECT) &&
+      floor.getTUCost(MovementType.MT_WALK) < 255) {
+      if (!this._craftInventoryTile) {
+        this._craftInventoryTile = tile;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  private placeUnitNearFriend(unit: BattleUnit): boolean {
+    if (this._save.getUnits().length === 0) {
+      return false;
+    }
+    for (let i = 0; i !== 10; ++i) {
+      let entryPoint = new Position(-1, -1, -1);
+      let tries = 100;
+      let largeUnit = false;
+      while (entryPoint.equals(new Position(-1, -1, -1)) && tries) {
+        const friend = this._save.getUnits()[RNG.generate(0, this._save.getUnits().length - 1)];
+        if (friend.getFaction() === unit.getFaction() &&
+          !friend.getPosition().equals(new Position(-1, -1, -1)) &&
+          friend.getArmor().getSize() >= unit.getArmor().getSize()) {
+          entryPoint = friend.getPosition();
+          largeUnit = friend.getArmor().getSize() !== 1;
+        }
+        tries--;
+      }
+      if (tries && this._save.placeUnitNearPosition(unit, entryPoint, largeUnit)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private setUnitSpecialWeapon(unit: BattleUnit): void {
+    if (this._mod?.getItem) {
+      unit.setSpecialWeapon(this._save, { getItem: this._mod.getItem.bind(this._mod) });
+    }
+  }
+
+  private addCraftItemsToInventoryTile(ground: RuleInventory): void {
+    if (!this._craft || !this._craftInventoryTile) {
+      return;
+    }
+    const contents = this._craft.getItems?.().getContents?.() || new Map<string, number>();
+    for (const [type, qty] of contents) {
+      const rule = this._mod?.getItem?.(type, true);
+      if (!rule) {
+        continue;
+      }
+      for (let count = 0; count < qty; ++count) {
+        this._craftInventoryTile.addItem(new BattleItem(rule, this._save.getCurrentItemId()), ground);
+      }
+    }
+  }
+
+  private prepareCraftInventoryLoadout(ground: RuleInventory): void {
+    const inventory = this._craftInventoryTile?.getInventory();
+    if (!inventory) {
+      return;
+    }
+
+    for (const item of [...inventory]) {
+      item.setXCOMProperty(true);
+      if (item.getRules().getBattleType() !== BattleType.BT_AMMO) {
+        this.placeItemByLayout(item, ground);
+      }
+    }
+
+    this.loadWeapons(ground);
+
+    for (const item of [...inventory]) {
+      if (item.getRules().getBattleType() === BattleType.BT_AMMO) {
+        this.placeItemByLayout(item, ground);
+      }
+    }
+
+    this.autoEquip(this._save.getUnits(), inventory, ground, false);
+  }
+
+  private loadWeapons(ground: RuleInventory): void {
+    const inventory = this._craftInventoryTile?.getInventory();
+    if (!inventory) {
+      return;
+    }
+    const rightHand = this._mod?.getInventory?.("STR_RIGHT_HAND", true) || null;
+    for (const item of [...inventory]) {
+      if (!rightHand ||
+        item.getRules().isFixed() ||
+        item.getRules().getCompatibleAmmo().length === 0 ||
+        item.getAmmoItem() ||
+        (item.getRules().getBattleType() !== BattleType.BT_FIREARM && item.getRules().getBattleType() !== BattleType.BT_MELEE)) {
+        continue;
+      }
+      for (const ammo of [...inventory]) {
+        if (ammo.getSlot() === ground && item.setAmmoItem(ammo) === 0) {
+          this._save.getItems().push(ammo);
+          ammo.setSlot(rightHand);
+          break;
+        }
+      }
+    }
+    for (let i = inventory.length - 1; i >= 0; --i) {
+      if (inventory[i].getSlot() !== ground) {
+        inventory.splice(i, 1);
+      }
+    }
+  }
+
+  private placeItemByLayout(item: BattleItem, ground: RuleInventory): boolean {
+    if (item.getSlot() !== ground || !this._mod?.getInventory) {
+      return false;
+    }
+    const rightHand = this._mod.getInventory("STR_RIGHT_HAND", true);
+    for (const unit of this._save.getUnits()) {
+      const soldier = unit.getGeoscapeSoldier();
+      const layout = soldier?.getEquipmentLayout?.() || [];
+      if (unit.getArmor().getSize() > 1 || !soldier || layout.length === 0) {
+        continue;
+      }
+      for (const layoutItem of layout) {
+        const source = layoutItem as any;
+        const itemType = typeof source.getItemType === "function" ? source.getItemType() : source.itemType;
+        const slotId = typeof source.getSlot === "function" ? source.getSlot() : source.slot;
+        const slotX = typeof source.getSlotX === "function" ? source.getSlotX() : source.slotX || 0;
+        const slotY = typeof source.getSlotY === "function" ? source.getSlotY() : source.slotY || 0;
+        const ammoItem = typeof source.getAmmoItem === "function" ? source.getAmmoItem() : source.ammoItem || "NONE";
+        const fuseTimer = typeof source.getFuseTimer === "function" ? source.getFuseTimer() : source.fuseTimer ?? -1;
+        const slot = slotId ? this._mod.getInventory(slotId, true) : null;
+        if (item.getRules().getType() !== itemType || !slot || this.inventoryOverlaps(unit, item, slot, slotX, slotY)) {
+          continue;
+        }
+
+        let loaded = ammoItem === "NONE";
+        if (!loaded && rightHand) {
+          for (const ammo of [...(this._craftInventoryTile?.getInventory() || [])]) {
+            if (ammo.getRules().getType() === ammoItem && ammo.getSlot() === ground && item.setAmmoItem(ammo) === 0) {
+              this._save.getItems().push(ammo);
+              ammo.setSlot(rightHand);
+              loaded = true;
+              break;
+            }
+          }
+        }
+        if (!loaded) {
+          continue;
+        }
+
+        item.moveToOwner(unit);
+        item.setSlot(slot);
+        item.setSlotX(slotX);
+        item.setSlotY(slotY);
+        if ((Options as any).includePrimeStateInSavedLayout &&
+          (item.getRules().getBattleType() === BattleType.BT_GRENADE ||
+            item.getRules().getBattleType() === BattleType.BT_PROXIMITYGRENADE)) {
+          item.setFuseTimer(fuseTimer);
+        }
+        this._save.getItems().push(item);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  autoEquip(
+    units: BattleUnit[],
+    craftInv: BattleItem[],
+    ground: RuleInventory,
+    overrideEquipmentLayout: boolean,
+    allowAutoLoadout = this._allowAutoLoadout,
+    addToSave: SavedBattleGame | null = this._save
+  ): void {
+    for (let pass = 0; pass < 4; ++pass) {
+      for (let j = 0; j < craftInv.length;) {
+        const item = craftInv[j];
+        let add = false;
+        if (item.getSlot() === ground) {
+          switch (pass) {
+            case 0:
+              add = this.isRuleRifle(item.getRules());
+              break;
+            case 1:
+              add = this.isRulePistol(item.getRules());
+              break;
+            case 2:
+              add = item.getRules().getBattleType() === BattleType.BT_AMMO;
+              break;
+            case 3:
+              add = !this.isRulePistol(item.getRules()) && !this.isRuleRifle(item.getRules());
+              break;
+            default:
+              break;
+          }
+        }
+
+        if (add) {
+          let placed = false;
+          for (const unit of units) {
+            const soldier = unit.getGeoscapeSoldier();
+            const layout = soldier?.getEquipmentLayout?.() || [];
+            if (!unit.hasInventory() || !soldier || (!overrideEquipmentLayout && layout.length > 0)) {
+              continue;
+            }
+            if (allowAutoLoadout && this.addItem(item, unit, pass === 3, addToSave)) {
+              craftInv.splice(j, 1);
+              placed = true;
+              break;
+            }
+          }
+          if (placed) {
+            continue;
+          }
+        }
+        ++j;
+      }
+    }
+
+    for (let i = 0; i < craftInv.length;) {
+      const item = craftInv[i];
+      if (item.getSlot() !== ground) {
+        craftInv.splice(i, 1);
+      } else {
+        if (addToSave && !addToSave.getItems().includes(item)) {
+          addToSave.getItems().push(item);
+        }
+        ++i;
+      }
+    }
+  }
+
+  private isRuleRifle(rule: RuleItem): boolean {
+    return Boolean((rule as any).isRifle?.());
+  }
+
+  private isRulePistol(rule: RuleItem): boolean {
+    if (typeof (rule as any).isPistol === "function") {
+      return Boolean((rule as any).isPistol());
+    }
+    const battleType = rule.getBattleType();
+    return battleType === BattleType.BT_FIREARM || battleType === BattleType.BT_MELEE;
   }
 
   addAlien(rules: Unit, alienRank: number, outside: boolean): BattleUnit | null {
@@ -996,7 +1512,7 @@ export class BattlescapeGenerator {
     return this.addItem(item, unit) ? item : null;
   }
 
-  addItem(item: BattleItem, unit: BattleUnit, _allowSecondClip = true): boolean {
+  addItem(item: BattleItem, unit: BattleUnit, _allowSecondClip = true, addToSave: SavedBattleGame | null = this._save): boolean {
     if (!this._mod?.getInventory || !this._mod?.getInvsList) {
       throw new Error("BattlescapeGenerator requires inventory rules to equip units.");
     }
@@ -1018,7 +1534,7 @@ export class BattlescapeGenerator {
         item.setSlot(!rightWeapon ? rightHand : leftHand);
         placed = true;
       }
-      return this.finishUnitItemPlacement(item, unit, placed);
+      return this.finishUnitItemPlacement(item, unit, placed, addToSave);
     }
 
     switch (rules.getBattleType()) {
@@ -1058,7 +1574,7 @@ export class BattlescapeGenerator {
         break;
     }
 
-    return this.finishUnitItemPlacement(item, unit, placed);
+    return this.finishUnitItemPlacement(item, unit, placed, addToSave);
   }
 
   private placeItemInInventory(item: BattleItem, unit: BattleUnit): boolean {
@@ -1091,9 +1607,11 @@ export class BattlescapeGenerator {
     return unit.getInventory().some(existing => existing.getSlot() === slot && existing.occupiesSlot(x, y, item));
   }
 
-  private finishUnitItemPlacement(item: BattleItem, unit: BattleUnit, placed: boolean): boolean {
+  private finishUnitItemPlacement(item: BattleItem, unit: BattleUnit, placed: boolean, addToSave: SavedBattleGame | null = this._save): boolean {
     if (placed) {
-      this._save.getItems().push(item);
+      if (addToSave && !addToSave.getItems().includes(item)) {
+        addToSave.getItems().push(item);
+      }
     }
     item.setXCOMProperty(unit.getFaction() === UnitFaction.FACTION_PLAYER);
     return placed;
@@ -1132,12 +1650,15 @@ export class BattlescapeGenerator {
 
   private async loadTerrainMapDataSets(terrain: RuleTerrain): Promise<number> {
     let mapDataSetIDOffset = 0;
-    for (const set of terrain.getMapDataSets()) {
+    const mapDataSets = terrain.getMapDataSets();
+    for (let i = 0; i < mapDataSets.length; ++i) {
+      let set = mapDataSets[i];
       if (set.getSize() === 0) {
         if (!this._mod?.loadMapDataSet) {
           throw new Error("BattlescapeGenerator requires a Mod with loadMapDataSet() to generate maps.");
         }
-        await this._mod.loadMapDataSet(set.getName());
+        set = await this._mod.loadMapDataSet(set.getName());
+        mapDataSets[i] = set;
       }
       this._save.getMapDataSets().push(set);
       mapDataSetIDOffset++;

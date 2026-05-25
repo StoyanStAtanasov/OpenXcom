@@ -5,10 +5,7 @@ import { ALIGN_CENTER, Text } from "../Interface/Text.ts";
 import { TextButton } from "../Interface/TextButton.ts";
 import { POPUP_BOTH, Window } from "../Interface/Window.ts";
 import type { RuleResearch } from "../Mod/RuleResearch.ts";
-
-function openUfopaediaArticle(article: string): void {
-  console.log(`Ufopaedia::openArticle(${article}) is not translated yet.`);
-}
+import { Ufopaedia } from "../Ufopaedia/Ufopaedia.ts";
 
 export class ResearchCompleteState extends State {
   private _window: Window;
@@ -70,11 +67,11 @@ export class ResearchCompleteState extends State {
     this.game().popState();
     if (this._bonus) {
       const bonusName = this._bonus.getLookup().length === 0 ? this._bonus.getName() : this._bonus.getLookup();
-      openUfopaediaArticle(bonusName);
+      Ufopaedia.openArticle(this.game(), bonusName);
     }
     if (this._research) {
       const name = this._research.getLookup().length === 0 ? this._research.getName() : this._research.getLookup();
-      openUfopaediaArticle(name);
+      Ufopaedia.openArticle(this.game(), name);
     }
   }
 }

@@ -38,6 +38,17 @@ function percent(done, total) {
   return total === 0 ? 100 : Math.round((done / total) * 1000) / 10;
 }
 
+function sliceStatus(slice) {
+  return String(slice.status || "untracked");
+}
+
+function tableCell(value) {
+  return String(value ?? "")
+    .replaceAll("|", "\\|")
+    .replace(/\r?\n/g, " ")
+    .trim();
+}
+
 async function lineCount(path) {
   const text = await readFile(path, "utf8");
   return text.split(/\r?\n/).length;
@@ -152,7 +163,8 @@ async function main() {
 
   const statusRollups = {};
   for (const slice of slices) {
-    statusRollups[slice.status] = (statusRollups[slice.status] || 0) + 1;
+    const status = sliceStatus(slice);
+    statusRollups[status] = (statusRollups[status] || 0) + 1;
   }
 
   const nextQueue = slices
@@ -160,7 +172,7 @@ async function main() {
     .map(slice => ({
       name: slice.name,
       area: slice.area,
-      status: slice.status,
+      status: sliceStatus(slice),
       nextAction: slice.nextAction || slice.boundaries?.[0] || "review and integrate"
     }));
 
@@ -234,7 +246,7 @@ async function main() {
   md.push("| Slice | Area | Status | Next action |");
   md.push("| --- | --- | --- | --- |");
   for (const item of nextQueue.slice(0, 12)) {
-    md.push(`| ${item.name} | ${item.area} | ${item.status} | ${item.nextAction} |`);
+    md.push(`| ${tableCell(item.name)} | ${tableCell(item.area)} | ${tableCell(item.status)} | ${tableCell(item.nextAction)} |`);
   }
   md.push("");
   md.push("## Area Coverage");
@@ -243,7 +255,7 @@ async function main() {
   md.push("| --- | ---: | ---: | ---: | --- |");
   for (const area of areaList) {
     const examples = area.missingUnits.slice(0, 6).map(unit => `\`${unit}\``).join(", ");
-    md.push(`| ${area.area} | ${area.sourceUnits} | ${area.translatedUnits} | ${area.percent}% | ${examples}${area.missingUnits.length > 6 ? ", ..." : ""} |`);
+    md.push(`| ${tableCell(area.area)} | ${area.sourceUnits} | ${area.translatedUnits} | ${area.percent}% | ${tableCell(`${examples}${area.missingUnits.length > 6 ? ", ..." : ""}`)} |`);
   }
   md.push("");
   md.push("## Tracked Slices");
@@ -251,7 +263,7 @@ async function main() {
   md.push("| Slice | Area | Status | Slice % | Verification | Main Boundaries |");
   md.push("| --- | --- | --- | ---: | --- | --- |");
   for (const slice of slices) {
-    md.push(`| ${slice.name} | ${slice.area} | ${slice.status} | ${slice.slicePercent}% | ${slice.verification} | ${slice.boundaries.join("; ")} |`);
+    md.push(`| ${tableCell(slice.name)} | ${tableCell(slice.area)} | ${tableCell(sliceStatus(slice))} | ${slice.slicePercent}% | ${tableCell(slice.verification)} | ${tableCell((slice.boundaries || []).join("; "))} |`);
   }
   md.push("");
   md.push("## Known Verification Signals");

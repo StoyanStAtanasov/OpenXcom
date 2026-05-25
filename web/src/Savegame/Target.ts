@@ -11,11 +11,20 @@ export type TargetLike = CoordinateTarget & {
   getType?(): string;
   getId?(): number;
   setId?(id: number): void;
+  saveId?(): TargetSaveNode;
   getDefaultName?(lang: Language): string;
   getMarkerName?(): string;
   getMarkerId?(): number;
   getMarker?(): number;
   getFollowers?(): MovingTarget[];
+};
+
+export type TargetSaveNode = {
+  lon?: number;
+  lat?: number;
+  id?: number;
+  name?: string;
+  type?: string;
 };
 
 function areSame(left: number, right: number): boolean {
@@ -36,6 +45,39 @@ export abstract class Target implements TargetLike {
   abstract getType(): string;
 
   abstract getMarker(): number;
+
+  load(node: TargetSaveNode | null | undefined): void {
+    if (!node) {
+      return;
+    }
+    this._lon = typeof node.lon === "number" ? node.lon : this._lon;
+    this._lat = typeof node.lat === "number" ? node.lat : this._lat;
+    this._id = typeof node.id === "number" ? node.id : this._id;
+    this._name = typeof node.name === "string" ? node.name : this._name;
+  }
+
+  save(): TargetSaveNode {
+    const node: TargetSaveNode = {
+      lon: this._lon,
+      lat: this._lat
+    };
+    if (this._id) {
+      node.id = this._id;
+    }
+    if (this._name.length > 0) {
+      node.name = this._name;
+    }
+    return node;
+  }
+
+  saveId(): TargetSaveNode {
+    return {
+      lon: this._lon,
+      lat: this._lat,
+      type: this.getType(),
+      id: this._id
+    };
+  }
 
   getLongitude(): number {
     return this._lon;

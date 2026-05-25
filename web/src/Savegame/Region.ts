@@ -1,5 +1,18 @@
 import type { RuleRegion } from "../Mod/RuleRegion.ts";
 
+export type RegionSave = {
+  type?: string;
+  activityXcom?: number[];
+  activityAlien?: number[];
+};
+
+function numberArray(value: unknown, fallback: number[]): number[] {
+  if (!Array.isArray(value)) {
+    return [...fallback];
+  }
+  return value.filter(entry => typeof entry === "number" && Number.isFinite(entry)).map(entry => Math.trunc(entry));
+}
+
 export class Region {
   private _activityXcom: number[] = [0];
   private _activityAlien: number[] = [0];
@@ -8,6 +21,19 @@ export class Region {
 
   getRules(): RuleRegion {
     return this._rules;
+  }
+
+  load(node: RegionSave = {}): void {
+    this._activityXcom = numberArray(node.activityXcom, this._activityXcom);
+    this._activityAlien = numberArray(node.activityAlien, this._activityAlien);
+  }
+
+  save(): RegionSave {
+    return {
+      type: this._rules.getType(),
+      activityXcom: [...this._activityXcom],
+      activityAlien: [...this._activityAlien]
+    };
   }
 
   addActivityXcom(activity: number): void {

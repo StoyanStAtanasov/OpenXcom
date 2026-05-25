@@ -7,8 +7,11 @@ import { StatString } from "../Mod/StatString.ts";
 import type { UnitStats } from "../Mod/Unit.ts";
 import { createUnitStats } from "../Mod/Unit.ts";
 import type { Craft } from "./Craft.ts";
-import type { SoldierDeath } from "./SoldierDeath.ts";
-import { SoldierDiary } from "./SoldierDiary.ts";
+import type { EquipmentLayoutItemSave } from "./EquipmentLayoutItem.ts";
+import type { Mod } from "../Mod/Mod.ts";
+import { SoldierDeath, type SoldierDeathSave } from "./SoldierDeath.ts";
+import { SoldierDiary, type SoldierDiarySave } from "./SoldierDiary.ts";
+import type { TargetSaveNode } from "./Target.ts";
 
 export enum SoldierRank {
   RANK_ROOKIE = 0,
@@ -31,6 +34,36 @@ export enum SoldierLook {
   LOOK_AFRICAN
 }
 
+export type SoldierSaveNode = {
+  type?: string;
+  id?: number;
+  name?: string;
+  initialStats?: Partial<UnitStats>;
+  currentStats?: Partial<UnitStats>;
+  rank?: number;
+  craft?: TargetSaveNode;
+  gender?: number;
+  look?: number;
+  missions?: number;
+  kills?: number;
+  recovery?: number;
+  armor?: string;
+  psiTraining?: boolean;
+  improvement?: number;
+  psiStrImprovement?: number;
+  equipmentLayout?: EquipmentLayoutItemSave[];
+  death?: SoldierDeathSave;
+  diary?: SoldierDiarySave;
+};
+
+function intValue(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : fallback;
+}
+
+function boolValue(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
 export class Soldier {
   private _name = "";
   private _initialStats = createUnitStats();
@@ -42,12 +75,14 @@ export class Soldier {
   private _missions = 0;
   private _kills = 0;
   private _recovery = 0;
+  private _recentlyPromoted = false;
   private _psiTraining = false;
   private _improvement = 0;
   private _psiStrImprovement = 0;
   private _statString = "";
   private _death: SoldierDeath | null = null;
   private _diary = new SoldierDiary();
+  private _equipmentLayout: EquipmentLayoutItemSave[] = [];
 
   constructor(private _rules: RuleSoldier, private _armor: Armor | null = null, private _id = 0) {
     if (this._id !== 0) {
@@ -70,6 +105,82 @@ export class Soldier {
     this._name = name;
   }
 
+  load(node: SoldierSaveNode | null | undefined, mod: Mod | null = null, save: { isResearched?: (research: string | string[]) => boolean } | null = null): void {
+    if (!node) {
+      return;
+    }
+    this._id = intValue(node.id, this._id);
+    this._name = node.name ?? this._name;
+    this._initialStats = createUnitStats({ ...this._initialStats, ...(node.initialStats || {}) });
+    this._currentStats = createUnitStats({ ...this._currentStats, ...(node.currentStats || {}) });
+    this._rank = intValue(node.rank, this._rank) as SoldierRank;
+    this._gender = intValue(node.gender, this._gender) as SoldierGender;
+    this._look = intValue(node.look, this._look) as SoldierLook;
+    this._missions = intValue(node.missions, this._missions);
+    this._kills = intValue(node.kills, this._kills);
+    this._recovery = intValue(node.recovery, this._recovery);
+    const armorName = node.armor || this._armor?.getType?.() || this._rules.getArmor();
+    this._armor = mod?.getArmor(armorName) || mod?.getArmor(this._rules.getArmor()) || this._armor;
+    this._psiTraining = boolValue(node.psiTraining, this._psiTraining);
+    this._improvement = intValue(node.improvement, this._improvement);
+    this._psiStrImprovement = intValue(node.psiStrImprovement, this._psiStrImprovement);
+    this._equipmentLayout = [];
+    for (const layoutItem of node.equipmentLayout || []) {
+      const slot = layoutItem.slot || "";
+      if (!mod || !slot || mod.getInventory(slot)) {
+        this._equipmentLayout.push({ ...layoutItem });
+      }
+    }
+    if (node.death) {
+      this._death = new SoldierDeath();
+      this._death.load(node.death);
+    }
+    if (node.diary) {
+      this._diary = new SoldierDiary();
+      this._diary.load(node.diary, mod);
+    }
+    if (mod) {
+      this.calcStatString(mod.getStatStrings(), Options.psiStrengthEval && !!save?.isResearched?.(mod.getPsiRequirements()));
+    }
+  }
+
+  save(): SoldierSaveNode {
+    const node: SoldierSaveNode = {
+      type: this._rules.getType(),
+      id: this._id,
+      name: this._name,
+      initialStats: { ...this._initialStats },
+      currentStats: { ...this._currentStats },
+      rank: this._rank,
+      gender: this._gender,
+      look: this._look,
+      missions: this._missions,
+      kills: this._kills,
+      armor: this._armor?.getType() || this._rules.getArmor(),
+      improvement: this._improvement,
+      psiStrImprovement: this._psiStrImprovement
+    };
+    if (this._craft) {
+      node.craft = this._craft.saveId();
+    }
+    if (this._recovery > 0) {
+      node.recovery = this._recovery;
+    }
+    if (this._psiTraining) {
+      node.psiTraining = this._psiTraining;
+    }
+    if (this._equipmentLayout.length > 0) {
+      node.equipmentLayout = this._equipmentLayout.map(item => ({ ...item }));
+    }
+    if (this._death) {
+      node.death = this._death.save();
+    }
+    if (Options.soldierDiaries && (this._diary.getMissionIdList().length > 0 || this._diary.getSoldierCommendations().length > 0 || this._diary.getMonthsService() > 0)) {
+      node.diary = this._diary.save();
+    }
+    return node;
+  }
+
   getCraft(): Craft | null {
     return this._craft;
   }
@@ -90,6 +201,19 @@ export class Soldier {
 
   getRank(): SoldierRank {
     return this._rank;
+  }
+
+  promoteRank(): void {
+    this._rank = Math.min(SoldierRank.RANK_COMMANDER, this._rank + 1);
+    if (this._rank > SoldierRank.RANK_SQUADDIE) {
+      this._recentlyPromoted = true;
+    }
+  }
+
+  isPromoted(): boolean {
+    const promoted = this._recentlyPromoted;
+    this._recentlyPromoted = false;
+    return promoted;
   }
 
   getRankString(): string {
@@ -155,8 +279,20 @@ export class Soldier {
     return this._kills;
   }
 
+  addMissionCount(): void {
+    ++this._missions;
+  }
+
+  addKillCount(count: number): void {
+    this._kills += count;
+  }
+
   getWoundRecovery(): number {
     return this._recovery;
+  }
+
+  getEquipmentLayout(): EquipmentLayoutItemSave[] {
+    return this._equipmentLayout;
   }
 
   setWoundRecovery(recovery: number): void {

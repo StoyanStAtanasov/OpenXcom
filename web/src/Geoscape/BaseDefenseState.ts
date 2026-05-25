@@ -7,6 +7,7 @@ import { Text } from "../Interface/Text.ts";
 import { TextButton } from "../Interface/TextButton.ts";
 import { TextList } from "../Interface/TextList.ts";
 import { Window } from "../Interface/Window.ts";
+import { Mod } from "../Mod/Mod.ts";
 import type { Base } from "../Savegame/Base.ts";
 import type { BaseFacility } from "../Savegame/BaseFacility.ts";
 import { Ufo, UfoStatus } from "../Savegame/Ufo.ts";
@@ -36,8 +37,8 @@ function getDefenses(base: Base): BaseFacility[] {
   );
 }
 
-function playGeoscapeSound(_cat: string, _id: number): void {
-  // Sound playback is not translated in the browser Mod yet.
+function playGeoscapeSound(mod: Mod | null, cat: string, id: number): void {
+  mod?.getSound(cat, id, false)?.play();
 }
 
 /**
@@ -131,7 +132,7 @@ export class BaseDefenseState extends State {
             this._lstDefenses.scrollDown(true);
           }
         }
-        playGeoscapeSound("GEO.CAT", 11);
+        playGeoscapeSound(this.game().getMod(), "GEO.CAT", Mod.UFO_EXPLODE);
         if (++this._explosionCount === 3) {
           this._action = BaseDefenseActionType.BDA_END;
         }
@@ -175,7 +176,7 @@ export class BaseDefenseState extends State {
         return;
       case BaseDefenseActionType.BDA_FIRE:
         this._lstDefenses.setCellText(this._row, 1, String(this.tr("STR_FIRING")));
-        playGeoscapeSound("GEO.CAT", def.getRules().getFireSound());
+        playGeoscapeSound(this.game().getMod(), "GEO.CAT", def.getRules().getFireSound());
         this._timer.setInterval(333);
         this._action = BaseDefenseActionType.BDA_RESOLVE;
         return;
@@ -184,7 +185,7 @@ export class BaseDefenseState extends State {
           this._lstDefenses.setCellText(this._row, 2, String(this.tr("STR_MISSED")));
         } else {
           this._lstDefenses.setCellText(this._row, 2, String(this.tr("STR_HIT")));
-          playGeoscapeSound("GEO.CAT", def.getRules().getHitSound());
+          playGeoscapeSound(this.game().getMod(), "GEO.CAT", def.getRules().getHitSound());
           const dmg = def.getRules().getDefenseValue();
           this._ufo.setDamage(this._ufo.getDamage() + (Math.trunc(dmg / 2) + RNG.generate(0, dmg)));
         }

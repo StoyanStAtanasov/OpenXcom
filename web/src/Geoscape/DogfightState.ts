@@ -6,9 +6,13 @@ import { Surface } from "../Engine/Surface.ts";
 import { Timer } from "../Engine/Timer.ts";
 import type { Action } from "../Engine/Action.ts";
 import { Text } from "../Interface/Text.ts";
+import type { Mod } from "../Mod/Mod.ts";
+import { MissionObjective } from "../Mod/RuleAlienMission.ts";
+import { AlienMission } from "../Savegame/AlienMission.ts";
 import type { Craft } from "../Savegame/Craft.ts";
 import type { CraftWeapon } from "../Savegame/CraftWeapon.ts";
 import { Ufo, UfoStatus } from "../Savegame/Ufo.ts";
+import { DogfightErrorState } from "./DogfightErrorState.ts";
 import type { GeoscapeState } from "./GeoscapeState.ts";
 
 export const STANDOFF_DIST = 560;
@@ -46,6 +50,13 @@ enum Directions {
   D_UP,
   D_DOWN
 }
+
+const DOGFIGHT_SOUND_UFO_FIRE = 8;
+const DOGFIGHT_SOUND_UFO_HIT = 12;
+const DOGFIGHT_SOUND_UFO_CRASH = 10;
+const DOGFIGHT_SOUND_UFO_EXPLODE = 11;
+const DOGFIGHT_SOUND_INTERCEPTOR_HIT = 10;
+const DOGFIGHT_SOUND_INTERCEPTOR_EXPLODE = 13;
 
 const HP_LEFT = -1;
 const HP_CENTER = 0;
@@ -331,8 +342,8 @@ function isWaterOnlyCraft(craft: Craft): boolean {
   return rules.isWaterOnly?.() ?? (rules.getMaxAltitude?.() ?? -1) > -1;
 }
 
-function playGeoscapeSound(_id: number): void {
-  // Browser Mod sound playback is not translated yet.
+function playGeoscapeSound(mod: Mod | null, id: number): void {
+  mod?.getSound("GEO.CAT", id, false)?.play();
 }
 
 function projectileFromWeapon(weapon: CraftWeapon): CraftWeaponProjectile {
@@ -354,6 +365,128 @@ export class DogfightState extends State {
     [[1, 2, 1], [2, 9, 2], [2, 5, 2], [1, 3, 1], [0, 2, 0], [0, 1, 0]],
     [[0, 0, 0], [0, 7, 0], [0, 2, 0], [0, 1, 0], [0, 0, 0], [0, 0, 0]],
     [[2, 4, 2], [4, 9, 4], [2, 4, 2], [0, 0, 0], [0, 0, 0], [0, 0, 0]]
+  ];
+  private static readonly _ufoBlobs = [
+    [
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 1, 2, 3, 2, 1, 0, 0, 0, 0],
+      [0, 0, 0, 0, 1, 3, 5, 3, 1, 0, 0, 0, 0],
+      [0, 0, 0, 0, 1, 2, 3, 2, 1, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    [
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 1, 2, 2, 2, 1, 0, 0, 0, 0],
+      [0, 0, 0, 1, 2, 3, 4, 3, 2, 1, 0, 0, 0],
+      [0, 0, 0, 1, 2, 4, 5, 4, 2, 1, 0, 0, 0],
+      [0, 0, 0, 1, 2, 3, 4, 3, 2, 1, 0, 0, 0],
+      [0, 0, 0, 0, 1, 2, 2, 2, 1, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    [
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0],
+      [0, 0, 0, 1, 1, 2, 2, 2, 1, 1, 0, 0, 0],
+      [0, 0, 0, 1, 2, 3, 3, 3, 2, 1, 0, 0, 0],
+      [0, 0, 1, 2, 3, 4, 5, 4, 3, 2, 1, 0, 0],
+      [0, 0, 1, 2, 3, 5, 5, 5, 3, 2, 1, 0, 0],
+      [0, 0, 1, 2, 3, 4, 5, 4, 3, 2, 1, 0, 0],
+      [0, 0, 0, 1, 2, 3, 3, 3, 2, 1, 0, 0, 0],
+      [0, 0, 0, 1, 1, 2, 2, 2, 1, 1, 0, 0, 0],
+      [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    [
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0],
+      [0, 0, 0, 1, 1, 2, 2, 2, 1, 1, 0, 0, 0],
+      [0, 0, 1, 2, 2, 3, 3, 3, 2, 2, 1, 0, 0],
+      [0, 0, 1, 2, 3, 4, 4, 4, 3, 2, 1, 0, 0],
+      [0, 1, 2, 3, 4, 5, 5, 5, 4, 3, 2, 1, 0],
+      [0, 1, 2, 3, 4, 5, 5, 5, 4, 3, 2, 1, 0],
+      [0, 1, 2, 3, 4, 5, 5, 5, 4, 3, 2, 1, 0],
+      [0, 0, 1, 2, 3, 4, 4, 4, 3, 2, 1, 0, 0],
+      [0, 0, 1, 2, 2, 3, 3, 3, 2, 2, 1, 0, 0],
+      [0, 0, 0, 1, 1, 2, 2, 2, 1, 1, 0, 0, 0],
+      [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    ],
+    [
+      [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0],
+      [0, 0, 0, 1, 1, 2, 2, 2, 1, 1, 0, 0, 0],
+      [0, 0, 1, 2, 2, 3, 3, 3, 2, 2, 1, 0, 0],
+      [0, 1, 2, 3, 3, 4, 4, 4, 3, 3, 2, 1, 0],
+      [0, 1, 2, 3, 4, 5, 5, 5, 4, 3, 2, 1, 0],
+      [1, 2, 3, 4, 5, 5, 5, 5, 5, 4, 3, 2, 1],
+      [1, 2, 3, 4, 5, 5, 5, 5, 5, 4, 3, 2, 1],
+      [1, 2, 3, 4, 5, 5, 5, 5, 5, 4, 3, 2, 1],
+      [0, 1, 2, 3, 4, 5, 5, 5, 4, 3, 2, 1, 0],
+      [0, 1, 2, 3, 3, 4, 4, 4, 3, 3, 2, 1, 0],
+      [0, 0, 1, 2, 2, 3, 3, 3, 2, 2, 1, 0, 0],
+      [0, 0, 0, 1, 1, 2, 2, 2, 1, 1, 0, 0, 0],
+      [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0]
+    ],
+    [
+      [0, 0, 0, 1, 1, 2, 2, 2, 1, 1, 0, 0, 0],
+      [0, 0, 1, 2, 2, 3, 3, 3, 2, 2, 1, 0, 0],
+      [0, 1, 2, 3, 3, 4, 4, 4, 3, 3, 2, 1, 0],
+      [1, 2, 3, 4, 4, 5, 5, 5, 4, 4, 3, 2, 1],
+      [1, 2, 3, 4, 5, 5, 5, 5, 5, 4, 3, 2, 1],
+      [2, 3, 4, 5, 5, 5, 5, 5, 5, 5, 4, 3, 2],
+      [2, 3, 4, 5, 5, 5, 5, 5, 5, 5, 4, 3, 2],
+      [2, 3, 4, 5, 5, 5, 5, 5, 5, 5, 4, 3, 2],
+      [1, 2, 3, 4, 5, 5, 5, 5, 5, 4, 3, 2, 1],
+      [1, 2, 3, 4, 4, 5, 5, 5, 4, 4, 3, 2, 1],
+      [0, 1, 2, 3, 3, 4, 4, 4, 3, 3, 2, 1, 0],
+      [0, 0, 1, 2, 2, 3, 3, 3, 2, 2, 1, 0, 0],
+      [0, 0, 0, 1, 1, 2, 2, 2, 1, 1, 0, 0, 0]
+    ],
+    [
+      [0, 0, 0, 2, 2, 3, 3, 3, 2, 2, 0, 0, 0],
+      [0, 0, 2, 3, 3, 4, 4, 4, 3, 3, 2, 0, 0],
+      [0, 2, 3, 4, 4, 5, 5, 5, 4, 4, 3, 2, 0],
+      [2, 3, 4, 5, 5, 5, 5, 5, 5, 5, 4, 3, 2],
+      [2, 3, 4, 5, 5, 5, 5, 5, 5, 5, 4, 3, 2],
+      [3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 3],
+      [3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 3],
+      [3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 3],
+      [2, 3, 4, 5, 5, 5, 5, 5, 5, 5, 4, 3, 2],
+      [2, 3, 4, 5, 5, 5, 5, 5, 5, 5, 4, 3, 2],
+      [0, 2, 3, 4, 4, 5, 5, 5, 4, 4, 3, 2, 0],
+      [0, 0, 2, 3, 3, 4, 4, 4, 3, 3, 2, 0, 0],
+      [0, 0, 0, 2, 2, 3, 3, 3, 2, 2, 0, 0, 0]
+    ],
+    [
+      [0, 0, 0, 3, 3, 4, 4, 4, 3, 3, 0, 0, 0],
+      [0, 0, 3, 4, 4, 5, 5, 5, 4, 4, 3, 0, 0],
+      [0, 3, 4, 5, 5, 5, 5, 5, 5, 5, 4, 3, 0],
+      [3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 3],
+      [3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 3],
+      [4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4],
+      [4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4],
+      [4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4],
+      [3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 3],
+      [3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 3],
+      [0, 3, 4, 5, 5, 5, 5, 5, 5, 5, 4, 3, 0],
+      [0, 0, 3, 4, 4, 5, 5, 5, 4, 4, 3, 0, 0],
+      [0, 0, 0, 3, 3, 4, 4, 4, 3, 3, 0, 0, 0]
+    ]
   ];
 
   private _craftDamageAnimTimer: Timer;
@@ -663,7 +796,7 @@ export class DogfightState extends State {
       projectile.setDirection(Directions.D_UP);
       projectile.setHorizontalPosition(HP_LEFT);
       this._projectiles.push(projectile);
-      playGeoscapeSound(w1.getRules().getSound());
+      playGeoscapeSound(this.game().getMod(), w1.getRules().getSound());
     }
   }
 
@@ -679,7 +812,7 @@ export class DogfightState extends State {
       projectile.setDirection(Directions.D_UP);
       projectile.setHorizontalPosition(HP_RIGHT);
       this._projectiles.push(projectile);
-      playGeoscapeSound(w2.getRules().getSound());
+      playGeoscapeSound(this.game().getMod(), w2.getRules().getSound());
     }
   }
 
@@ -695,7 +828,7 @@ export class DogfightState extends State {
     projectile.setHorizontalPosition(HP_CENTER);
     projectile.setPosition(this._currentDist - Math.trunc(this._ufo.getRules().getRadius() / 2));
     this._projectiles.push(projectile);
-    playGeoscapeSound(0);
+    playGeoscapeSound(this.game().getMod(), DOGFIGHT_SOUND_UFO_FIRE);
   }
 
   minimumDistance(): void {
@@ -837,7 +970,7 @@ export class DogfightState extends State {
     const currentUfoYposition = this._battle.getHeight() - Math.trunc(this._currentDist / 8) - 6;
     for (let y = 0; y < 13; ++y) {
       for (let x = 0; x < 13; ++x) {
-        let pixelOffset = this.ufoBlobPixel(this._ufoSize + this._ufo.getHitFrame(), x, y);
+        let pixelOffset = DogfightState._ufoBlobs[this._ufoSize + this._ufo.getHitFrame()]?.[y]?.[x] || 0;
         if (pixelOffset === 0) {
           continue;
         }
@@ -1329,7 +1462,7 @@ export class DogfightState extends State {
               this._ufo.setHitFrame(3);
             }
             this.setStatus("STR_UFO_HIT");
-            playGeoscapeSound(0);
+            playGeoscapeSound(this.game().getMod(), DOGFIGHT_SOUND_UFO_HIT);
             projectile.remove();
           } else if (projectile.getGlobalType() === CraftWeaponProjectileGlobalType.CWPGT_BEAM) {
             projectile.remove();
@@ -1350,7 +1483,7 @@ export class DogfightState extends State {
               this._craft.setDamage(this._craft.getDamage() + damage);
               this.drawCraftDamage();
               this.setStatus("STR_INTERCEPTOR_DAMAGED");
-              playGeoscapeSound(0);
+              playGeoscapeSound(this.game().getMod(), DOGFIGHT_SOUND_INTERCEPTOR_HIT);
               if (this._mode.value === this._btnCautious && this._craft.getDamagePercentage() >= 50) {
                 this._targetDist = STANDOFF_DIST;
               }
@@ -1415,7 +1548,7 @@ export class DogfightState extends State {
     if (craftDestroyed(this._craft)) {
       this.setStatus("STR_INTERCEPTOR_DESTROYED");
       this._timeout += 30;
-      playGeoscapeSound(0);
+      playGeoscapeSound(this.game().getMod(), DOGFIGHT_SOUND_INTERCEPTOR_EXPLODE);
       finalRun = true;
       this._destroyCraft = true;
       this._ufo.setShootingAt(0);
@@ -1424,18 +1557,19 @@ export class DogfightState extends State {
     if (this._ufo.isCrashed()) {
       const mission = this._ufo.getMission() as AlienMissionBoundary | null;
       mission?.ufoShotDown?.(this._ufo);
+      this.spawnRetaliationMission(mission);
 
       if (this._ufo.isDestroyed()) {
         if (this._ufo.getShotDownByCraftId() === getCraftUniqueId(this._craft)) {
           this.addXcomActivity(this._ufo.getRules().getScore() * 2);
           this.setStatus("STR_UFO_DESTROYED");
-          playGeoscapeSound(0);
+          playGeoscapeSound(this.game().getMod(), DOGFIGHT_SOUND_UFO_EXPLODE);
         }
         this._destroyUfo = true;
       } else {
         if (this._ufo.getShotDownByCraftId() === getCraftUniqueId(this._craft)) {
           this.setStatus("STR_UFO_CRASH_LANDS");
-          playGeoscapeSound(0);
+          playGeoscapeSound(this.game().getMod(), DOGFIGHT_SOUND_UFO_CRASH);
           this.addXcomActivity(this._ufo.getRules().getScore());
         }
         if (!this._state.getGlobe().insideLand(this._ufo.getLongitude(), this._ufo.getLatitude())) {
@@ -1466,6 +1600,50 @@ export class DogfightState extends State {
     return finalRun;
   }
 
+  private spawnRetaliationMission(mission: AlienMissionBoundary | null): void {
+    const save = this.game().getSavedGame();
+    const mod = this.game().getMod();
+    if (!save || !mod || !mission) {
+      return;
+    }
+
+    let retaliationOdds = mission.getRules?.().getRetaliationOdds?.();
+    if (retaliationOdds == null) {
+      return;
+    }
+    const difficulty = difficultyCoefficient(save);
+    if (retaliationOdds === -1) {
+      retaliationOdds = 100 - (4 * (24 - difficulty));
+    }
+    if (!RNG.percent(retaliationOdds)) {
+      return;
+    }
+
+    let targetRegion = "";
+    if (RNG.percent(50 - 6 * difficulty)) {
+      targetRegion = mission.getRegion?.() || "";
+    } else {
+      const base = this._craft.getBase();
+      if (base) {
+        targetRegion = save.locateRegion(base.getLongitude(), base.getLatitude())?.getRules().getType() || "";
+      }
+    }
+    if (!targetRegion || save.findAlienMission(targetRegion, MissionObjective.OBJECTIVE_RETALIATION)) {
+      return;
+    }
+
+    const rule = mod.getRandomMission(MissionObjective.OBJECTIVE_RETALIATION, save.getMonthsPassed());
+    if (!rule) {
+      return;
+    }
+    const newMission = new AlienMission(rule);
+    newMission.setId(save.getId("ALIEN_MISSIONS"));
+    newMission.setRegion(targetRegion, mod);
+    newMission.setRace(this._ufo.getAlienRace());
+    newMission.start(rule.getWave(0).spawnTimer);
+    save.getAlienMissions().push(newMission);
+  }
+
   private addXcomActivity(score: number): void {
     const save = this.game().getSavedGame();
     for (const country of save?.getCountries() || []) {
@@ -1493,18 +1671,9 @@ export class DogfightState extends State {
   }
 
   private dogfightErrorBoundary(message: string): void {
-    void (this._state as GeoscapeDogfightBoundary).popup;
-    console.log(`DogfightErrorState boundary: ${String(this.tr(message))}`);
-  }
-
-  private ufoBlobPixel(sizeFrame: number, x: number, y: number): number {
-    const radius = Math.max(2, Math.min(6, 3 + sizeFrame));
-    const dx = x - 6;
-    const dy = y - 6;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    if (distance > radius) {
-      return 0;
+    const popup = (this._state as GeoscapeDogfightBoundary).popup;
+    if (popup) {
+      popup.call(this._state, new DogfightErrorState(this._craft, String(this.tr(message))));
     }
-    return Math.max(1, Math.min(5, Math.ceil((radius - distance + 1) * 5 / (radius + 1))));
   }
 }

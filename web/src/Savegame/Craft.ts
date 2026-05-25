@@ -5,13 +5,15 @@ import type { Language } from "../Engine/Language.ts";
 import { RNG } from "../Engine/RNG.ts";
 import type { Base } from "./Base.ts";
 import type { Mod } from "../Mod/Mod.ts";
+import type { RuleItem } from "../Mod/RuleItem.ts";
 import { CraftWeapon } from "./CraftWeapon.ts";
 import { ItemContainer } from "./ItemContainer.ts";
 import { Ufo } from "./Ufo.ts";
-import { MovingTarget } from "./MovingTarget.ts";
+import { MovingTarget, type MovingTargetSaveNode } from "./MovingTarget.ts";
 import { nautical, type TargetLike } from "./Target.ts";
+import { Vehicle, type VehicleSave } from "./Vehicle.ts";
 
-type ExtendedCraftSave = StartingCraftDefinition & {
+export type CraftSaveNode = StartingCraftDefinition & MovingTargetSaveNode & {
   lowFuel?: boolean;
   mission?: boolean;
   interceptionOrder?: number;
@@ -19,6 +21,7 @@ type ExtendedCraftSave = StartingCraftDefinition & {
   inBattlescape?: boolean;
   inDogfight?: boolean;
   speed?: number;
+  vehicles?: VehicleSave[];
 };
 
 export class Craft extends MovingTarget {
@@ -30,6 +33,7 @@ export class Craft extends MovingTarget {
   private _status = "STR_READY";
   private _items = new ItemContainer();
   private _weapons: Array<CraftWeapon | null> = [];
+  private _vehicles: Vehicle[] = [];
   private _lowFuel = false;
   private _mission = false;
   private _inBattlescape = false;
@@ -48,8 +52,13 @@ export class Craft extends MovingTarget {
     this._speedMaxRadian = MovingTarget.calculateRadianSpeed(this._rules.getMaxSpeed()) * 120;
   }
 
-  load(node: StartingCraftDefinition, weaponResolver: (type: string) => RuleCraftWeapon | null = () => null): void {
-    const saved = node as ExtendedCraftSave;
+  load(
+    node: StartingCraftDefinition,
+    weaponResolver: (type: string) => RuleCraftWeapon | null = () => null,
+    itemResolver: (type: string) => RuleItem | null = () => null
+  ): void {
+    const saved = node as CraftSaveNode;
+    super.load(saved);
     this._id = saved.id ?? this._id;
     this.setFuel(saved.fuel ?? this._fuel);
     this.setDamage(saved.damage ?? this._damage);
@@ -65,8 +74,9 @@ export class Craft extends MovingTarget {
     }
     this._items.load(node.items);
     this._weapons = [];
+    const weapons = node.weapons || [];
     for (let i = 0; i < this._rules.getWeapons(); ++i) {
-      const definition = node.weapons[i];
+      const definition = weapons[i];
       if (!definition) {
         this._weapons.push(null);
         continue;
@@ -80,6 +90,58 @@ export class Craft extends MovingTarget {
       weapon.load(definition);
       this._weapons.push(weapon);
     }
+    this._vehicles = [];
+    for (const definition of saved.vehicles || []) {
+      const type = definition.type || "";
+      const rule = itemResolver(type);
+      if (!rule) {
+        continue;
+      }
+      const vehicle = new Vehicle(rule, 0, 4);
+      vehicle.load(definition);
+      this._vehicles.push(vehicle);
+    }
+  }
+
+  save(): CraftSaveNode {
+    const node = {
+      ...super.save(),
+      type: this._rules.getType(),
+      id: this._id,
+      fuel: this._fuel,
+      damage: this._damage,
+      weapons: this._weapons.map(weapon => {
+        if (!weapon) {
+          return { type: "0" };
+        }
+        return {
+          type: weapon.getRules().getType(),
+          ...weapon.save()
+        };
+      }),
+      items: this._items.save(),
+      vehicles: this._vehicles.map(vehicle => vehicle.save()),
+      status: this._status
+    } as CraftSaveNode;
+    if (this._lowFuel) {
+      node.lowFuel = true;
+    }
+    if (this._mission) {
+      node.mission = true;
+    }
+    if (this._interceptionOrder) {
+      node.interceptionOrder = this._interceptionOrder;
+    }
+    if (this._takeoff) {
+      node.takeoff = this._takeoff;
+    }
+    if (this._inBattlescape) {
+      node.inBattlescape = true;
+    }
+    if (this._inDogfight) {
+      node.inDogfight = true;
+    }
+    return node;
   }
 
   override getMarker(): number {
@@ -110,6 +172,15 @@ export class Craft extends MovingTarget {
 
   getRules(): RuleCraft {
     return this._rules;
+  }
+
+  changeRules(rules: RuleCraft): void {
+    this._rules = rules;
+    this._weapons = [];
+    for (let i = 0; i < this._rules.getWeapons(); ++i) {
+      this._weapons.push(null);
+    }
+    this._speedMaxRadian = MovingTarget.calculateRadianSpeed(this._rules.getMaxSpeed()) * 120;
   }
 
   getId(): number {
@@ -434,7 +505,33 @@ export class Craft extends MovingTarget {
   }
 
   getNumVehicles(): number {
-    return 0;
+    return this._vehicles.length;
+  }
+
+  getVehicles(): Vehicle[] {
+    return this._vehicles;
+  }
+
+  getSpaceAvailable(): number {
+    return this._rules.getSoldiers() - this.getSpaceUsed();
+  }
+
+  getSpaceUsed(): number {
+    let vehicleSpaceUsed = 0;
+    for (const vehicle of this._vehicles) {
+      vehicleSpaceUsed += vehicle.getSize();
+    }
+    return this.getNumSoldiers() + vehicleSpaceUsed;
+  }
+
+  getVehicleCount(vehicle: string): number {
+    let total = 0;
+    for (const stored of this._vehicles) {
+      if (stored.getRules().getType() === vehicle) {
+        ++total;
+      }
+    }
+    return total;
   }
 
   setInDogfight(inDogfight: boolean): void {
@@ -472,6 +569,14 @@ export class Craft extends MovingTarget {
     for (const [id, qty] of this._items.getContents()) {
       this._base.getStorageItems().addItem(id, qty);
     }
+    for (const vehicle of this._vehicles) {
+      this._base.getStorageItems().addItem(vehicle.getRules().getType());
+      const compatibleAmmo = vehicle.getRules().getCompatibleAmmo();
+      if (compatibleAmmo.length > 0) {
+        this._base.getStorageItems().addItem(compatibleAmmo[0], vehicle.getAmmo());
+      }
+    }
+    this._vehicles = [];
     for (const soldier of this._base.getSoldiers()) {
       if (soldier.getCraft() === this) {
         soldier.setCraft(null);

@@ -3,6 +3,8 @@ import { Options } from "../Engine/Options.ts";
 import { State } from "../Engine/State.ts";
 import { Timer } from "../Engine/Timer.ts";
 import { TOK_COLOR_FLIP } from "../Engine/Unicode.ts";
+import { BattlescapeGenerator } from "../Battlescape/BattlescapeGenerator.ts";
+import { InventoryState } from "../Battlescape/InventoryState.ts";
 import { Text } from "../Interface/Text.ts";
 import { TextButton } from "../Interface/TextButton.ts";
 import { ARROW_HORIZONTAL, TextList } from "../Interface/TextList.ts";
@@ -13,53 +15,8 @@ import { INT_MAX } from "../Mod/RuleInterface.ts";
 import type { Base } from "../Savegame/Base.ts";
 import type { Craft } from "../Savegame/Craft.ts";
 import { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
+import { Vehicle } from "../Savegame/Vehicle.ts";
 import { SDL_BUTTON_LEFT, SDL_BUTTON_RIGHT, SDL_BUTTON_WHEELDOWN, SDL_BUTTON_WHEELUP } from "../types.ts";
-
-type CraftVehicleLike = {
-  rules: RuleItem;
-  ammo: number;
-  size: number;
-};
-
-const CRAFT_VEHICLES_KEY = "__openxcomCraftEquipmentVehicles" as const;
-
-type CraftVehicleHost = {
-  [CRAFT_VEHICLES_KEY]?: CraftVehicleLike[];
-};
-
-function getCraftVehicles(craft: Craft, create = false): CraftVehicleLike[] {
-  const host = craft as Craft & CraftVehicleHost;
-  if (!host[CRAFT_VEHICLES_KEY] && create) {
-    host[CRAFT_VEHICLES_KEY] = [];
-  }
-  return host[CRAFT_VEHICLES_KEY] || [];
-}
-
-function getCraftNumVehicles(craft: Craft): number {
-  return getCraftVehicles(craft).length;
-}
-
-function getCraftVehicleCount(craft: Craft, vehicle: string): number {
-  let total = 0;
-  for (const craftVehicle of getCraftVehicles(craft)) {
-    if (craftVehicle.rules.getType() === vehicle) {
-      total++;
-    }
-  }
-  return total;
-}
-
-function getCraftSpaceUsed(craft: Craft): number {
-  let vehicleSpaceUsed = 0;
-  for (const vehicle of getCraftVehicles(craft)) {
-    vehicleSpaceUsed += vehicle.size;
-  }
-  return craft.getNumSoldiers() + vehicleSpaceUsed;
-}
-
-function getCraftSpaceAvailable(craft: Craft): number {
-  return craft.getRules().getSoldiers() - getCraftSpaceUsed(craft);
-}
 
 /**
  * Equipment screen that lets the player pick the equipment to carry on a craft.
@@ -141,8 +98,8 @@ export class CraftEquipmentState extends State {
 
     this._txtItem.setText(String(this.tr("STR_ITEM")));
     this._txtStores.setText(String(this.tr("STR_STORES")));
-    this._txtAvailable.setText(String(this.tr("STR_SPACE_AVAILABLE").arg(craft ? getCraftSpaceAvailable(craft) : 0)));
-    this._txtUsed.setText(String(this.tr("STR_SPACE_USED").arg(craft ? getCraftSpaceUsed(craft) : 0)));
+    this._txtAvailable.setText(String(this.tr("STR_SPACE_AVAILABLE").arg(craft ? craft.getSpaceAvailable() : 0)));
+    this._txtUsed.setText(String(this.tr("STR_SPACE_USED").arg(craft ? craft.getSpaceUsed() : 0)));
     this._txtCrew.setText(`${String(this.tr("STR_SOLDIERS_UC"))}>${String.fromCharCode(TOK_COLOR_FLIP)}${craft?.getNumSoldiers() || 0}`);
 
     this._lstEquipment.setArrowColumn(203, ARROW_HORIZONTAL);
@@ -304,7 +261,7 @@ export class CraftEquipmentState extends State {
 
     let cQty = 0;
     if (item.isFixed()) {
-      cQty = getCraftVehicleCount(craft, type);
+      cQty = craft.getVehicleCount(type);
     } else {
       cQty = craft.getItems().getItem(type);
     }
@@ -315,7 +272,6 @@ export class CraftEquipmentState extends State {
     const monthsPassed = this.game().getSavedGame()?.getMonthsPassed() ?? -1;
 
     if (item.isFixed()) {
-      const vehicles = getCraftVehicles(craft, true);
       if (item.getCompatibleAmmo().length > 0) {
         const ammo = this.game().getMod()?.getItem(item.getCompatibleAmmo()[0], true);
         if (!ammo) {
@@ -331,12 +287,12 @@ export class CraftEquipmentState extends State {
           this._base.getStorageItems().addItem(type, change);
           this._base.getStorageItems().addItem(ammo.getType(), ammoPerVehicle * change);
         }
-        this.removeVehicles(vehicles, item, change);
+        this.removeVehicles(craft.getVehicles(), item, change);
       } else {
         if (monthsPassed !== -1) {
           this._base.getStorageItems().addItem(type, change);
         }
-        this.removeVehicles(vehicles, item, change);
+        this.removeVehicles(craft.getVehicles(), item, change);
       }
     } else {
       craft.getItems().removeItem(type, change);
@@ -390,7 +346,7 @@ export class CraftEquipmentState extends State {
         size *= size;
       }
 
-      const room = Math.min(craft.getRules().getVehicles() - getCraftNumVehicles(craft), Math.trunc(getCraftSpaceAvailable(craft) / size));
+      const room = Math.min(craft.getRules().getVehicles() - craft.getNumVehicles(), Math.trunc(craft.getSpaceAvailable() / size));
       if (room > 0) {
         change = Math.min(room, change);
         if (item.getCompatibleAmmo().length > 0) {
@@ -419,7 +375,7 @@ export class CraftEquipmentState extends State {
                 this._base.getStorageItems().removeItem(ammo.getType(), ammoPerVehicle);
                 this._base.getStorageItems().removeItem(type);
               }
-              getCraftVehicles(craft, true).push({ rules: item, ammo: clipSize, size });
+              craft.getVehicles().push(new Vehicle(item, clipSize, size));
             }
           } else {
             this._timerRight.stop();
@@ -428,7 +384,7 @@ export class CraftEquipmentState extends State {
           }
         } else {
           for (let i = 0; i < change; ++i) {
-            getCraftVehicles(craft, true).push({ rules: item, ammo: item.getClipSize(), size });
+            craft.getVehicles().push(new Vehicle(item, item.getClipSize(), size));
             if (monthsPassed !== -1) {
               this._base.getStorageItems().removeItem(type);
             }
@@ -472,9 +428,11 @@ export class CraftEquipmentState extends State {
 
     const bgame = new SavedBattleGame();
     this.game().getSavedGame()?.setSavedBattle(bgame);
-    craft.setInBattlescape(true);
+    const bgen = new BattlescapeGenerator(bgame, this.game().getMod());
+    bgen.runInventory(craft);
+
     this.game().getScreen().clear();
-    console.warn("InventoryState and BattlescapeGenerator.runInventory are not translated yet.");
+    this.game().pushState(new InventoryState(false, null));
   }
 
   /**
@@ -490,7 +448,7 @@ export class CraftEquipmentState extends State {
 
     let cQty = 0;
     if (item.isFixed()) {
-      cQty = getCraftVehicleCount(craft, type);
+      cQty = craft.getVehicleCount(type);
     } else {
       cQty = craft.getItems().getItem(type);
     }
@@ -514,8 +472,8 @@ export class CraftEquipmentState extends State {
     this._lstEquipment.setCellText(this._sel, 1, storageText);
     this._lstEquipment.setCellText(this._sel, 2, craftText);
 
-    this._txtAvailable.setText(String(this.tr("STR_SPACE_AVAILABLE").arg(getCraftSpaceAvailable(craft))));
-    this._txtUsed.setText(String(this.tr("STR_SPACE_USED").arg(getCraftSpaceUsed(craft))));
+    this._txtAvailable.setText(String(this.tr("STR_SPACE_AVAILABLE").arg(craft.getSpaceAvailable())));
+    this._txtUsed.setText(String(this.tr("STR_SPACE_USED").arg(craft.getSpaceUsed())));
   }
 
   private populateEquipmentRows(craft: Craft | null): void {
@@ -533,7 +491,7 @@ export class CraftEquipmentState extends State {
 
       let cQty = 0;
       if (rule.isFixed()) {
-        cQty = getCraftVehicleCount(craft, type);
+        cQty = craft.getVehicleCount(type);
       } else {
         cQty = craft.getItems().getItem(type);
         this._totalItems += cQty;
@@ -574,9 +532,9 @@ export class CraftEquipmentState extends State {
     return type ? this.game().getMod()?.getItem(type, true) || null : null;
   }
 
-  private removeVehicles(vehicles: CraftVehicleLike[], item: RuleItem, change: number): void {
+  private removeVehicles(vehicles: Vehicle[], item: RuleItem, change: number): void {
     for (let i = 0; i < vehicles.length && change > 0;) {
-      if (vehicles[i].rules === item) {
+      if (vehicles[i].getRules() === item) {
         vehicles.splice(i, 1);
         --change;
       } else {

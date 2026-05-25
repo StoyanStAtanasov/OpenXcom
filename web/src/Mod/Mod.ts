@@ -1,14 +1,20 @@
 import { Font, parseFontDat } from "../Engine/Font.ts";
 import { Logger, LOG_WARNING } from "../Engine/Logger.ts";
+import { Music } from "../Engine/Music.ts";
 import { Options } from "../Engine/Options.ts";
 import { Palette } from "../Engine/Palette.ts";
+import { Sound } from "../Engine/Sound.ts";
+import { SoundSet } from "../Engine/SoundSet.ts";
 import { Surface } from "../Engine/Surface.ts";
 import { SurfaceSet } from "../Engine/SurfaceSet.ts";
+import { TextButton } from "../Interface/TextButton.ts";
+import { Window } from "../Interface/Window.ts";
 import { SavedGame } from "../Savegame/SavedGame.ts";
 import type { PaletteColor } from "../types.ts";
 import { AlienDeployment, parseAlienDeploymentsRul } from "./AlienDeployment.ts";
 import { AlienRace, parseAlienRacesRul } from "./AlienRace.ts";
 import { Armor, parseArmorsRul } from "./Armor.ts";
+import { ArticleDefinition, ArticleDefinitionArmor, ArticleDefinitionBaseFacility, ArticleDefinitionCraft, ArticleDefinitionCraftWeapon, ArticleDefinitionItem, ArticleDefinitionText, ArticleDefinitionTextImage, ArticleDefinitionTFTD, ArticleDefinitionUfo, ArticleDefinitionVehicle } from "./ArticleDefinition.ts";
 import { RuleGlobe } from "./RuleGlobe.ts";
 import { RuleManufacture, parseManufactureRul } from "./RuleManufacture.ts";
 import { RuleInterface, parseInterfacesRul } from "./RuleInterface.ts";
@@ -20,12 +26,15 @@ import { MissionObjective, RuleAlienMission, parseAlienMissionsRul } from "./Rul
 import { RuleMissionScript, parseMissionScriptsRul } from "./RuleMissionScript.ts";
 import { RuleRegion, parseRegionsRul } from "./RuleRegion.ts";
 import { RuleResearch, parseResearchRul } from "./RuleResearch.ts";
+import { RuleConverter, parseConverterRul } from "./RuleConverter.ts";
 import { RuleUfo, parseUfosRul } from "./RuleUfo.ts";
 import { RuleTerrain, parseTerrainsRul } from "./RuleTerrain.ts";
+import { RuleMusic, parseMusicRul } from "./RuleMusic.ts";
 import { UfoTrajectory, parseUfoTrajectoriesRul } from "./UfoTrajectory.ts";
 import { Unit, parseAlienItemLevelsRul, parseUnitsRul } from "./Unit.ts";
 import { Region } from "../Savegame/Region.ts";
 import { Country } from "../Savegame/Country.ts";
+import { GameTime } from "../Savegame/GameTime.ts";
 import { RuleBaseFacility, parseFacilitiesRul, parseStartingBaseRul, type StartingBaseDefinition } from "./RuleBaseFacility.ts";
 import { BaseFacility } from "../Savegame/BaseFacility.ts";
 import { RuleCountry, parseCountriesRul } from "./RuleCountry.ts";
@@ -60,6 +69,8 @@ type ResourceManifest = {
   ufoGraphsSpk?: string | null;
   ufoWorldDat?: string | null;
   ufoTextureDat?: string | null;
+  ufoSoundDir?: string | null;
+  ufoSoundFiles?: string[];
   ufoTerrainDir?: string | null;
   ufoMapsDir?: string | null;
   ufoRoutesDir?: string | null;
@@ -89,6 +100,8 @@ type ResourceManifest = {
   tftdGraphsSpk?: string | null;
   tftdWorldDat?: string | null;
   tftdTextureDat?: string | null;
+  tftdSoundDir?: string | null;
+  tftdSoundFiles?: string[];
   tftdTerrainDir?: string | null;
   tftdMapsDir?: string | null;
   tftdRoutesDir?: string | null;
@@ -105,11 +118,31 @@ export class Mod {
   static BATTLESCAPE_CURSOR = 144;
   static UFOPAEDIA_CURSOR = 252;
   static GRAPHS_CURSOR = 252;
+  static BUTTON_PRESS = 0;
+  static WINDOW_POPUP = [1, 2, 3];
+  static ITEM_DROP = 38;
+  static ITEM_THROW = 39;
+  static ITEM_RELOAD = 17;
+  static UFO_FIRE = 8;
+  static UFO_HIT = 12;
+  static UFO_CRASH = 10;
+  static UFO_EXPLODE = 11;
+  static INTERCEPTOR_HIT = 10;
+  static INTERCEPTOR_EXPLODE = 13;
 
   private fonts = new Map<string, Font>();
   private palettes = new Map<string, PaletteColor[]>();
   private surfaces = new Map<string, Surface>();
   private surfaceSets = new Map<string, SurfaceSet>();
+  private sounds = new Map<string, SoundSet>();
+  private musics = new Map<string, Music>();
+  private musicDefs = new Map<string, RuleMusic>();
+  private musicIndex: string[] = [];
+  private muteSound = new Sound();
+  private muteMusic = new Music();
+  private playingMusic = "";
+  private soundRequestLog: Array<{ set: string; sound: number; found: boolean }> = [];
+  private musicRequestLog: Array<{ name: string; id: number; track: string; found: boolean }> = [];
   private interfaces = new Map<string, RuleInterface>();
   private regions = new Map<string, RuleRegion>();
   private regionsIndex: string[] = [];
@@ -151,6 +184,11 @@ export class Mod {
   private voxelData: number[] = [];
   private armors = new Map<string, Armor>();
   private armorsIndex: string[] = [];
+  private ufopaediaArticles = new Map<string, ArticleDefinition | null>();
+  private ufopaediaIndex: string[] = [];
+  private ufopaediaCatIndex: string[] = [];
+  private ufopaediaSections = new Map<string, number>();
+  private ufopaediaListOrder = 0;
   private units = new Map<string, Unit>();
   private unitsIndex: string[] = [];
   private alienItemLevels: number[][] = [];
@@ -162,15 +200,20 @@ export class Mod {
   private costScientist = 0;
   private timePersonnel = 0;
   private initialFunding = 6000;
+  private debriefMusicGood = "GMMARS";
+  private debriefMusicBad = "GMMARS";
   private turnAIUseGrenade = 3;
   private turnAIUseBlaster = 3;
+  private startingTime = new GameTime(6, 1, 1, 1999, 12, 0, 0);
   private globe = new RuleGlobe();
+  private converter = new RuleConverter();
   private manifest: ResourceManifest = {};
 
   async loadAll(): Promise<void> {
     this.manifest = await this.loadResourceManifest();
     await this.loadVanillaResources();
     await this.loadVars();
+    await this.loadAudioResources();
     await this.loadMCDPatches();
     await this.loadVoxelData();
     await this.loadRuleFacilities();
@@ -190,6 +233,7 @@ export class Mod {
     await this.loadAlienItemLevels();
     await this.loadRuleResearch();
     await this.loadRuleManufacture();
+    await this.loadRuleUfopaedia();
     await this.loadRuleSoldiers();
     await this.loadRuleStatStrings();
     await this.loadStartingBase();
@@ -197,6 +241,7 @@ export class Mod {
     await this.loadRuleRegions();
     await this.loadRuleMissionScripts();
     await this.loadRuleInterfaces();
+    await this.loadRuleConverter();
   }
 
   getFont(name: string): Font | null {
@@ -221,6 +266,14 @@ export class Mod {
 
   getGlobe(): RuleGlobe {
     return this.globe;
+  }
+
+  getConverter(): RuleConverter {
+    return this.converter;
+  }
+
+  getStartingTime(): GameTime {
+    return this.startingTime;
   }
 
   getTurnAIUseGrenade(): number {
@@ -549,6 +602,22 @@ export class Mod {
     return this.armorsIndex;
   }
 
+  getUfopaediaArticle(name: string, error = false): ArticleDefinition | null {
+    const article = this.ufopaediaArticles.get(name) || null;
+    if (!article && error) {
+      throw new Error(`UFOpaedia Article ${name} not found.`);
+    }
+    return article;
+  }
+
+  getUfopaediaList(): string[] {
+    return this.ufopaediaIndex;
+  }
+
+  getUfopaediaCategoryList(): string[] {
+    return this.ufopaediaCatIndex;
+  }
+
   getUnit(type: string, error = false): Unit | null {
     const unit = this.units.get(type) || null;
     if (!unit && error) {
@@ -589,8 +658,88 @@ export class Mod {
     return this.timePersonnel;
   }
 
-  playMusic(name: string, _id = 0): void {
-    Logger.log(LOG_WARNING, `Music ${name} is not translated yet; browser runtime stays muted.`);
+  getDebriefMusicGood(): string {
+    return this.debriefMusicGood;
+  }
+
+  getDebriefMusicBad(): string {
+    return this.debriefMusicBad;
+  }
+
+  playMusic(name: string, id = 0): void {
+    if (Options.mute || this.playingMusic === name) {
+      return;
+    }
+    let loop = -1;
+    if (!Options.musicAlwaysLoop && (name === "GMSTORY" || name === "GMWIN" || name === "GMLOSE")) {
+      loop = 0;
+    }
+
+    const track = id === 0 ? name : `${name}${id}`;
+    const music = id === 0 ? this.getRandomMusic(name) : this.getMusic(track, false);
+    this.musicRequestLog.push({ name, id, track, found: music != null && music !== this.muteMusic });
+    const selected = music || this.muteMusic;
+    selected.play(loop);
+    if (selected !== this.muteMusic) {
+      this.playingMusic = name;
+    }
+  }
+
+  getMusic(name: string, error = true): Music | null {
+    if (Options.mute) {
+      return this.muteMusic;
+    }
+    const music = this.musics.get(name) || null;
+    if (!music && error) {
+      throw new Error(`Music ${name} not found.`);
+    }
+    return music;
+  }
+
+  getRandomMusic(name: string): Music {
+    if (Options.mute) {
+      return this.muteMusic;
+    }
+    const choices: Music[] = [];
+    for (const [key, music] of this.musics) {
+      if (key.includes(name)) {
+        choices.push(music);
+      }
+    }
+    if (choices.length === 0) {
+      return this.muteMusic;
+    }
+    return choices[RNG.seedless(0, choices.length - 1)];
+  }
+
+  getSoundSet(name: string, error = true): SoundSet | null {
+    const soundSet = this.sounds.get(name) || null;
+    if (!soundSet && error) {
+      throw new Error(`Sound Set ${name} not found.`);
+    }
+    return soundSet;
+  }
+
+  getSound(set: string, sound: number, error = true): Sound | null {
+    if (Options.mute) {
+      this.soundRequestLog.push({ set, sound, found: true });
+      return this.muteSound;
+    }
+    const soundSet = this.getSoundSet(set, error);
+    if (!soundSet) {
+      this.soundRequestLog.push({ set, sound, found: false });
+      return null;
+    }
+    const item = soundSet.getSound(sound);
+    this.soundRequestLog.push({ set, sound, found: item != null });
+    if (!item && error) {
+      throw new Error(`Sound ${sound} in ${set} not found.`);
+    }
+    return item;
+  }
+
+  getSoundByDepth(sound: number, depth: number, error = true): Sound | null {
+    return this.getSound(depth > 0 ? "BATTLE2.CAT" : "BATTLE.CAT", sound, error);
   }
 
   genSoldier(save: SavedGame, type = ""): Soldier | null {
@@ -657,6 +806,7 @@ export class Mod {
       }
     }
     this.loadStartingBaseIntoSave(save);
+    save.getAlienStrategy().init(this);
     return save;
   }
 
@@ -678,6 +828,109 @@ export class Mod {
     await this.loadSurfaces();
     await this.loadSurfaceSets();
     await this.loadGlobe();
+  }
+
+  private async loadAudioResources(): Promise<void> {
+    this.sounds.clear();
+    this.musics.clear();
+    this.musicDefs.clear();
+    this.musicIndex = [];
+    this.playingMusic = "";
+    await this.loadMusicDefinitions();
+    this.loadSoundResources();
+    await this.loadMusicResources();
+    this.loadExtraResources();
+  }
+
+  private async loadMusicDefinitions(): Promise<void> {
+    const response = await fetch("../bin/standard/xcom1/music.rul");
+    if (!response.ok) {
+      Logger.log(LOG_WARNING, "music.rul not found; geoscape music will stay silent.");
+      return;
+    }
+    for (const definition of parseMusicRul(await response.text())) {
+      const rule = new RuleMusic(definition.type);
+      rule.load(definition);
+      this.musicDefs.set(definition.type, rule);
+    }
+  }
+
+  private loadSoundResources(): void {
+    const soundDir = this.manifest.ufoSoundDir;
+    if (!soundDir) {
+      Logger.log(LOG_WARNING, "Original SOUND directory not available; geoscape sounds stay silent.");
+      return;
+    }
+
+    const geo = this.tryLoadSoundCat("GEO.CAT", soundDir, "SAMPLE.CAT", true)
+      || this.tryLoadSoundCat("GEO.CAT", soundDir, "SOUND2.CAT", false);
+    const battle = this.tryLoadSoundCat("BATTLE.CAT", soundDir, "SAMPLE2.CAT", true)
+      || this.tryLoadSoundCat("BATTLE.CAT", soundDir, "SOUND1.CAT", false);
+    this.tryLoadSoundCat("INTRO.CAT", soundDir, "INTRO.CAT", false);
+    if (this.tryLoadSoundCat("SAMPLE3.CAT", soundDir, "SAMPLE3.CAT", true) && !this.sounds.has("BATTLE2.CAT")) {
+      const sample3 = this.sounds.get("SAMPLE3.CAT");
+      if (sample3) {
+        this.sounds.set("BATTLE2.CAT", sample3);
+      }
+    }
+
+    if (!geo) {
+      Logger.log(LOG_WARNING, "GEO.CAT sound set not loaded: SAMPLE.CAT or SOUND2.CAT required.");
+    }
+    if (!battle) {
+      Logger.log(LOG_WARNING, "BATTLE.CAT sound set not loaded: SAMPLE2.CAT or SOUND1.CAT required.");
+    }
+    this.sounds.get("GEO.CAT")?.setMaxSharedSounds(this.sounds.get("GEO.CAT")?.getTotalSounds() || 0);
+    this.sounds.get("BATTLE.CAT")?.setMaxSharedSounds(this.sounds.get("BATTLE.CAT")?.getTotalSounds() || 0);
+    const battle2 = this.sounds.get("BATTLE2.CAT");
+    const battleSet = this.sounds.get("BATTLE.CAT");
+    if (battle2 && battleSet) {
+      battle2.setMaxSharedSounds(battleSet.getTotalSounds());
+    }
+  }
+
+  private tryLoadSoundCat(setName: string, soundDir: string, filename: string, wav: boolean): boolean {
+    const path = `${soundDir}/${filename}`;
+    if (this.manifest.ufoSoundFiles && !this.manifest.ufoSoundFiles.includes(path)) {
+      return false;
+    }
+    try {
+      const set = new SoundSet();
+      set.loadCat(this.assetUrl(path), wav);
+      this.sounds.set(setName, set);
+      return true;
+    } catch (error) {
+      Logger.log(LOG_WARNING, `${setName} ${filename} not loaded: ${error instanceof Error ? error.message : "failed"}`);
+      return false;
+    }
+  }
+
+  private async loadMusicResources(): Promise<void> {
+    const soundDir = this.manifest.ufoSoundDir;
+    if (!soundDir) {
+      return;
+    }
+    for (const [type, rule] of this.musicDefs) {
+      const filename = `${soundDir}/${rule.getName()}.MID`;
+      if (this.manifest.ufoSoundFiles && !this.manifest.ufoSoundFiles.includes(filename)) {
+        continue;
+      }
+      const bytes = await this.fetchOptionalBinary(filename);
+      if (!bytes) {
+        continue;
+      }
+      const music = new Music();
+      music.load(bytes);
+      this.musics.set(type, music);
+      this.musicIndex.push(type);
+    }
+  }
+
+  private loadExtraResources(): void {
+    TextButton.soundPress = this.getSound("GEO.CAT", Mod.BUTTON_PRESS, false);
+    Window.soundPopup[0] = this.getSound("GEO.CAT", Mod.WINDOW_POPUP[0], false);
+    Window.soundPopup[1] = this.getSound("GEO.CAT", Mod.WINDOW_POPUP[1], false);
+    Window.soundPopup[2] = this.getSound("GEO.CAT", Mod.WINDOW_POPUP[2], false);
   }
 
   private async loadFonts(): Promise<void> {
@@ -889,6 +1142,14 @@ export class Mod {
     }
   }
 
+  private async loadRuleConverter(): Promise<void> {
+    const converterResponse = await fetch("../bin/standard/xcom1/converter.rul");
+    if (!converterResponse.ok) {
+      throw new Error(`converter.rul: ${converterResponse.status} ${converterResponse.statusText}`);
+    }
+    this.converter.load(parseConverterRul(await converterResponse.text()));
+  }
+
   private async loadVars(): Promise<void> {
     resetDifficultyCoefficients();
     const varsResponse = await fetch("../bin/standard/xcom1/vars.rul");
@@ -900,6 +1161,14 @@ export class Mod {
     for (let i = 0; i < lines.length; ++i) {
       const raw = lines[i];
       const line = raw.split("#", 1)[0].trim();
+      const windowPopup = /^windowPopup:\s*\[(.*)\]/.exec(line);
+      if (windowPopup) {
+        const values = windowPopup[1].split(",").map(value => Number(value.trim())).filter(Number.isFinite);
+        for (let index = 0; index < values.length && index < 3; ++index) {
+          Mod.WINDOW_POPUP[index] = values[index];
+        }
+        continue;
+      }
       const difficultyCoefficient = /^difficultyCoefficient:\s*(.*)$/.exec(line);
       if (difficultyCoefficient) {
         const inline = difficultyCoefficient[1].trim();
@@ -922,6 +1191,18 @@ export class Mod {
         }
         continue;
       }
+      const stringMatch = /^([A-Za-z0-9_]+):\s*(?:"([^"]*)"|'([^']*)'|([^#\s]+))/.exec(line);
+      if (stringMatch) {
+        const value = stringMatch[2] ?? stringMatch[3] ?? stringMatch[4] ?? "";
+        if (stringMatch[1] === "goodDebriefingMusic") {
+          this.debriefMusicGood = value;
+          continue;
+        }
+        if (stringMatch[1] === "badDebriefingMusic") {
+          this.debriefMusicBad = value;
+          continue;
+        }
+      }
       const match = /^([A-Za-z0-9_]+):\s*(-?\d+)/.exec(line);
       if (!match) {
         continue;
@@ -939,6 +1220,26 @@ export class Mod {
         this.turnAIUseGrenade = value;
       } else if (match[1] === "turnAIUseBlaster") {
         this.turnAIUseBlaster = value;
+      } else if (match[1] === "buttonPress") {
+        Mod.BUTTON_PRESS = value;
+      } else if (match[1] === "itemDrop") {
+        Mod.ITEM_DROP = value;
+      } else if (match[1] === "itemThrow") {
+        Mod.ITEM_THROW = value;
+      } else if (match[1] === "itemReload") {
+        Mod.ITEM_RELOAD = value;
+      } else if (match[1] === "ufoFire") {
+        Mod.UFO_FIRE = value;
+      } else if (match[1] === "ufoHit") {
+        Mod.UFO_HIT = value;
+      } else if (match[1] === "ufoCrash") {
+        Mod.UFO_CRASH = value;
+      } else if (match[1] === "ufoExplode") {
+        Mod.UFO_EXPLODE = value;
+      } else if (match[1] === "interceptorHit") {
+        Mod.INTERCEPTOR_HIT = value;
+      } else if (match[1] === "interceptorExplode") {
+        Mod.INTERCEPTOR_EXPLODE = value;
       }
     }
   }
@@ -1010,6 +1311,66 @@ export class Mod {
       this.manufacture.set(definition.name, rule);
       this.manufactureIndex.push(definition.name);
     }
+  }
+
+  private async loadRuleUfopaedia(): Promise<void> {
+    const ufopaediaResponse = await fetch("../bin/standard/xcom1/ufopaedia.rul");
+    if (!ufopaediaResponse.ok) {
+      throw new Error(`ufopaedia.rul: ${ufopaediaResponse.status} ${ufopaediaResponse.statusText}`);
+    }
+    this.ufopaediaArticles.clear();
+    this.ufopaediaIndex = [];
+    this.ufopaediaCatIndex = [];
+    this.ufopaediaSections.clear();
+    this.ufopaediaListOrder = 0;
+
+    for (const definition of parseUfopaediaRul(await ufopaediaResponse.text())) {
+      if (definition.delete) {
+        this.ufopaediaArticles.delete(definition.delete);
+        const deletedIndex = this.ufopaediaIndex.indexOf(definition.delete);
+        if (deletedIndex !== -1) {
+          this.ufopaediaIndex.splice(deletedIndex, 1);
+        }
+        continue;
+      }
+
+      if (!definition.id) {
+        continue;
+      }
+
+      let article = this.ufopaediaArticles.get(definition.id) || null;
+      if (!article) {
+        article = createUfopaediaArticle(definition);
+        this.ufopaediaArticles.set(definition.id, article);
+        this.ufopaediaIndex.push(definition.id);
+      }
+      this.ufopaediaListOrder += 100;
+      article?.load(definition, this.ufopaediaListOrder);
+
+      if (article && article.section !== "STR_NOT_AVAILABLE") {
+        const current = this.ufopaediaSections.get(article.section);
+        if (current == null) {
+          this.ufopaediaSections.set(article.section, article.getListOrder());
+          this.ufopaediaCatIndex.push(article.section);
+        } else {
+          this.ufopaediaSections.set(article.section, Math.min(current, article.getListOrder()));
+        }
+      }
+    }
+
+    this.ufopaediaSections.set("STR_NOT_AVAILABLE", 0);
+    this.ufopaediaIndex.sort((left, right) => {
+      const leftArticle = this.ufopaediaArticles.get(left);
+      const rightArticle = this.ufopaediaArticles.get(right);
+      if (!leftArticle || !rightArticle) {
+        return left.localeCompare(right);
+      }
+      if (leftArticle.section === rightArticle.section) {
+        return leftArticle.getListOrder() - rightArticle.getListOrder();
+      }
+      return (this.ufopaediaSections.get(leftArticle.section) || 0) - (this.ufopaediaSections.get(rightArticle.section) || 0);
+    });
+    this.ufopaediaCatIndex.sort((left, right) => (this.ufopaediaSections.get(left) || 0) - (this.ufopaediaSections.get(right) || 0));
   }
 
   private refreshPsiRequirements(): void {
@@ -1403,6 +1764,12 @@ export class Mod {
   }
 
   private async loadGlobe(): Promise<void> {
+    const globeRules = await fetch("../bin/standard/xcom1/globe.rul");
+    if (globeRules.ok) {
+      this.globe.load(await globeRules.text());
+    } else {
+      Logger.log(LOG_WARNING, "bin/standard/xcom1/globe.rul not found; using globe texture metadata fallbacks.");
+    }
     const worldDat = await this.fetchOptionalBinary(this.manifest.ufoWorldDat);
     if (worldDat) {
       this.globe.loadDat(worldDat);
@@ -1662,7 +2029,7 @@ export class Mod {
     if (!path) {
       return null;
     }
-    const response = await fetch(`../${path}`.replaceAll("\\", "/"));
+    const response = await fetch(this.assetUrl(path));
     if (!response.ok) {
       return null;
     }
@@ -1673,7 +2040,7 @@ export class Mod {
     if (!path) {
       return null;
     }
-    const response = await fetch(`../${path}`.replaceAll("\\", "/"));
+    const response = await fetch(this.assetUrl(path));
     if (!response.ok) {
       return null;
     }
@@ -1691,4 +2058,222 @@ export class Mod {
     }
     return [`bin/common/${normalized}`];
   }
+
+  private assetUrl(path: string): string {
+    return `../${path}`.replaceAll("\\", "/");
+  }
+}
+
+type UfopaediaRectDefinition = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+};
+
+type UfopaediaDefinition = {
+  id?: string;
+  delete?: string;
+  title?: string;
+  section?: string;
+  requires?: string[];
+  listOrder?: number;
+  type_id?: number;
+  image_id?: string;
+  rect_stats?: UfopaediaRectDefinition;
+  rect_text?: UfopaediaRectDefinition;
+  text?: string;
+  text_width?: number;
+  weapon?: string;
+};
+
+function stripComment(line: string): string {
+  let quoted = false;
+  let quote = "";
+  for (let i = 0; i < line.length; ++i) {
+    const ch = line[i];
+    if ((ch === "\"" || ch === "'") && (i === 0 || line[i - 1] !== "\\")) {
+      if (!quoted) {
+        quoted = true;
+        quote = ch;
+      } else if (quote === ch) {
+        quoted = false;
+      }
+    }
+    if (ch === "#" && !quoted) {
+      return line.slice(0, i);
+    }
+  }
+  return line;
+}
+
+function unquote(value: string): string {
+  const trimmed = value.trim();
+  if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function parseNumber(value: string): number | undefined {
+  const n = Number(value.trim());
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function setRectProp(target: UfopaediaRectDefinition, key: string, value: string): void {
+  switch (key) {
+    case "x":
+    case "y":
+    case "width":
+    case "height": {
+      const n = parseNumber(value);
+      if (n != null) {
+        target[key] = n;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+function createUfopaediaArticle(definition: UfopaediaDefinition): ArticleDefinition | null {
+  switch (definition.type_id) {
+    case 1:
+      return new ArticleDefinitionCraft();
+    case 2:
+      return new ArticleDefinitionCraftWeapon();
+    case 3:
+      return new ArticleDefinitionVehicle();
+    case 4:
+      return new ArticleDefinitionItem();
+    case 5:
+      return new ArticleDefinitionArmor();
+    case 6:
+      return new ArticleDefinitionBaseFacility();
+    case 7:
+      return new ArticleDefinitionTextImage();
+    case 8:
+      return new ArticleDefinitionText();
+    case 9:
+      return new ArticleDefinitionUfo();
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+      return new ArticleDefinitionTFTD();
+    default:
+      return null;
+  }
+}
+
+function parseUfopaediaRul(source: string): UfopaediaDefinition[] {
+  const definitions: UfopaediaDefinition[] = [];
+  let current: UfopaediaDefinition | null = null;
+  let section = "";
+
+  for (const raw of source.split(/\r?\n/)) {
+    const line = stripComment(raw);
+    if (!line.trim() || line.trim() === "ufopaedia:") {
+      continue;
+    }
+    const indent = line.search(/\S|$/);
+    const trimmed = line.trim();
+
+    const start = /^-\s+(id|delete):\s*(.+)$/.exec(trimmed);
+    if (indent === 2 && start) {
+      current = {};
+      definitions.push(current);
+      section = "";
+      if (start[1] === "id") {
+        current.id = unquote(start[2]);
+      } else {
+        current.delete = unquote(start[2]);
+      }
+      continue;
+    }
+
+    if (!current) {
+      continue;
+    }
+
+    const prop = /^([A-Za-z0-9_]+):\s*(.*)$/.exec(trimmed);
+    if (indent === 4 && prop) {
+      section = "";
+      switch (prop[1]) {
+        case "requires":
+        case "rect_stats":
+        case "rect_text":
+          section = prop[1];
+          if (prop[1] === "rect_stats" && !current.rect_stats) {
+            current.rect_stats = {};
+          } else if (prop[1] === "rect_text" && !current.rect_text) {
+            current.rect_text = {};
+          } else if (prop[1] === "requires" && !current.requires) {
+            current.requires = [];
+          }
+          break;
+        case "listOrder":
+        case "type_id":
+        case "text_width": {
+          const n = parseNumber(prop[2]);
+          if (n != null) {
+            if (prop[1] === "listOrder") {
+              current.listOrder = n;
+            } else if (prop[1] === "type_id") {
+              current.type_id = n;
+            } else {
+              current.text_width = n;
+            }
+          }
+          break;
+        }
+        case "id":
+        case "title":
+        case "section":
+        case "image_id":
+        case "text":
+        case "weapon":
+          if (prop[1] === "id") {
+            current.id = unquote(prop[2]);
+          } else if (prop[1] === "title") {
+            current.title = unquote(prop[2]);
+          } else if (prop[1] === "section") {
+            current.section = unquote(prop[2]);
+          } else if (prop[1] === "image_id") {
+            current.image_id = unquote(prop[2]);
+          } else if (prop[1] === "text") {
+            current.text = unquote(prop[2]);
+          } else if (prop[1] === "weapon") {
+            current.weapon = unquote(prop[2]);
+          }
+          break;
+        default:
+          break;
+      }
+      continue;
+    }
+
+    if (indent === 6 && section === "requires") {
+      const required = /^-\s+(.+)$/.exec(trimmed);
+      if (required) {
+        (current.requires || (current.requires = [])).push(unquote(required[1]));
+      }
+      continue;
+    }
+
+    if (indent === 6 && (section === "rect_stats" || section === "rect_text")) {
+      const rectProp = /^([A-Za-z0-9_]+):\s*(.*)$/.exec(trimmed);
+      if (rectProp) {
+        const rect = section === "rect_stats" ? (current.rect_stats || (current.rect_stats = {})) : (current.rect_text || (current.rect_text = {}));
+        setRectProp(rect, rectProp[1], rectProp[2]);
+      }
+    }
+  }
+
+  return definitions;
 }

@@ -379,7 +379,10 @@ export class UnitWalkBState extends BattleState {
     }
     for (let x = size; x >= 0; --x) {
       for (let y = size; y >= 0; --y) {
-        save.getTile(unit.getPosition().add(new Position(x, y, 0)))?.setUnit(unit);
+        const tile = save.getTile(unit.getPosition().add(new Position(x, y, 0)));
+        if (tile) {
+          tile.setUnit(unit, save.getTile(tile.getPosition().add(new Position(0, 0, -1))));
+        }
       }
     }
   }

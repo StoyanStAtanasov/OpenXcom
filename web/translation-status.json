@@ -1,41 +1,34 @@
 {
   "summary": {
-    "generatedAt": "2026-05-24T21:51:15.002Z",
+    "generatedAt": "2026-05-25T14:28:40.730Z",
     "sourceUnits": 336,
-    "translatedUnits": 210,
-    "percentByPathParity": 62.5,
+    "translatedUnits": 336,
+    "percentByPathParity": 100,
     "sourceCodeFiles": 646,
-    "targetTsFiles": 212,
-    "webOnlyTsFiles": 2,
-    "integratedVerifiedSlices": 12,
-    "trackedSlices": 13,
+    "targetTsFiles": 340,
+    "webOnlyTsFiles": 4,
+    "integratedVerifiedSlices": 15,
+    "trackedSlices": 16,
     "slicePathWarnings": 0
   },
   "areas": [
     {
       "area": "(root)",
       "sourceUnits": 6,
-      "translatedUnits": 2,
+      "translatedUnits": 6,
       "cppUnits": 2,
       "headerOnlyUnits": 4,
-      "missingUnits": [
-        "dirent",
-        "fmath",
-        "lodepng",
-        "resource"
-      ],
-      "percent": 33.3
+      "missingUnits": [],
+      "percent": 100
     },
     {
       "area": "apple",
       "sourceUnits": 1,
-      "translatedUnits": 0,
+      "translatedUnits": 1,
       "cppUnits": 0,
       "headerOnlyUnits": 1,
-      "missingUnits": [
-        "apple/SDLMain"
-      ],
-      "percent": 0
+      "missingUnits": [],
+      "percent": 100
     },
     {
       "area": "Basescape",
@@ -49,215 +42,86 @@
     {
       "area": "Battlescape",
       "sourceUnits": 50,
-      "translatedUnits": 37,
+      "translatedUnits": 50,
       "cppUnits": 49,
       "headerOnlyUnits": 1,
-      "missingUnits": [
-        "Battlescape/AliensCrashState",
-        "Battlescape/BattlescapeMessage",
-        "Battlescape/BriefingState",
-        "Battlescape/CannotReequipState",
-        "Battlescape/CommendationLateState",
-        "Battlescape/CommendationState",
-        "Battlescape/DebriefingState",
-        "Battlescape/Inventory",
-        "Battlescape/InventoryState",
-        "Battlescape/Particle",
-        "Battlescape/PromotionsState",
-        "Battlescape/UnitSprite",
-        "Battlescape/WarningMessage"
-      ],
-      "percent": 74
+      "missingUnits": [],
+      "percent": 100
     },
     {
       "area": "Engine",
       "sourceUnits": 52,
-      "translatedUnits": 16,
+      "translatedUnits": 52,
       "cppUnits": 40,
       "headerOnlyUnits": 12,
-      "missingUnits": [
-        "Engine/Adlib/adlplayer",
-        "Engine/Adlib/fmopl",
-        "Engine/AdlibMusic",
-        "Engine/CatFile",
-        "Engine/CrossPlatform",
-        "Engine/DosFont",
-        "Engine/Exception",
-        "Engine/FastLineClip",
-        "Engine/FileMap",
-        "Engine/FlcPlayer",
-        "Engine/GMCat",
-        "Engine/GraphSubset",
-        "Engine/LanguagePlurality",
-        "Engine/ModInfo",
-        "Engine/Music",
-        "Engine/OpenGL",
-        "Engine/OptionInfo",
-        "Engine/Options.inc",
-        "Engine/Scalers/common",
-        "Engine/Scalers/config",
-        "Engine/Scalers/hq2x",
-        "Engine/Scalers/hq3x",
-        "Engine/Scalers/hq4x",
-        "Engine/Scalers/hqx",
-        "Engine/Scalers/init",
-        "Engine/Scalers/scale2x",
-        "Engine/Scalers/scale3x",
-        "Engine/Scalers/scalebit",
-        "Engine/Scalers/xbrz",
-        "Engine/ShaderDraw",
-        "Engine/ShaderDrawHelper",
-        "Engine/ShaderMove",
-        "Engine/ShaderRepeat",
-        "Engine/Sound",
-        "Engine/SoundSet",
-        "Engine/Zoom"
-      ],
-      "percent": 30.8
+      "missingUnits": [],
+      "percent": 100
     },
     {
       "area": "Geoscape",
       "sourceUnits": 36,
-      "translatedUnits": 35,
+      "translatedUnits": 36,
       "cppUnits": 35,
       "headerOnlyUnits": 1,
-      "missingUnits": [
-        "Geoscape/Cord"
-      ],
-      "percent": 97.2
+      "missingUnits": [],
+      "percent": 100
     },
     {
       "area": "Interface",
       "sourceUnits": 17,
-      "translatedUnits": 13,
+      "translatedUnits": 17,
       "cppUnits": 17,
       "headerOnlyUnits": 0,
-      "missingUnits": [
-        "Interface/ArrowButton",
-        "Interface/ImageButton",
-        "Interface/NumberText",
-        "Interface/ScrollBar"
-      ],
-      "percent": 76.5
+      "missingUnits": [],
+      "percent": 100
     },
     {
       "area": "Menu",
       "sourceUnits": 34,
-      "translatedUnits": 7,
+      "translatedUnits": 34,
       "cppUnits": 34,
       "headerOnlyUnits": 0,
-      "missingUnits": [
-        "Menu/AbandonGameState",
-        "Menu/ConfirmLoadState",
-        "Menu/CutsceneState",
-        "Menu/DeleteGameState",
-        "Menu/ListGamesState",
-        "Menu/ListLoadOriginalState",
-        "Menu/ListLoadState",
-        "Menu/ListSaveState",
-        "Menu/LoadGameState",
-        "Menu/ModConfirmExtendedState",
-        "Menu/ModListState",
-        "Menu/OptionsAdvancedState",
-        "Menu/OptionsAudioState",
-        "Menu/OptionsBattlescapeState",
-        "Menu/OptionsConfirmState",
-        "Menu/OptionsControlsState",
-        "Menu/OptionsDefaultsState",
-        "Menu/OptionsFoldersState",
-        "Menu/OptionsGeoscapeState",
-        "Menu/OptionsNoAudioState",
-        "Menu/OptionsVideoState",
-        "Menu/PauseState",
-        "Menu/SaveGameState",
-        "Menu/SetWindowedRootState",
-        "Menu/SlideshowState",
-        "Menu/TestState",
-        "Menu/VideoState"
-      ],
-      "percent": 20.6
+      "missingUnits": [],
+      "percent": 100
     },
     {
       "area": "Mod",
       "sourceUnits": 43,
-      "translatedUnits": 31,
+      "translatedUnits": 43,
       "cppUnits": 43,
       "headerOnlyUnits": 0,
-      "missingUnits": [
-        "Mod/ArticleDefinition",
-        "Mod/City",
-        "Mod/ExtraSounds",
-        "Mod/ExtraSprites",
-        "Mod/ExtraStrings",
-        "Mod/Polyline",
-        "Mod/RuleCommendations",
-        "Mod/RuleConverter",
-        "Mod/RuleMusic",
-        "Mod/RuleVideo",
-        "Mod/SoundDefinition",
-        "Mod/Texture"
-      ],
-      "percent": 72.1
+      "missingUnits": [],
+      "percent": 100
     },
     {
       "area": "Savegame",
       "sourceUnits": 36,
-      "translatedUnits": 29,
+      "translatedUnits": 36,
       "cppUnits": 34,
       "headerOnlyUnits": 2,
-      "missingUnits": [
-        "Savegame/AlienStrategy",
-        "Savegame/BattleUnitStatistics",
-        "Savegame/CraftWeaponProjectile",
-        "Savegame/EquipmentLayoutItem",
-        "Savegame/SaveConverter",
-        "Savegame/SerializationHelper",
-        "Savegame/Vehicle"
-      ],
-      "percent": 80.6
+      "missingUnits": [],
+      "percent": 100
     },
     {
       "area": "Ufopaedia",
       "sourceUnits": 21,
-      "translatedUnits": 0,
+      "translatedUnits": 21,
       "cppUnits": 21,
       "headerOnlyUnits": 0,
-      "missingUnits": [
-        "Ufopaedia/ArticleState",
-        "Ufopaedia/ArticleStateArmor",
-        "Ufopaedia/ArticleStateBaseFacility",
-        "Ufopaedia/ArticleStateCraft",
-        "Ufopaedia/ArticleStateCraftWeapon",
-        "Ufopaedia/ArticleStateItem",
-        "Ufopaedia/ArticleStateText",
-        "Ufopaedia/ArticleStateTextImage",
-        "Ufopaedia/ArticleStateTFTD",
-        "Ufopaedia/ArticleStateTFTDArmor",
-        "Ufopaedia/ArticleStateTFTDCraft",
-        "Ufopaedia/ArticleStateTFTDCraftWeapon",
-        "Ufopaedia/ArticleStateTFTDFacility",
-        "Ufopaedia/ArticleStateTFTDItem",
-        "Ufopaedia/ArticleStateTFTDUso",
-        "Ufopaedia/ArticleStateTFTDVehicle",
-        "Ufopaedia/ArticleStateUfo",
-        "Ufopaedia/ArticleStateVehicle",
-        "Ufopaedia/Ufopaedia",
-        "Ufopaedia/UfopaediaSelectState",
-        "Ufopaedia/UfopaediaStartState"
-      ],
-      "percent": 0
+      "missingUnits": [],
+      "percent": 100
     }
   ],
   "statusRollups": {
-    "integrated-verified": 12,
-    "worker-build": 1
+    "integrated-verified": 15,
+    "partial-integrated-verified": 1
   },
   "nextQueue": [
     {
-      "name": "Geoscape confirmations dogfight base defense",
-      "area": "Geoscape",
-      "status": "worker-build",
-      "nextAction": "Geoscape integration wiring pending"
+      "name": "Original save conversion folder ingestion data",
+      "area": "Savegame",
+      "status": "partial-integrated-verified",
+      "nextAction": "Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting baseline: next source-backed targets are deeper reaction LOS/canTargetUnit potential-unit edge cases plus projectile/explosion casualty aftermath; remaining original-save UX is drag/drop/detail polish rather than core ingestion diagnostics"
     }
   ],
   "slices": [
@@ -265,14 +129,24 @@
       "name": "Basescape craft management",
       "area": "Basescape",
       "status": "integrated-verified",
-      "slicePercent": 88,
+      "slicePercent": 100,
+      "nextAction": "Move to the next documented runtime boundary outside craft management, such as original-save conversion loading, saved-battle persistence, or remaining battlescape/geoscape runtime polish",
       "sourceFiles": [
         "src/Basescape/CraftsState.cpp",
         "src/Basescape/CraftInfoState.cpp",
         "src/Basescape/CraftWeaponsState.cpp",
         "src/Basescape/CraftSoldiersState.cpp",
         "src/Basescape/CraftEquipmentState.cpp",
-        "src/Basescape/CraftArmorState.cpp"
+        "src/Basescape/CraftArmorState.cpp",
+        "src/Battlescape/BattlescapeGenerator.cpp",
+        "src/Battlescape/Inventory.cpp",
+        "src/Battlescape/InventoryState.cpp",
+        "src/Mod/Mod.cpp",
+        "src/Mod/Mod.h",
+        "src/Savegame/Base.cpp",
+        "src/Savegame/Craft.cpp",
+        "src/Savegame/Soldier.cpp",
+        "src/Savegame/Vehicle.cpp"
       ],
       "targetFiles": [
         "web/src/Basescape/CraftsState.ts",
@@ -280,60 +154,76 @@
         "web/src/Basescape/CraftWeaponsState.ts",
         "web/src/Basescape/CraftSoldiersState.ts",
         "web/src/Basescape/CraftEquipmentState.ts",
-        "web/src/Basescape/CraftArmorState.ts"
+        "web/src/Basescape/CraftArmorState.ts",
+        "web/src/Battlescape/BattlescapeGenerator.ts",
+        "web/src/Battlescape/Inventory.ts",
+        "web/src/Battlescape/InventoryState.ts",
+        "web/src/Mod/Mod.ts",
+        "web/src/Savegame/Base.ts",
+        "web/src/Savegame/Craft.ts",
+        "web/src/Savegame/Soldier.ts",
+        "web/src/Savegame/Vehicle.ts",
+        "web/scripts/verify-craft-management.mjs"
       ],
-      "verification": "npm run build; Playwright VERIFY_BASESCAPE_MANAGEMENT passed",
+      "verification": "npm run build; Playwright VERIFY_BASESCAPE_MANAGEMENT passed; npm run verify:craft-management passed for build/typecheck, Craft real Vehicle list/count/space helpers, Base.getUsedStores vehicle rule-size accounting and getIgnoredStores rearming clip subtraction, CraftEquipmentState add/remove HWP behavior through real Craft.getVehicles() storage with source ammo/space/capacity math, btnInventoryClick -> BattlescapeGenerator.runInventory -> InventoryState handoff with a 2x2x1 SavedBattleGame inventory map, InventoryState template create/apply, clear inventory, autoequip, InventoryState X1/X2 next/previous unit cycling, Inventory.mouseClick Ctrl quick-move, explicit drag/drop to ground, right-click proximity grenade activation/deactivation, right-click timed grenade PrimeGrenadeState handoff, compatible ammo loading, and ground item stacking from that craft handoff; npm run verify:geoscape-confirmations passed after shared BattlescapeGenerator/Mod changes",
       "boundaries": [
-        "Vehicle/HWP storage and full craft-space helpers pending",
-        "Inventory equipment screen pending"
+        "Negative warning variants such as wrong ammo, already-loaded weapon, and not-enough-TU remain broader battlescape inventory QA rather than craft-management handoff coverage"
       ]
     },
     {
       "name": "Basescape research management",
       "area": "Basescape",
       "status": "integrated-verified",
-      "slicePercent": 84,
+      "slicePercent": 95,
       "sourceFiles": [
         "src/Basescape/ResearchState.cpp",
         "src/Basescape/ResearchInfoState.cpp",
         "src/Basescape/NewResearchListState.cpp",
-        "src/Savegame/ResearchProject.cpp"
+        "src/Savegame/ResearchProject.cpp",
+        "src/Savegame/Base.cpp",
+        "src/Savegame/SavedGame.cpp"
       ],
       "targetFiles": [
         "web/src/Basescape/ResearchState.ts",
         "web/src/Basescape/ResearchInfoState.ts",
         "web/src/Basescape/NewResearchListState.ts",
-        "web/src/Savegame/ResearchProject.ts"
+        "web/src/Savegame/ResearchProject.ts",
+        "web/src/Savegame/SavedGame.ts",
+        "web/scripts/verify-research-manufacture-persistence.mjs"
       ],
-      "verification": "npm run build; Playwright VERIFY_BASESCAPE_MANAGEMENT passed for entry/new-list flow",
+      "verification": "npm run build; Playwright VERIFY_BASESCAPE_MANAGEMENT passed for entry/new-list flow; npm run verify:research-manufacture-persistence passed for SavedGame base research project save/load of project, assigned scientists, spent progress, and cost; npm run verify:geoscape-confirmations passed for daily research completion, scientist refund, finished research discovery, bonus/primary cutscene queue order, ResearchCompleteState report handoff, and new research/manufacture popup routes",
       "boundaries": [
-        "Research project save/load persistence pending",
-        "Monthly research completion process pending"
+        "Additional research allocation edge-case UI QA remains broader basescape polish"
       ]
     },
     {
       "name": "Basescape manufacture management",
       "area": "Basescape",
       "status": "integrated-verified",
-      "slicePercent": 84,
+      "slicePercent": 96,
       "sourceFiles": [
         "src/Basescape/ManufactureState.cpp",
         "src/Basescape/ManufactureInfoState.cpp",
         "src/Basescape/ManufactureStartState.cpp",
         "src/Basescape/NewManufactureListState.cpp",
-        "src/Savegame/Production.cpp"
+        "src/Savegame/Production.cpp",
+        "src/Savegame/Base.cpp",
+        "src/Savegame/SavedGame.cpp",
+        "src/Savegame/Craft.cpp"
       ],
       "targetFiles": [
         "web/src/Basescape/ManufactureState.ts",
         "web/src/Basescape/ManufactureInfoState.ts",
         "web/src/Basescape/ManufactureStartState.ts",
         "web/src/Basescape/NewManufactureListState.ts",
-        "web/src/Savegame/Production.ts"
+        "web/src/Savegame/Production.ts",
+        "web/src/Savegame/SavedGame.ts",
+        "web/src/Savegame/Craft.ts",
+        "web/scripts/verify-research-manufacture-persistence.mjs"
       ],
-      "verification": "npm run build; Playwright VERIFY_BASESCAPE_MANAGEMENT passed for entry/new-list flow",
+      "verification": "npm run build; Playwright VERIFY_BASESCAPE_MANAGEMENT passed for entry/new-list flow; npm run verify:research-manufacture-persistence passed for SavedGame base production save/load of item, assigned engineers, spent time, amount, infinite flag, and sell flag; existing craft/debriefing verifiers cover source-shaped Craft.reuseItem rearming/refuelling behavior from production recovery paths",
       "boundaries": [
-        "Production save/load persistence pending",
-        "Full Craft.reuseItem behavior pending"
+        "Additional manufacture cancellation/error edge-case UI QA remains broader basescape polish"
       ]
     },
     {
@@ -351,14 +241,14 @@
       ],
       "verification": "npm run build; focused browser verifiers passed",
       "boundaries": [
-        "End-game/cutscene routes remain owned by the menu/statistics slice"
+        "Remaining end-game/load-game routes remain owned by the menu/statistics slice"
       ]
     },
     {
       "name": "Psi training UI",
       "area": "Geoscape/Basescape",
       "status": "integrated-verified",
-      "slicePercent": 90,
+      "slicePercent": 94,
       "sourceFiles": [
         "src/Geoscape/PsiTrainingState.cpp",
         "src/Geoscape/AllocatePsiTrainingState.cpp"
@@ -367,16 +257,16 @@
         "web/src/Geoscape/PsiTrainingState.ts",
         "web/src/Geoscape/AllocatePsiTrainingState.ts"
       ],
-      "verification": "npm run build passed; Playwright VERIFY_PSI_TRAINING passed for base button listing, allocation transition, soldier row toggle, and OK return",
+      "verification": "npm run build passed; Playwright VERIFY_PSI_TRAINING passed for base button listing, allocation transition, soldier row toggle, and OK return; npm run verify:geoscape-confirmations passed for MonthlyReportState psi follow-up route into PsiTrainingState",
       "boundaries": [
-        "Full monthly report follow-up route into PsiTrainingState and broader psi report edge cases pending"
+        "Broader psionic training report edge cases pending"
       ]
     },
     {
       "name": "Stat strings",
       "area": "Mod",
       "status": "integrated-verified",
-      "slicePercent": 96,
+      "slicePercent": 98,
       "sourceFiles": [
         "src/Mod/StatString.cpp",
         "src/Mod/StatStringCondition.cpp",
@@ -458,7 +348,7 @@
       "area": "Geoscape",
       "status": "integrated-verified",
       "slicePercent": 100,
-      "nextAction": "Integrate next Geoscape worker-build slice: funding graphs or dogfight/base-defense confirmations",
+      "nextAction": "Continue broader campaign persistence with original-save conversion loading, saved-battle persistence, or remaining base/craft/soldier graph edge cases",
       "sourceFiles": [
         "src/Geoscape/GeoscapeState.cpp",
         "src/Geoscape/Globe.cpp",
@@ -470,6 +360,7 @@
         "src/Geoscape/ResearchCompleteState.cpp",
         "src/Geoscape/NewPossibleResearchState.cpp",
         "src/Geoscape/ResearchRequiredState.cpp",
+        "src/Menu/CutsceneState.cpp",
         "src/Geoscape/ProductionCompleteState.cpp",
         "src/Geoscape/NewPossibleManufactureState.cpp",
         "src/Geoscape/ItemsArrivingState.cpp",
@@ -486,15 +377,28 @@
         "src/Savegame/MovingTarget.cpp",
         "src/Savegame/Waypoint.cpp",
         "src/Savegame/AlienBase.cpp",
+        "src/Savegame/AlienMission.cpp",
+        "src/Savegame/AlienStrategy.cpp",
         "src/Savegame/MissionSite.cpp",
         "src/Savegame/Ufo.cpp",
+        "src/Savegame/Country.cpp",
+        "src/Savegame/Region.cpp",
         "src/Savegame/Base.cpp",
+        "src/Savegame/BaseFacility.cpp",
         "src/Savegame/Craft.cpp",
         "src/Savegame/CraftWeapon.cpp",
+        "src/Savegame/Transfer.cpp",
         "src/Savegame/GameTime.cpp",
+        "src/Savegame/SavedGame.cpp",
+        "src/Savegame/SoldierDeath.cpp",
+        "src/Savegame/MissionStatistics.h",
         "src/Savegame/ResearchProject.cpp",
         "src/Savegame/Soldier.cpp",
         "src/Savegame/Production.cpp",
+        "src/Mod/Mod.cpp",
+        "src/Mod/AlienDeployment.cpp",
+        "src/Mod/RuleAlienMission.cpp",
+        "src/Mod/RuleMissionScript.cpp",
         "src/Mod/RuleCraft.cpp",
         "src/Engine/Options.cpp"
       ],
@@ -509,6 +413,7 @@
         "web/src/Geoscape/ResearchCompleteState.ts",
         "web/src/Geoscape/NewPossibleResearchState.ts",
         "web/src/Geoscape/ResearchRequiredState.ts",
+        "web/src/Menu/CutsceneState.ts",
         "web/src/Geoscape/ProductionCompleteState.ts",
         "web/src/Geoscape/NewPossibleManufactureState.ts",
         "web/src/Geoscape/ItemsArrivingState.ts",
@@ -525,33 +430,50 @@
         "web/src/Savegame/MovingTarget.ts",
         "web/src/Savegame/Waypoint.ts",
         "web/src/Savegame/AlienBase.ts",
+        "web/src/Savegame/AlienMission.ts",
+        "web/src/Savegame/AlienStrategy.ts",
         "web/src/Savegame/MissionSite.ts",
         "web/src/Savegame/Ufo.ts",
+        "web/src/Savegame/Country.ts",
+        "web/src/Savegame/Region.ts",
         "web/src/Savegame/Base.ts",
+        "web/src/Savegame/BaseFacility.ts",
         "web/src/Savegame/Craft.ts",
         "web/src/Savegame/CraftWeapon.ts",
+        "web/src/Savegame/Transfer.ts",
         "web/src/Savegame/GameTime.ts",
+        "web/src/Savegame/SavedGame.ts",
+        "web/src/Savegame/SoldierDeath.ts",
+        "web/src/Savegame/MissionStatistics.ts",
         "web/src/Savegame/ResearchProject.ts",
         "web/src/Savegame/Soldier.ts",
         "web/src/Savegame/Production.ts",
+        "web/src/Mod/Mod.ts",
+        "web/src/Mod/AlienDeployment.ts",
+        "web/src/Mod/RuleAlienMission.ts",
+        "web/src/Mod/RuleMissionScript.ts",
         "web/src/Mod/RuleCraft.ts",
-        "web/src/Engine/Options.ts"
+        "web/src/Engine/Options.ts",
+        "web/scripts/verify-geoscape-confirmations.mjs",
+        "web/scripts/verify-research-manufacture-persistence.mjs",
+        "web/scripts/verify-base-transfer-persistence.mjs"
       ],
-      "verification": "workers reported npm run build and node/module smoke checks passed; npm run build passed; npx --yes --package typescript tsc --noEmit passed; Playwright VERIFY_GEOSCAPE_INTERCEPT passed for GeoscapeState intercept button, InterceptState craft rows, ready craft transition to SelectDestinationState, cancel return, and BACK12 surface availability; Playwright VERIFY_GEOSCAPE_TARGET_CLICK passed for Globe.center/getTargets, GeoscapeState globeClick, single base target MultipleTargetsState routing, and base-scoped InterceptState; Playwright VERIFY_GEOSCAPE_DESTINATION passed for SelectDestinationState empty-point waypoint creation, MultipleTargetsState to ConfirmDestinationState routing, confirm/cancel waypoint persistence, Craft.returnToBase, Craft patrol destination clearing, and last-known waypoint redirect; Playwright VERIFY_GEOSCAPE_TIMERS passed for GeoscapeState time10Minutes low-fuel return-to-base popup queue and time5Seconds waypoint arrival CraftPatrolState queue/destination clearing/unused-waypoint cleanup; Playwright VERIFY_GEOSCAPE_UFO_ARRIVAL passed for lost-UFO last-known GeoscapeCraftState popup, crashed-UFO cargo ConfirmLandingState queue, and crashed-UFO no-payload return-to-base; Playwright VERIFY_GEOSCAPE_ALIEN_BASE_ARRIVAL passed for discovered alien-base payload ConfirmLandingState, no-payload return-to-base, and undiscovered-base no-popup/no-return behavior; Playwright VERIFY_GEOSCAPE_MISSION_SITE_ARRIVAL passed for mission-site payload ConfirmLandingState, ConfirmLanding yes mission-type setup, ConfirmLanding no return-to-base, and no-payload return-to-base; Playwright VERIFY_GEOSCAPE_DOGFIGHT_STARTUP passed for flying-UFO dogfight startup, four-dogfight cap, GMINTER music request, depth and airborne DogfightErrorState queues, minimized wait flags, and interception-processed reset; Playwright VERIFY_GEOSCAPE_TIME1HOUR passed for GameTime.advance/timeAdvance one-hour speed, ItemsArrivingState then ProductionCompleteState queue order, transfer removal, completed production removal, daily construction ProductionCompleteState, and monthly funding MonthlyReportState queue; Playwright VERIFY_GEOSCAPE_TIME30 passed for crashed-UFO expiry, refuel missing-item CraftErrorState, UFO detection UfoDetectedState, tracking-loss UfoLostState follower guard, and mission-site countdown/removal/follower guard; Playwright VERIFY_GEOSCAPE_TIME1DAY_RESEARCH passed for completed research discovery, Base.removeResearch scientist refund, ResearchCompleteState, NewPossibleResearchState, NewPossibleManufactureState, and STR_MOTION_SCANNER production unlock",
+      "verification": "workers reported npm run build and node/module smoke checks passed; npm run build passed; npx --yes --package typescript tsc --noEmit passed; Playwright VERIFY_GEOSCAPE_INTERCEPT passed for GeoscapeState intercept button, InterceptState craft rows, ready craft transition to SelectDestinationState, cancel return, and BACK12 surface availability; Playwright VERIFY_GEOSCAPE_TARGET_CLICK passed for Globe.center/getTargets, GeoscapeState globeClick, single base target MultipleTargetsState routing, and base-scoped InterceptState; Playwright VERIFY_GEOSCAPE_DESTINATION passed for SelectDestinationState empty-point waypoint creation, MultipleTargetsState to ConfirmDestinationState routing, confirm/cancel waypoint persistence, Craft.returnToBase, Craft patrol destination clearing, and last-known waypoint redirect; Playwright VERIFY_GEOSCAPE_TIMERS passed for GeoscapeState time10Minutes low-fuel return-to-base popup queue and time5Seconds waypoint arrival CraftPatrolState queue/destination clearing/unused-waypoint cleanup; Playwright VERIFY_GEOSCAPE_UFO_ARRIVAL passed for lost-UFO last-known GeoscapeCraftState popup, crashed-UFO cargo ConfirmLandingState queue, and crashed-UFO no-payload return-to-base; Playwright VERIFY_GEOSCAPE_ALIEN_BASE_ARRIVAL passed for discovered alien-base payload ConfirmLandingState, no-payload return-to-base, and undiscovered-base no-popup/no-return behavior; Playwright VERIFY_GEOSCAPE_MISSION_SITE_ARRIVAL passed for mission-site payload ConfirmLandingState, ConfirmLanding yes mission-type setup, ConfirmLanding no return-to-base, and no-payload return-to-base; Playwright VERIFY_GEOSCAPE_DOGFIGHT_STARTUP passed for flying-UFO dogfight startup, four-dogfight cap, GMINTER music request, depth and airborne DogfightErrorState queues, minimized wait flags, and interception-processed reset; Playwright VERIFY_GEOSCAPE_TIME1HOUR passed for GameTime.advance/timeAdvance one-hour speed, ItemsArrivingState then ProductionCompleteState queue order, transfer removal, completed production removal, daily construction ProductionCompleteState, and monthly funding MonthlyReportState queue; Playwright VERIFY_GEOSCAPE_TIME30 passed for crashed-UFO expiry, refuel missing-item CraftErrorState, UFO detection UfoDetectedState, tracking-loss UfoLostState follower guard, and mission-site countdown/removal/follower guard; Playwright VERIFY_GEOSCAPE_TIME1DAY_RESEARCH passed for completed research discovery, Base.removeResearch scientist refund, ResearchCompleteState, NewPossibleResearchState, NewPossibleManufactureState, and STR_MOTION_SCANNER production unlock; npm run verify:base-transfer-persistence passed for SavedGame base inBattlescape/retaliationTarget flags and item/scientist/engineer/craft transfers; npm run verify:geoscape-confirmations passed for research-completion primary/bonus CutsceneState queue order before ResearchCompleteState, ResearchCompleteState bonus-then-primary Ufopaedia report handoff, alien-base daily region/country activity scoring, alien-base supply mission generation with region/id/race/base linkage, monthly alien mission scheduling from mission scripts with time/run/research filters, label conditionals, site-zone anti-repeat tracking, mission-region mapping, race/id/start-delay setup, useTable mission removal, and SavedGame geoscape target/moving-target/base-work round-trip for countries, regions, waypoints, alien bases, alien missions, UFO mission links, mission sites, base craft, craft destination restoration, active base research projects, active productions, base soldiers with craft links, base inBattlescape/retaliationTarget flags, item/scientist/engineer/craft/soldier transfers, base facilities, dead soldiers with death data, and mission statistics",
       "boundaries": [
-        "CutsceneState research/end-game routes, SaveGameState autosave routes, alien-base supply missions, and full monthly alien mission determination pending",
-        "Full monthly psi training report flow and broader psionic training edge cases pending",
-        "Full moving-target save/load restoration and broader dogfight timer/fuel/runtime edge cases pending",
-        "Globe marker drawing/radar overlays and broader target visual fidelity pending"
+        "Broader psionic training report edge cases pending",
+        "Broader dogfight timer/fuel/runtime edge cases pending",
+        "Globe marker drawing/radar overlays and broader target visual fidelity pending",
+        "Saved-battle persistence and original-save DAT loading remain broader campaign persistence boundaries"
       ]
     },
     {
       "name": "End-game statistics screen",
       "area": "Menu",
       "status": "integrated-verified",
-      "slicePercent": 88,
+      "slicePercent": 90,
       "sourceFiles": [
         "src/Menu/StatisticsState.cpp",
+        "src/Menu/CutsceneState.cpp",
         "src/Basescape/SoldierMemorialState.cpp",
         "src/Savegame/SavedGame.cpp",
         "src/Savegame/SavedGame.h",
@@ -560,27 +482,28 @@
       ],
       "targetFiles": [
         "web/src/Menu/StatisticsState.ts",
+        "web/src/Menu/CutsceneState.ts",
         "web/src/Basescape/SoldierMemorialState.ts",
         "web/src/Savegame/SavedGame.ts",
         "web/src/Savegame/AlienBase.ts"
       ],
-      "verification": "npm run build passed; npx --yes --package typescript tsc --noEmit passed; Playwright VERIFY_STATISTICS_STATE passed for memorial statistics button, 28-row statistics aggregation, END_NONE back navigation, and END_WIN main-menu return",
+      "verification": "npm run build passed; npx --yes --package typescript tsc --noEmit passed; Playwright VERIFY_STATISTICS_STATE passed for memorial statistics button, 28-row statistics aggregation, END_NONE back navigation, and END_WIN main-menu return; npm run verify:geoscape-confirmations passed with CutsceneState compiled through source-shaped media existence selection and game-over CutsceneState route construction",
       "boundaries": [
-        "End-game/cutscene/load-game routes still pending",
-        "Debriefing mission-stat population remains a battlescape/debriefing boundary",
-        "Full AlienBase save/load/target movement remains a geoscape persistence boundary"
+        "Load-game routes and broader final end-game entry integration still pending",
+        "Debriefing mission-stat population remains a battlescape/debriefing boundary"
       ]
     },
     {
       "name": "Geoscape funding monthly graphs",
       "area": "Geoscape",
       "status": "integrated-verified",
-      "slicePercent": 92,
+      "slicePercent": 99,
       "sourceFiles": [
         "src/Geoscape/GeoscapeState.cpp",
         "src/Geoscape/FundingState.cpp",
         "src/Geoscape/MonthlyReportState.cpp",
         "src/Geoscape/GraphsState.cpp",
+        "src/Savegame/SaveConverter.cpp",
         "src/Savegame/SavedGame.cpp",
         "src/Savegame/Soldier.cpp",
         "src/Engine/Surface.cpp",
@@ -591,67 +514,276 @@
         "web/src/Geoscape/FundingState.ts",
         "web/src/Geoscape/MonthlyReportState.ts",
         "web/src/Geoscape/GraphsState.ts",
+        "web/src/Savegame/SaveConverter.ts",
         "web/src/Savegame/SavedGame.ts",
         "web/src/Savegame/Soldier.ts",
         "web/src/Engine/Surface.ts",
         "web/src/Mod/Mod.ts",
-        "web/scripts/build.mjs"
+        "web/scripts/build.mjs",
+        "web/scripts/verify-geoscape-confirmations.mjs"
       ],
-      "verification": "worker reported npm run build and dist import smoke passed; npm run build passed; npx --yes --package typescript tsc --noEmit passed; Playwright VERIFY_GEOSCAPE_FUNDING_GRAPHS passed for GeoscapeState Funding/Graphs key wiring, SavedGame graph toggle roundtrip, GRAPH.BDY/GRAPHS.SPK resource availability, time1Month addMonth/monthly report queue, and popup push on think",
+      "verification": "worker reported npm run build and dist import smoke passed; npm run build passed; npx --yes --package typescript tsc --noEmit passed; Playwright VERIFY_GEOSCAPE_FUNDING_GRAPHS passed for GeoscapeState Funding/Graphs key wiring, SavedGame graph toggle roundtrip, GRAPH.BDY/GRAPHS.SPK resource availability, time1Month addMonth/monthly report queue, and popup push on think; npm run verify:geoscape-confirmations passed for MonthlyReportState follow-up order into CommendationState, PsiTrainingState, SaveGameState autosave with _autogeo_.asav persistence, game-over CutsceneState plus ironman SaveGameState route, SaveConverter.graphVector zero-pad/truncate/rotate parity, SavedGame graph toggle and monthly vector save/load round-trip, and SavedGame.monthlyFunding source one-entry front erase behavior",
       "boundaries": [
-        "CommendationState, CutsceneState, and SaveGameState child boundaries pending in MonthlyReportState follow-up routes",
-        "Full saved-game serialization for graph toggle strings and monthly history vectors pending",
-        "Full monthly alien mission determination remains with the broader GeoscapeState alien-strategy slice"
+        "Original X-COM save conversion loading beyond graphVector now has first graph/time/camera DAT reader coverage in the SaveConverter slice; remaining original-save object graph readers remain there"
+      ]
+    },
+    {
+      "name": "Original save conversion folder ingestion data",
+      "area": "Savegame",
+      "status": "partial-integrated-verified",
+      "slicePercent": 99.6,
+      "nextAction": "Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting baseline: next source-backed targets are deeper reaction LOS/canTargetUnit potential-unit edge cases plus projectile/explosion casualty aftermath; remaining original-save UX is drag/drop/detail polish rather than core ingestion diagnostics",
+      "sourceFiles": [
+        "src/Mod/RuleConverter.cpp",
+        "src/Mod/RuleConverter.h",
+        "src/Mod/Mod.cpp",
+        "src/Mod/Mod.h",
+        "src/Savegame/SaveConverter.cpp",
+        "src/Savegame/SaveConverter.h",
+        "src/Savegame/Base.cpp",
+        "src/Savegame/BaseFacility.cpp",
+        "src/Savegame/ItemContainer.cpp",
+        "src/Savegame/Ufo.cpp",
+        "src/Savegame/Craft.cpp",
+        "src/Savegame/AlienBase.cpp",
+        "src/Savegame/Waypoint.cpp",
+        "src/Savegame/MissionSite.cpp",
+        "src/Savegame/CraftWeapon.cpp",
+        "src/Savegame/Vehicle.cpp",
+        "src/Savegame/AlienMission.cpp",
+        "src/Savegame/AlienStrategy.cpp",
+        "src/Mod/UfoTrajectory.cpp",
+        "src/Savegame/Soldier.cpp",
+        "src/Savegame/Transfer.cpp",
+        "src/Savegame/ResearchProject.cpp",
+        "src/Savegame/Production.cpp",
+        "src/Mod/Unit.cpp",
+        "src/Mod/RuleSoldier.cpp",
+        "src/Savegame/SavedGame.cpp",
+        "src/Savegame/SavedBattleGame.cpp",
+        "src/Menu/ListLoadOriginalState.cpp",
+        "src/Battlescape/BattlescapeGame.cpp",
+        "src/Battlescape/Pathfinding.cpp",
+        "src/Battlescape/Pathfinding.h",
+        "src/Battlescape/TileEngine.cpp",
+        "src/Battlescape/TileEngine.h",
+        "src/Battlescape/AIModule.cpp",
+        "src/Battlescape/AIModule.h"
+      ],
+      "targetFiles": [
+        "web/src/Mod/RuleConverter.ts",
+        "web/src/Mod/Mod.ts",
+        "web/src/Savegame/SaveConverter.ts",
+        "web/src/Savegame/Base.ts",
+        "web/src/Savegame/BaseFacility.ts",
+        "web/src/Savegame/ItemContainer.ts",
+        "web/src/Savegame/Ufo.ts",
+        "web/src/Savegame/Craft.ts",
+        "web/src/Savegame/AlienBase.ts",
+        "web/src/Savegame/Waypoint.ts",
+        "web/src/Savegame/MissionSite.ts",
+        "web/src/Savegame/CraftWeapon.ts",
+        "web/src/Savegame/Vehicle.ts",
+        "web/src/Savegame/AlienMission.ts",
+        "web/src/Savegame/AlienStrategy.ts",
+        "web/src/Mod/UfoTrajectory.ts",
+        "web/src/Savegame/Soldier.ts",
+        "web/src/Savegame/Transfer.ts",
+        "web/src/Savegame/ResearchProject.ts",
+        "web/src/Savegame/Production.ts",
+        "web/src/Mod/Unit.ts",
+        "web/src/Mod/RuleSoldier.ts",
+        "web/src/Menu/ListLoadOriginalState.ts",
+        "web/scripts/verify-saveconverter-metadata.mjs",
+        "web/package.json",
+        "web/src/Savegame/SavedGame.ts",
+        "web/src/Savegame/SavedBattleGame.ts",
+        "web/src/Savegame/SavedBattleGameRegistry.ts",
+        "web/src/Battlescape/BattleAction.ts",
+        "web/src/Battlescape/BattlescapeGame.ts",
+        "web/src/Battlescape/AIModule.ts",
+        "web/src/Battlescape/Pathfinding.ts",
+        "web/src/Battlescape/TileEngine.ts",
+        "web/src/Savegame/BattleUnit.ts",
+        "web/src/Savegame/Tile.ts",
+        "web/scripts/verify-battle-runtime.mjs"
+      ],
+      "verification": "npm run verify:saveconverter-metadata passed for build/typecheck/browser proof that Mod loads bin/standard/xcom1/converter.rul into RuleConverter, exposes getConverter(), preserves converter offset/list metadata such as BASE.DAT_FACILITIES, CRAFT.DAT_DAMAGE, STR_UFO, STR_USA, and STR_ELERIUM_115, imports browser-selected GAME_# file objects into the same localStorage binary path consumed by SaveConverter.binaryBuffer(), parses real SAVEINFO.DAT name/date/time/tactical fields for SaveConverter.getList(), wires SaveConverter to the Mod converter rules, seeds original binary XCOM.DAT, ALIEN.DAT, DIPLOM.DAT, LEASE.DAT, LIGLOB.DAT, UIGLOB.DAT, IGLOB.DAT, ZONAL.DAT, ACTS.DAT, MISSIONS.DAT, LOC.DAT, BASE.DAT, ASTORE.DAT, CRAFT.DAT, SOLDIER.DAT, TRANSFER.DAT, RESEARCH.DAT, UP.DAT, PROJECT.DAT, BPROD.DAT, and XBASES.DAT buffers, and verifies loadOriginal() converts country/region activity, country funding/newPact, incomes/expenditures/maintenance/funds/research graphs, marker ids, difficulty, GameTime, monthsPassed, globe lon/lat, globe zoom, ACTS.DAT alien mission chances, MISSIONS.DAT ongoing alien mission wave/counter/race/spawn data and mission cache linkage before CRAFT.DAT, LOC target table entries for bases/waypoints/alien bases/mission sites/UFO/craft, BASE.DAT base name/facility/build-time/personnel/item stores, ASTORE.DAT live alien containment, CRAFT.DAT X-COM craft rule switching, base/destination linkage, status/lowFuel, weapons, vehicle and item cargo, CRAFT.DAT UFO rule switching, landed timer scaling, hyper-detection, alien-mission creation/linking, trajectory linkage, SOLDIER.DAT live/empty slot table behavior, base/craft soldier linkage, rank/name/missions/kills/recovery/psi/gender/look and initial/current stats, TRANSFER.DAT item/scientist/engineer/new-craft/soldier/live-alien transfer branches, RESEARCH.DAT finished and popped research flags, UP.DAT zero-cost Ufopaedia requirement unlocking, PROJECT.DAT active research projects with scientist allocation, BPROD.DAT active production projects with engineer allocation/time math, and XBASES.DAT base retaliation target flags. It also directly verifies loadDatZonal() in isolation because source AlienStrategy::load clears region chances again when ACTS.DAT is loaded. npm run verify:geoscape-confirmations also passed after ListLoadOriginalState now source-transitions loaded original saves into GeoscapeState. npm run verify:saveconverter-metadata now also verifies SavedBattleGame load of generated units/items/owner inventory linkage, C++ binary tile metadata/binTiles round-trip with the 23-byte Tile::serializationKey payload, base-defense moduleMap save/load, TU/kneel reservations, ambience/music/turn-limit/chrono/cheatTurn metadata, recover lists, SavedGame battleGame save/load round-trip, the SavedBattleGame.loadMapResources() C++ post-load sequence that rebinds map data and runs calculateSunShading(), calculateTerrainLighting(), calculateUnitLighting(), and recalculateFOV(), SavedBattleGame.prepareNewTurn() fire/smoke spread and terrain-lighting refresh, resetTiles() source discovered-flag behavior without visibility inversion, randomizeItemLocations() base-storage ground-item movement, and the ListLoadOriginalState post-load restored-battle branch that loads map resources, switches to battlescape resolution, pushes BattlescapeState, and attaches it back to SavedBattleGame. It now also verifies importOriginalFiles rejects unrelated selections, missing SAVEINFO.DAT, invalid SAVEINFO.DAT, ListLoadOriginalState surfaces slot errors, SavedBattleGame::load ammo attachment skips unknown item rules without shifting weapon/ammo pairing, Tile::setUnit/BattleUnit::setTile tileBelow-driven walking/flying/floating transitions, UnitWalkBState and UnitFallBState movement occupancy tileBelow handoff on terrain-level -24 support tiles, and SavedBattleGame::setDebugMode one-way full discovery. npm run verify:geoscape-confirmations passed after splitting BattleActionType/BattleAction/createBattleAction into a lightweight Battlescape/BattleAction module so savegame runtime can use action enums without importing the full battlescape UI graph. npm run verify:battle-runtime passed for build/typecheck/browser proof of Pathfinding Bresenham straight movement, A* fallback around a blocked straight-line tile, grav-lift vertical validation, flying through no-roof vertical validation, and clean compilation of the worker-normalized TileEngine::calculateLine translation.",
+      "boundaries": [
+        "SaveConverter DAT reader parity now includes the TFTD SITE.DAT artifact-site counter branch; original tactical GAME_# slots still show the source-matching unsupported-battlescape-save error rather than inventing tactical DAT conversion.",
+        "SavedGame now persists and restores battleGame payloads when SavedBattleGame is registered; ListLoadOriginalState mirrors the C++ post-load saved-battle resume branch; SavedBattleGame binary tile/moduleMap/loadMapResources/prepareNewTurn/randomizeItemLocations/resetTiles/setDebugMode paths, ammo link rule-skip behavior, Tile/BattleUnit tileBelow placement transitions, UnitWalkBState/UnitFallBState movement occupancy tileBelow handoffs, Pathfinding Bresenham/A* and vertical movement, TileEngine::calculateLine, and AIModule::getSpottingUnits source parity are covered by browser verification or scoped source audit. Remaining battle restoration is deeper tactical runtime behavior, not core saved-battle/original-save ingestion.",
+        "Browser original-save ingestion now imports selected GAME_# folder files into localStorage, rejects no-op selections, missing SAVEINFO.DAT, and invalid SAVEINFO.DAT with explicit errors, and displays corrupt-slot errors in ListLoadOriginalState. Remaining UX polish is drag/drop/detail presentation rather than core ingestion diagnostics."
       ]
     },
     {
       "name": "Geoscape confirmations dogfight base defense",
       "area": "Geoscape",
-      "status": "worker-build",
-      "slicePercent": 70,
+      "status": "integrated-verified",
+      "slicePercent": 100,
       "sourceFiles": [
+        "src/Geoscape/GeoscapeState.cpp",
         "src/Geoscape/ConfirmLandingState.cpp",
         "src/Geoscape/ConfirmDestinationState.cpp",
         "src/Geoscape/ConfirmCydoniaState.cpp",
         "src/Geoscape/DogfightState.cpp",
-        "src/Geoscape/BaseDefenseState.cpp"
+        "src/Geoscape/Globe.cpp",
+        "src/Geoscape/BaseDefenseState.cpp",
+        "src/Geoscape/BaseDestroyedState.cpp",
+        "src/Battlescape/BriefingState.cpp",
+        "src/Battlescape/InventoryState.cpp",
+        "src/Battlescape/AliensCrashState.cpp",
+        "src/Battlescape/DebriefingState.cpp",
+        "src/Battlescape/BattlescapeGenerator.cpp",
+        "src/Savegame/GameTime.cpp",
+        "src/Savegame/Base.cpp",
+        "src/Savegame/Craft.cpp",
+        "src/Savegame/Vehicle.cpp",
+        "src/Savegame/SavedGame.cpp",
+        "src/Savegame/Ufo.cpp",
+        "src/Engine/CatFile.cpp",
+        "src/Engine/Sound.cpp",
+        "src/Engine/SoundSet.cpp",
+        "src/Engine/Music.cpp",
+        "src/Interface/TextButton.cpp",
+        "src/Interface/Window.cpp",
+        "src/Mod/Mod.cpp",
+        "src/Mod/RuleMusic.cpp",
+        "src/Mod/RuleGlobe.cpp",
+        "src/Mod/Texture.cpp",
+        "src/Mod/RuleCraft.cpp"
       ],
       "targetFiles": [
+        "web/src/Geoscape/GeoscapeState.ts",
         "web/src/Geoscape/ConfirmLandingState.ts",
         "web/src/Geoscape/ConfirmDestinationState.ts",
         "web/src/Geoscape/ConfirmCydoniaState.ts",
         "web/src/Geoscape/DogfightState.ts",
-        "web/src/Geoscape/BaseDefenseState.ts"
+        "web/src/Geoscape/Globe.ts",
+        "web/src/Geoscape/BaseDefenseState.ts",
+        "web/src/Geoscape/BaseDestroyedState.ts",
+        "web/src/Battlescape/BriefingState.ts",
+        "web/src/Battlescape/InventoryState.ts",
+        "web/src/Battlescape/AliensCrashState.ts",
+        "web/src/Battlescape/DebriefingState.ts",
+        "web/src/Battlescape/BattlescapeGenerator.ts",
+        "web/src/Engine/CatFile.ts",
+        "web/src/Engine/Sound.ts",
+        "web/src/Engine/SoundSet.ts",
+        "web/src/Engine/Music.ts",
+        "web/src/Engine/Options.ts",
+        "web/src/Interface/TextButton.ts",
+        "web/src/Interface/Window.ts",
+        "web/src/Savegame/GameTime.ts",
+        "web/src/Savegame/Base.ts",
+        "web/src/Savegame/Craft.ts",
+        "web/src/Savegame/SavedGame.ts",
+        "web/src/Mod/Mod.ts",
+        "web/src/Mod/RuleMusic.ts",
+        "web/src/Mod/RuleGlobe.ts",
+        "web/src/Mod/RuleCraft.ts",
+        "web/scripts/build.mjs",
+        "web/scripts/verify-geoscape-confirmations.mjs"
       ],
-      "verification": "worker reported npm run build, node --check, and ESM import smoke passed",
+      "verification": "worker reported npm run build, node --check, and ESM import smoke passed; npm run build passed; npm run typecheck passed; Playwright VERIFY_GEOSCAPE_BASE_DEFENSE passed for UFO reached-base routing/defense popup/base-destroyed queue; npm run build passed; npm run typecheck passed; Playwright VERIFY_CONFIRM_BRIEFING passed for ConfirmLandingState crash-recovery BattlescapeGenerator.run(), BriefingState OK into BattlescapeState/NextTurnState, and GeoscapeState.handleBaseDefense() into STR_BASE_DEFENSE BriefingState; npm run build passed; npx --yes --package typescript tsc --noEmit passed; Playwright VERIFY_DOGFIGHT_RUNTIME passed for minimized DogfightErrorState popup and destroyed-UFO retaliation mission spawn; npm run build passed; npx --yes --package typescript tsc --noEmit passed; Playwright VERIFY_LANDING_TEXTURE_SHADE passed for RuleGlobe texture metadata, Globe.getPolygonTextureAndShade, ConfirmLandingState texture/shade payload, and mission-site texture override; npm run build passed; npx --yes --package typescript tsc --noEmit passed; DogfightState _ufoBlobs matched the C++ 8x13x13 table; Playwright VERIFY_BASE_DEFENSES passed for Base.setupDefenses fixed HWP conversion, craft-vehicle inclusion/exclusion, ammo consumption, and cleanupDefenses reclaim; npm run verify:geoscape-confirmations passed for build/typecheck/Dogfight blob parity, original SOUND manifest loading, CAT sound loading, Mod.getSound, TextButton and Window sound assignments, Dogfight/BaseDefense source sound calls, GeoscapeState GMGEO/GMINTER music requests, Base.setupDefenses cleanup, BriefingState -> BattlescapeState -> NextTurnState -> InventoryState, InventoryState OK back to NextTurnState, BriefingState no-alien crash branch, and AliensCrashState -> DebriefingState",
       "boundaries": [
-        "Geoscape integration wiring pending",
-        "Craft destination/return-to-base and waypoint storage helpers pending",
-        "BriefingState and full mission generation boundaries pending",
-        "Dogfight sound/blob/runtime fidelity pending"
+        "Deep DebriefingState scoring/recovery/reequip behavior remains owned by the battlescape/debriefing runtime slice"
+      ]
+    },
+    {
+      "name": "Battlescape debriefing runtime",
+      "area": "Battlescape",
+      "status": "integrated-verified",
+      "slicePercent": 98,
+      "nextAction": "Move remaining debriefing work to broader full save/load and visual-polish boundaries; prioritize another documented runtime boundary next",
+      "sourceFiles": [
+        "src/Battlescape/DebriefingState.cpp",
+        "src/Battlescape/DebriefingState.h",
+        "src/Savegame/Base.cpp",
+        "src/Savegame/Craft.cpp",
+        "src/Savegame/Vehicle.cpp",
+        "src/Savegame/ItemContainer.cpp",
+        "src/Mod/RuleItem.cpp",
+        "src/Savegame/BattleItem.cpp",
+        "src/Savegame/BattleUnit.cpp",
+        "src/Savegame/SavedGame.cpp",
+        "src/Savegame/SavedGame.h",
+        "src/Savegame/Soldier.cpp",
+        "src/Savegame/Soldier.h",
+        "src/Engine/Options.cpp"
+      ],
+      "targetFiles": [
+        "web/src/Battlescape/DebriefingState.ts",
+        "web/src/Savegame/Base.ts",
+        "web/src/Savegame/Craft.ts",
+        "web/src/Savegame/Vehicle.ts",
+        "web/src/Savegame/ItemContainer.ts",
+        "web/src/Mod/RuleItem.ts",
+        "web/scripts/verify-debriefing.mjs",
+        "web/src/Savegame/BattleItem.ts",
+        "web/src/Savegame/BattleUnit.ts",
+        "web/src/Savegame/SavedGame.ts",
+        "web/src/Savegame/Soldier.ts",
+        "web/src/Engine/Options.ts",
+        "web/src/Mod/Mod.ts"
+      ],
+      "verification": "npm run verify:debriefing passed for build/typecheck and DebriefingState source behavior: reequipCraft craft item shortage removal, missing item reporting, HWP rebuild from base stores, compatible ammo consumption, armor-derived vehicle size, recoverItems alien fuel stat handling, unresearched artifact scoring, corpse geoscape recovery, ammo round aggregation, firearm clip-round aggregation, base item recovery, BT_NONE craft reuseItem notification, recoverAlien spawn-unit conversion, no-containment corpse fallback, live-alien containment scoring, storage, overfull-containment flagging, prepareDebriefing craft/base context resolution, mission success/title/objective stat handling, dead-hostile/civilian/player-unit stat accounting, soldier post-mission stat rows, conditional/tile/guaranteed recovery scans, recovered rounds-to-clips conversion, craft/base cleanup, SavedGame.getSoldier lookup, BattleUnit postMissionProcedures/updateGeoscapeStats, init total score/rating, valiantCrux, mission-stat daylight/id push, post-mortem kill, best-of-rank, best-overall, martyr/stat-delta diary updates, live/dead commendation buckets, injury-list recording, SavedGame.handlePromotions field-promotion participant filtering, saved-battle clearing, source debriefing music request, Options.autosave/fieldPromotions, btnOkClick follow-up stack order for commendations, promotions, cannot-reequip, ManageAlienContainmentState plus containment warning, SellState plus storage warning, ironman/autosave save types, direct ManageAlienContainmentState removal-to-corpse behavior, canSellLiveAliens fund gain, battlescape storage warning surface, autosave, and live-alien no-sell/sell/interrogation project persistence through SavedGame.save/load; npm run verify:geoscape-confirmations passed after shared SavedGame/CrossPlatform changes",
+      "boundaries": [
+        "Full campaign save/load beyond the debriefing-mutated fields, including saved-battle restoration, remains a broader save-game runtime boundary",
+        "Visual pixel parity of downstream SellState and containment popups remains broader UI polish"
       ]
     },
     {
       "name": "Manage alien containment",
       "area": "Basescape",
       "status": "integrated-verified",
-      "slicePercent": 88,
+      "slicePercent": 97,
       "sourceFiles": [
         "src/Basescape/ManageAlienContainmentState.cpp"
       ],
       "targetFiles": [
         "web/src/Basescape/ManageAlienContainmentState.ts"
       ],
-      "verification": "npm run build passed; Playwright VERIFY_ALIEN_CONTAINMENT passed",
+      "verification": "npm run build passed; Playwright VERIFY_ALIEN_CONTAINMENT passed; npm run verify:debriefing passed for debriefing call-site construction, removal-to-corpse, canSellLiveAliens fund gain, storage-overfull SellState/ErrorMessageState follow-up, and live-alien no-sell/sell/interrogation project persistence through SavedGame.save/load",
       "boundaries": [
-        "Debriefing/other call-site integrations pending",
-        "Full live-alien sell/interrogation scenarios need broader save-game verification"
+        "Non-debriefing call-site integrations need broader UI pass",
+        "Full campaign save/load of unrelated base/craft/soldier/mission-stat data remains broader save-game verification"
+      ]
+    },
+    {
+      "name": "Whole source path parity sweep",
+      "area": "All",
+      "status": "integrated-verified",
+      "slicePercent": 100,
+      "sourceFiles": [
+        "src",
+        "src/Engine",
+        "src/Menu",
+        "src/Mod",
+        "src/Savegame",
+        "src/Ufopaedia",
+        "src/Battlescape"
+      ],
+      "targetFiles": [
+        "web/src",
+        "web/src/Engine",
+        "web/src/Menu",
+        "web/src/Mod",
+        "web/src/Savegame",
+        "web/src/Ufopaedia",
+        "web/src/Battlescape"
+      ],
+      "verification": "npm run build passed; npx --yes --package typescript tsc --noEmit passed; npm run status reports 336/336 source units with same-path TypeScript files; Playwright VERIFY_STARTUP passed with no console errors and a nonblank canvas",
+      "boundaries": [
+        "This slice proves source path coverage and browser startup, not full behavioral parity",
+        "Native audio, native OpenGL/scaler internals, exact SDL filesystem/dialog behavior, and deeper gameplay fidelity remain owned by their runtime integration slices"
       ]
     }
   ],
   "slicePathWarnings": [],
   "webOnlyFiles": [
+    "web/src/Battlescape/BattleAction.ts",
     "web/src/Mod/ModStatics.ts",
+    "web/src/Savegame/SavedBattleGameRegistry.ts",
     "web/src/types.ts"
   ],
   "knownTypecheckBoundary": [],
@@ -670,15 +802,17 @@
       "Ufopaedia": 3784
     },
     "targetByArea": {
-      "Basescape": 9156,
-      "Battlescape": 13972,
-      "Engine": 2534,
-      "Geoscape": 7696,
-      "Interface": 2312,
-      "(root)": 81,
-      "Menu": 1444,
-      "Mod": 10694,
-      "Savegame": 10105
+      "apple": 68,
+      "Basescape": 9114,
+      "Battlescape": 18207,
+      "(root)": 335,
+      "Engine": 7918,
+      "Geoscape": 8514,
+      "Interface": 2780,
+      "Menu": 4807,
+      "Mod": 12590,
+      "Savegame": 14008,
+      "Ufopaedia": 1902
     }
   }
 }

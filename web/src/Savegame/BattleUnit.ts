@@ -1,4 +1,4 @@
-import { BattleActionType, type BattleAction } from "../Battlescape/BattlescapeGame.ts";
+import { BattleActionType, type BattleAction } from "../Battlescape/BattleAction.ts";
 import { TilePart, SpecialTileType } from "../Mod/MapData.ts";
 import { Position, type PositionLike } from "../Battlescape/Position.ts";
 import { RNG } from "../Engine/RNG.ts";
@@ -7,6 +7,7 @@ import { BattleType, ItemDamageType, type RuleItem } from "../Mod/RuleItem.ts";
 import { InventoryType, type RuleInventory } from "../Mod/RuleInventory.ts";
 import { SpecialAbility, Unit, createUnitStats, type UnitStats } from "../Mod/Unit.ts";
 import { Soldier, SoldierGender, SoldierRank } from "./Soldier.ts";
+import type { SavedGame } from "./SavedGame.ts";
 import { BattleItem } from "./BattleItem.ts";
 import type { Tile } from "./Tile.ts";
 import type { AIModuleSave } from "../Battlescape/AIModule.ts";
@@ -156,7 +157,7 @@ type TileLike = {
   getDangerous?: () => boolean;
   getMapData?: (part: TilePart) => { getSpecialType?: () => number } | null;
   hasNoFloor?: (tileBelow: Tile | null) => boolean;
-  setUnit?: (unit: BattleUnit | null) => void;
+  setUnit?: (unit: BattleUnit | null, tileBelow?: Tile | null) => void;
   setVisible?: (visibility: number) => void;
 };
 
@@ -189,6 +190,21 @@ function addStats(target: UnitStats, source: Partial<UnitStats>): void {
     target[key] += source[key] || 0;
   }
 }
+
+function subtractStats(target: UnitStats, source: Partial<UnitStats>): void {
+  for (const key of Object.keys(target) as Array<keyof UnitStats>) {
+    target[key] -= source[key] || 0;
+  }
+}
+
+type BattleUnitGeoscapeLike = SavedGame & {
+  getSoldier?: (id: number) => Soldier | null;
+};
+
+type BattleUnitSoldierLike = Soldier & {
+  addMissionCount?: () => void;
+  addKillCount?: (count: number) => void;
+};
 
 function createBattleUnitStatistics(): BattleUnitStatistics {
   return {
@@ -1203,8 +1219,22 @@ export class BattleUnit {
     this._visibleTiles.length = 0;
   }
 
-  setTile(tile: TileLike | null): void {
+  setTile(tile: TileLike | null, tileBelow: Tile | null = null): void {
     this._tile = tile;
+    if (!this._tile) {
+      this._floating = false;
+      return;
+    }
+    const hasNoFloor = this._tile.hasNoFloor?.(tileBelow) ?? true;
+    if (this._status === UnitStatus.STATUS_WALKING && hasNoFloor && this._movementType === MovementType.MT_FLY) {
+      this._status = UnitStatus.STATUS_FLYING;
+      this._floating = true;
+    } else if (this._status === UnitStatus.STATUS_FLYING && !hasNoFloor && this._verticalDirection === 0) {
+      this._status = UnitStatus.STATUS_WALKING;
+      this._floating = false;
+    } else if (this._status === UnitStatus.STATUS_UNCONSCIOUS) {
+      this._floating = this._movementType === MovementType.MT_FLY && hasNoFloor;
+    }
   }
 
   getTile(): TileLike | null {
@@ -1454,6 +1484,98 @@ export class BattleUnit {
 
   addKillCount(): void {
     this._kills++;
+  }
+
+  updateGeoscapeStats(soldier: Soldier): void {
+    const geoscapeSoldier = soldier as BattleUnitSoldierLike;
+    geoscapeSoldier.addMissionCount?.();
+    geoscapeSoldier.addKillCount?.(this._kills);
+  }
+
+  postMissionProcedures(geoscape: SavedGame, statsDiff: UnitStats): boolean {
+    const save = geoscape as BattleUnitGeoscapeLike;
+    const soldier = save.getSoldier?.(this._id);
+    if (!soldier) {
+      return false;
+    }
+
+    this.updateGeoscapeStats(soldier);
+
+    const stats = soldier.getCurrentStats();
+    subtractStats(statsDiff, stats);
+    const caps = soldier.getRules().getStatCaps();
+    const healthLoss = this._stats.health - this._health;
+
+    soldier.setWoundRecovery(RNG.generate(healthLoss * 0.5, healthLoss * 1.5));
+
+    if (this._expBravery && stats.bravery < caps.bravery) {
+      if (this._expBravery > RNG.generate(0, 10)) {
+        stats.bravery += 10;
+      }
+    }
+    if (this._expReactions && stats.reactions < caps.reactions) {
+      stats.reactions += this.improveStat(this._expReactions);
+    }
+    if (this._expFiring && stats.firing < caps.firing) {
+      stats.firing += this.improveStat(this._expFiring);
+    }
+    if (this._expMelee && stats.melee < caps.melee) {
+      stats.melee += this.improveStat(this._expMelee);
+    }
+    if (this._expThrowing && stats.throwing < caps.throwing) {
+      stats.throwing += this.improveStat(this._expThrowing);
+    }
+    if (this._expPsiSkill && stats.psiSkill < caps.psiSkill) {
+      stats.psiSkill += this.improveStat(this._expPsiSkill);
+    }
+    if (this._expPsiStrength && stats.psiStrength < caps.psiStrength) {
+      stats.psiStrength += this.improveStat(this._expPsiStrength);
+    }
+
+    let hasImproved = false;
+    if (this._expBravery || this._expReactions || this._expFiring || this._expPsiSkill || this._expPsiStrength || this._expMelee) {
+      hasImproved = true;
+      if (soldier.getRank() === SoldierRank.RANK_ROOKIE) {
+        soldier.promoteRank();
+      }
+
+      let v = caps.tu - stats.tu;
+      if (v > 0) {
+        stats.tu += RNG.generate(0, Math.trunc(v / 10) + 2);
+      }
+      v = caps.health - stats.health;
+      if (v > 0) {
+        stats.health += RNG.generate(0, Math.trunc(v / 10) + 2);
+      }
+      v = caps.strength - stats.strength;
+      if (v > 0) {
+        stats.strength += RNG.generate(0, Math.trunc(v / 10) + 2);
+      }
+      v = caps.stamina - stats.stamina;
+      if (v > 0) {
+        stats.stamina += RNG.generate(0, Math.trunc(v / 15) + 2);
+      }
+    }
+
+    addStats(statsDiff, stats);
+
+    return hasImproved;
+  }
+
+  private improveStat(exp: number): number {
+    if (exp > 10) {
+      return RNG.generate(2, 6);
+    }
+    if (exp > 5) {
+      return RNG.generate(1, 4);
+    }
+    if (exp > 2) {
+      return RNG.generate(1, 3);
+    }
+    if (exp > 0) {
+      return RNG.generate(0, 1);
+    }
+    return 0;
   }
 
   moraleChange(change: number): void {

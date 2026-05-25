@@ -34,6 +34,7 @@ export type CraftDefinition = {
   maxItems?: number;
   maxAltitude?: number;
   battlescapeTerrainData?: RuleTerrainDefinition;
+  deployment?: number[][];
 };
 
 function stripComment(line: string): string {
@@ -218,6 +219,7 @@ export class RuleCraft {
   private _maxItems = 0;
   private _maxAltitude = -1;
   private _battlescapeTerrainData: RuleTerrain | null = null;
+  private _deployment: number[][] = [];
 
   constructor(private _type: string) {}
 
@@ -252,6 +254,9 @@ export class RuleCraft {
       const rule = new RuleTerrain(node.battlescapeTerrainData.name);
       rule.load(node.battlescapeTerrainData, mod);
       this._battlescapeTerrainData = rule;
+    }
+    if (node.deployment) {
+      this._deployment = node.deployment.map(row => [...row]);
     }
   }
 
@@ -366,6 +371,10 @@ export class RuleCraft {
   getBattlescapeTerrainData(): RuleTerrain | null {
     return this._battlescapeTerrainData;
   }
+
+  getDeployment(): number[][] {
+    return this._deployment;
+  }
 }
 
 export function parseCraftsRul(source: string): CraftDefinition[] {
@@ -408,6 +417,9 @@ export function parseCraftsRul(source: string): CraftDefinition[] {
         terrain = { name: current.type, mapDataSets: [], mapBlocks: [] };
         current.battlescapeTerrainData = terrain;
         section = "battlescapeTerrainData";
+      } else if (prop[1] === "deployment") {
+        current.deployment = [];
+        section = "deployment";
       } else if (!inRequires) {
         section = "";
         setCraftProp(current, prop[1], prop[2]);
@@ -419,6 +431,15 @@ export function parseCraftsRul(source: string): CraftDefinition[] {
       const required = /^-\s+(.+)$/.exec(trimmed);
       if (required) {
         current.requires.push(unquote(required[1]));
+      }
+      continue;
+    }
+
+    if (section === "deployment" && indent === 6) {
+      const row = /^-\s+(.+)$/.exec(trimmed);
+      const values = row ? parseNumberList(row[1]) : null;
+      if (values && values.length >= 4) {
+        (current.deployment ||= []).push(values);
       }
       continue;
     }

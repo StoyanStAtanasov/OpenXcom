@@ -141,8 +141,8 @@ export class Game {
   }
 
   initAudio(): void {
-    Logger.log(LOG_WARNING, "Audio subsystem is not translated yet; browser runtime starts muted.");
-    Options.mute = true;
+    Logger.log(LOG_WARNING, "Browser audio starts on first playback after user activation.");
+    Options.mute = false;
   }
 
   enqueue(event: SdlEvent): void {

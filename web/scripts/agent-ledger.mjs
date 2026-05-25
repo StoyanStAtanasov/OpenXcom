@@ -73,7 +73,8 @@ function normalizeScope(value) {
   if (!trimmed) {
     return "";
   }
-  return slash(trimmed).replace(/^\.\/+/, "").replace(/\/+$/, "");
+  const normalized = slash(trimmed).replace(/^\.\/+/, "").replace(/\/+$/, "");
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
 function oneLine(value, fallback = "") {

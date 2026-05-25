@@ -6,7 +6,7 @@ import { UnitFaction, type BattleUnit } from "../Savegame/BattleUnit.ts";
 import type { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
 import type { Tile } from "../Savegame/Tile.ts";
 import { KMOD_CTRL } from "../types.ts";
-import { BattleActionType } from "./BattlescapeGame.ts";
+import { BattleActionType } from "./BattleAction.ts";
 import { PathfindingOpenSet } from "./PathfindingOpenSet.ts";
 import { PathfindingNode } from "./PathfindingNode.ts";
 import { Position, type PositionLike } from "./Position.ts";

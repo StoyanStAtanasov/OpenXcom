@@ -40,7 +40,7 @@ export class AlienMission {
 
   constructor(private _rule: RuleAlienMission) {}
 
-  load(node: AlienMissionSaveNode): void {
+  load(node: AlienMissionSaveNode, game: SavedGame | null = null): void {
     this._region = node.region ?? this._region;
     this._race = node.race ?? this._race;
     this._nextWave = node.nextWave ?? this._nextWave;
@@ -49,6 +49,21 @@ export class AlienMission {
     this._liveUfos = node.liveUfos ?? this._liveUfos;
     this._uniqueID = node.uniqueID ?? this._uniqueID;
     this._missionSiteZone = node.missionSiteZone ?? this._missionSiteZone;
+    if (node.alienBase != null && game) {
+      let id = -1;
+      let type = "STR_ALIEN_BASE";
+      if (typeof node.alienBase === "number") {
+        id = node.alienBase;
+      } else {
+        id = node.alienBase.id;
+        type = node.alienBase.type;
+      }
+      const base = game.getAlienBases().find(alienBase => alienBase.getId() === id && alienBase.getDeployment().getMarkerName() === type);
+      if (!base) {
+        throw new Error("Corrupted save: Invalid base for mission.");
+      }
+      this._base = base;
+    }
   }
 
   save(): AlienMissionSaveNode {
@@ -63,6 +78,11 @@ export class AlienMission {
       uniqueID: this._uniqueID,
       missionSiteZone: this._missionSiteZone
     };
+    const base = this._base as { saveId?: () => { id?: number; type?: string } } | null;
+    const baseId = base?.saveId?.();
+    if (baseId) {
+      node.alienBase = { id: baseId.id || 0, type: baseId.type || "STR_ALIEN_BASE" };
+    }
     return node;
   }
 

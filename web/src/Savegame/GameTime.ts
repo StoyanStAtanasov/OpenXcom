@@ -72,6 +72,10 @@ export class GameTime {
     return this._year;
   }
 
+  getDaylight(): number {
+    return (((((this._hour + 18) % 24) * 60 + this._minute) * 60) + this._second) / (60 * 60 * 24);
+  }
+
   advance(): TimeTrigger {
     let trigger = TimeTrigger.TIME_5SEC;
     const monthDays = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];

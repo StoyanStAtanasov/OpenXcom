@@ -1,4 +1,4 @@
-import { BattleActionType } from "../Battlescape/BattlescapeGame.ts";
+import { BattleActionType } from "../Battlescape/BattleAction.ts";
 import { AIModule } from "../Battlescape/AIModule.ts";
 import { Pathfinding } from "../Battlescape/Pathfinding.ts";
 import { Position, type PositionLike } from "../Battlescape/Position.ts";
@@ -8,16 +8,19 @@ import { ChronoTrigger } from "../Mod/AlienDeployment.ts";
 import { MovementType, type Armor } from "../Mod/Armor.ts";
 import { MapDataSet } from "../Mod/MapDataSet.ts";
 import { SpecialTileType, TilePart } from "../Mod/MapData.ts";
-import type { RuleInventory } from "../Mod/RuleInventory.ts";
-import type { RuleItem } from "../Mod/RuleItem.ts";
+import { InventoryType, type RuleInventory } from "../Mod/RuleInventory.ts";
+import { ItemDamageType, type RuleItem } from "../Mod/RuleItem.ts";
 import type { Unit } from "../Mod/Unit.ts";
-import { BattleItem } from "./BattleItem.ts";
-import { BattleUnit, UnitFaction, UnitStatus } from "./BattleUnit.ts";
+import { BattleItem, type BattleItemSave } from "./BattleItem.ts";
+import { BattleUnit, UnitFaction, UnitStatus, type BattleUnitSave, type StatAdjustment } from "./BattleUnit.ts";
 import { Node, type NodeSave } from "./Node.ts";
+import type { Soldier } from "./Soldier.ts";
 import { Tile, type TileSave } from "./Tile.ts";
 import type { BattlescapeState } from "../Battlescape/BattlescapeState.ts";
 import type { BattlescapeGame } from "../Battlescape/BattlescapeGame.ts";
 import type { State } from "../Engine/State.ts";
+import { registerSavedBattleGame } from "./SavedBattleGameRegistry.ts";
+import { serializeInt, unserializeInt } from "./SerializationHelper.ts";
 
 type BattleUtilityModLike = {
   getVoxelData?: () => number[];
@@ -28,10 +31,13 @@ type ConvertUnitModLike = BattleUtilityModLike & {
   getArmor: (type: string, error?: boolean) => Armor | null;
   getItem: (type: string, error?: boolean) => RuleItem | null;
   getInventory: (id: string, error?: boolean) => RuleInventory | null;
+  getMapDataSet?: (name: string) => MapDataSet;
+  getStatAdjustment?: (difficulty: number) => StatAdjustment | null;
 };
 
 type ConvertUnitSavedGameLike = {
   getDifficulty?: () => number;
+  getSoldier?: (id: number) => Soldier | null;
 };
 
 export type SavedBattleGameSave = {
@@ -44,6 +50,15 @@ export type SavedBattleGameSave = {
   selectedUnit?: number;
   mapdatasets?: string[];
   tiles?: TileSave[];
+  tileIndexSize?: number;
+  tileTotalBytesPer?: number;
+  tileFireSize?: number;
+  tileSmokeSize?: number;
+  tileIDSize?: number;
+  tileSetIDSize?: number;
+  tileBoolFieldsSize?: number;
+  totalTiles?: number;
+  binTiles?: string | number[];
   nodes?: NodeSave[];
   units?: ReturnType<BattleUnit["save"]>[];
   items?: ReturnType<BattleItem["save"]>[];
@@ -61,6 +76,7 @@ export type SavedBattleGameSave = {
   objectiveType?: number;
   objectivesDestroyed?: number;
   objectivesNeeded?: number;
+  moduleMap?: Array<Array<[number, number] | number[]>>;
 };
 
 export class SavedBattleGame {
@@ -111,23 +127,81 @@ export class SavedBattleGame {
     this._tileSearch = Array.from({ length: 11 * 11 }, (_, i) => new Position((i % 11) - 5, Math.trunc(i / 11) - 5, 0));
   }
 
-  load(node: SavedBattleGameSave): void {
+  private static bytesToBase64(bytes: Uint8Array): string {
+    let binary = "";
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+  }
+
+  private static bytesFromBinTiles(raw: string | number[] | undefined): Uint8Array {
+    if (raw == null) {
+      return new Uint8Array();
+    }
+    if (Array.isArray(raw)) {
+      return Uint8Array.from(raw);
+    }
+    if (raw.length === 0) {
+      return new Uint8Array();
+    }
+    return Uint8Array.from(atob(raw), char => char.charCodeAt(0));
+  }
+
+  load(node: SavedBattleGameSave, mod: ConvertUnitModLike | null = null, savedGame: ConvertUnitSavedGameLike | null = null): void {
     this.initMap(node.width ?? this._mapsize_x, node.length ?? this._mapsize_y, node.height ?? this._mapsize_z);
     this._missionType = node.missionType ?? this._missionType;
     this._globalShade = node.globalshade ?? this._globalShade;
     this._turn = node.turn ?? this._turn;
     this._depth = node.depth ?? this._depth;
-    for (const tileNode of node.tiles || []) {
-      const pos = Position.from(tileNode.position);
-      this.getTile(pos)?.load(tileNode);
+    const selectedUnit = node.selectedUnit ?? -1;
+    this._mapDataSets = (node.mapdatasets || []).map(name => mod?.getMapDataSet?.(name) || new MapDataSet(name));
+    if (node.tileTotalBytesPer) {
+      const serializationKey = {
+        index: node.tileIndexSize ?? Tile.serializationKey.index,
+        totalBytes: node.tileTotalBytesPer,
+        _fire: node.tileFireSize ?? Tile.serializationKey._fire,
+        _smoke: node.tileSmokeSize ?? Tile.serializationKey._smoke,
+        _mapDataID: node.tileIDSize ?? Tile.serializationKey._mapDataID,
+        _mapDataSetID: node.tileSetIDSize ?? Tile.serializationKey._mapDataSetID,
+        boolFields: node.tileBoolFieldsSize ?? 1
+      };
+      const cursor = { buffer: SavedBattleGame.bytesFromBinTiles(node.binTiles), offset: 0 };
+      const totalTiles = node.totalTiles ?? Math.trunc(cursor.buffer.length / serializationKey.totalBytes);
+      for (let i = 0; i < totalTiles; ++i) {
+        const start = cursor.offset;
+        const index = unserializeInt(cursor, serializationKey.index);
+        if (index < 0 || index >= this.getMapSizeXYZ()) {
+          throw new Error(`SavedBattleGame tile index ${index} out of range.`);
+        }
+        this._tiles[index].loadBinary(cursor, serializationKey);
+        cursor.offset = start + serializationKey.totalBytes;
+      }
+    } else {
+      for (const tileNode of node.tiles || []) {
+        const pos = Position.from(tileNode.position);
+        this.getTile(pos)?.load(tileNode);
+      }
     }
-    this._mapDataSets = (node.mapdatasets || []).map(name => new MapDataSet(name));
     this._nodes = [];
     for (const nodeSave of node.nodes || []) {
       const battleNode = new Node();
       battleNode.load(nodeSave);
       this._nodes.push(battleNode);
     }
+    if (this._missionType === "STR_BASE_DEFENSE") {
+      if (node.moduleMap) {
+        this._baseModules = node.moduleMap.map(row => row.map(pair => [pair[0] || 0, pair[1] || 0]));
+      } else {
+        this.calculateModuleMap();
+      }
+    }
+    this.loadUnits(node.units || [], selectedUnit, mod, savedGame);
+    this.loadItems(node.items || [], this._items, mod);
+    this.loadItems(node.recoverConditional || [], this._recoverConditional, mod);
+    this.loadItems(node.recoverGuaranteed || [], this._recoverGuaranteed, mod);
+    this.linkAmmo(node.items || [], mod);
     this._objectiveType = node.objectiveType ?? this._objectiveType;
     this._objectivesDestroyed = node.objectivesDestroyed ?? this._objectivesDestroyed;
     this._objectivesNeeded = node.objectivesNeeded ?? this._objectivesNeeded;
@@ -141,8 +215,132 @@ export class SavedBattleGame {
     this._cheatTurn = node.cheatTurn ?? this._cheatTurn;
   }
 
+  private loadUnits(unitNodes: BattleUnitSave[], selectedUnit: number, mod: ConvertUnitModLike | null, savedGame: ConvertUnitSavedGameLike | null): void {
+    this._units = [];
+    this._selectedUnit = null;
+    this._lastSelectedUnit = null;
+    for (const unitNode of unitNodes) {
+      const faction = (unitNode.faction ?? UnitFaction.FACTION_PLAYER) as UnitFaction;
+      const originalFaction = (unitNode.originalFaction ?? faction) as UnitFaction;
+      const id = unitNode.id ?? 0;
+      let unit: BattleUnit | null = null;
+      if (id < BattleUnit.MAX_SOLDIER_ID) {
+        const soldier = savedGame?.getSoldier?.(id) || null;
+        if (!soldier) {
+          continue;
+        }
+        unit = new BattleUnit(soldier, this._depth);
+      } else {
+        const type = unitNode.genUnitType || "";
+        const armorName = unitNode.genUnitArmor || "";
+        const rule = mod?.getUnit(type) || null;
+        const armor = mod?.getArmor(armorName) || null;
+        if (!rule || !armor) {
+          continue;
+        }
+        const adjustment = mod?.getStatAdjustment?.(savedGame?.getDifficulty?.() ?? 0) || null;
+        unit = new BattleUnit(rule, originalFaction, id, armor, adjustment, this._depth);
+      }
+      unit.load(unitNode);
+      if (mod) {
+        unit.setSpecialWeapon(this, mod);
+      }
+      this._units.push(unit);
+      if (faction === UnitFaction.FACTION_PLAYER && (unit.getId() === selectedUnit || (!this._selectedUnit && !unit.isOut()))) {
+        this._selectedUnit = unit;
+      }
+      if (unit.getStatus() !== UnitStatus.STATUS_DEAD && unit.getStatus() !== UnitStatus.STATUS_IGNORE_ME && unitNode.AI && faction !== UnitFaction.FACTION_PLAYER) {
+        const aiModule = new AIModule(this, unit, null);
+        aiModule.load(unitNode.AI);
+        unit.setAIModule(aiModule);
+      }
+    }
+    this.resetUnitTiles();
+  }
+
+  private loadItems(itemNodes: BattleItemSave[], target: BattleItem[], mod: ConvertUnitModLike | null): void {
+    target.length = 0;
+    if (!mod) {
+      return;
+    }
+    for (const itemNode of itemNodes) {
+      if (itemNode.owner !== undefined && !itemNode.inventoryslot) {
+        continue;
+      }
+      const type = itemNode.type || "";
+      const rule = mod.getItem(type);
+      if (!rule) {
+        continue;
+      }
+      const id = itemNode.id ?? this._itemId;
+      this._itemId = Math.max(this._itemId, id);
+      const item = new BattleItem(rule, id);
+      item.load(itemNode, mod);
+      const owner = this.unitById(itemNode.owner);
+      if (owner) {
+        item.moveToOwner(owner);
+      }
+      const previousOwner = this.unitById(itemNode.previousOwner);
+      if (previousOwner) {
+        item.setPreviousOwner(previousOwner);
+      }
+      const unit = this.unitById(itemNode.unit);
+      if (unit) {
+        item.setUnit(unit);
+      }
+      if (item.getSlot()?.getType() === InventoryType.INV_GROUND) {
+        const pos = Position.from(itemNode.position || [-1, -1, -1]);
+        if (pos.x !== -1) {
+          const ground = mod.getInventory("STR_GROUND", true);
+          if (ground) {
+            this.getTile(pos)?.addItem(item, ground);
+          }
+        }
+      }
+      target.push(item);
+    }
+    this._itemId++;
+  }
+
+  private linkAmmo(itemNodes: BattleItemSave[], mod: ConvertUnitModLike | null): void {
+    if (!mod) {
+      return;
+    }
+    let weaponIndex = 0;
+    for (const itemNode of itemNodes) {
+      if (itemNode.owner !== undefined && !itemNode.inventoryslot) {
+        continue;
+      }
+      if (!mod.getItem(itemNode.type || "")) {
+        continue;
+      }
+      const weapon = this._items[weaponIndex++];
+      const ammoId = itemNode.ammoItem ?? -1;
+      if (!weapon || ammoId === -1) {
+        continue;
+      }
+      const ammo = this._items.find(candidate => candidate.getId() === ammoId) || null;
+      weapon.setAmmoItem(ammo);
+    }
+  }
+
+  private unitById(id: number | undefined): BattleUnit | null {
+    if (id === undefined || id === -1) {
+      return null;
+    }
+    return this._units.find(unit => unit.getId() === id) || null;
+  }
+
   save(): SavedBattleGameSave {
-    const tiles = this._tiles.filter(tile => !tile.isVoid()).map(tile => tile.save());
+    const savedTiles = this._tiles
+      .map((tile, index) => ({ tile, index }))
+      .filter(entry => !entry.tile.isVoid());
+    const tileData = new Uint8Array(savedTiles.length * Tile.serializationKey.totalBytes);
+    const cursor = { buffer: tileData, offset: 0 };
+    for (const entry of savedTiles) {
+      serializeInt(cursor, Tile.serializationKey.index, entry.index);
+      entry.tile.saveBinary(cursor);
+    }
     const node: SavedBattleGameSave = {
       width: this._mapsize_x,
       length: this._mapsize_y,
@@ -152,6 +350,15 @@ export class SavedBattleGame {
       turn: this._turn,
       selectedUnit: this._selectedUnit ? this._selectedUnit.getId() : -1,
       mapdatasets: this._mapDataSets.map(set => set.getName()),
+      tileIndexSize: Tile.serializationKey.index,
+      tileTotalBytesPer: Tile.serializationKey.totalBytes,
+      tileFireSize: Tile.serializationKey._fire,
+      tileSmokeSize: Tile.serializationKey._smoke,
+      tileIDSize: Tile.serializationKey._mapDataID,
+      tileSetIDSize: Tile.serializationKey._mapDataSetID,
+      tileBoolFieldsSize: Tile.serializationKey.boolFields,
+      totalTiles: savedTiles.length,
+      binTiles: SavedBattleGame.bytesToBase64(tileData),
       tuReserved: this._tuReserved,
       kneelReserved: this._kneelReserved,
       depth: this._depth,
@@ -167,8 +374,8 @@ export class SavedBattleGame {
       recoverGuaranteed: this._recoverGuaranteed.map(item => item.save()),
       recoverConditional: this._recoverConditional.map(item => item.save())
     };
-    if (tiles.length > 0) {
-      node.tiles = tiles;
+    if (this._missionType === "STR_BASE_DEFENSE") {
+      node.moduleMap = this._baseModules.map(row => row.map(pair => [pair[0], pair[1]]));
     }
     if (this._objectivesNeeded) {
       node.objectivesDestroyed = this._objectivesDestroyed;
@@ -221,6 +428,10 @@ export class SavedBattleGame {
       }
     }
     this.initUtilities(mod);
+    this.getTileEngine()?.calculateSunShading();
+    this.getTileEngine()?.calculateTerrainLighting();
+    this.getTileEngine()?.calculateUnitLighting();
+    this.getTileEngine()?.recalculateFOV();
   }
 
   getTiles(): Tile[] {
@@ -536,7 +747,10 @@ export class SavedBattleGame {
   }
 
   setDebugMode(): void {
-    this._debugMode = !this._debugMode;
+    for (const tile of this._tiles) {
+      tile.setDiscovered(true, TilePart.O_NORTHWALL);
+    }
+    this._debugMode = true;
   }
 
   getDebugMode(): boolean {
@@ -557,7 +771,10 @@ export class SavedBattleGame {
         }
         for (let x = size; x >= 0; --x) {
           for (let y = size; y >= 0; --y) {
-            this.getTile(unit.getPosition().add(new Position(x, y, 0)))?.setUnit(unit);
+            const target = this.getTile(unit.getPosition().add(new Position(x, y, 0)));
+            if (target) {
+              target.setUnit(unit, this.getTile(target.getPosition().add(new Position(0, 0, -1))));
+            }
           }
         }
       }
@@ -632,7 +849,7 @@ export class SavedBattleGame {
     const nextId = (this.getUnits()[this.getUnits().length - 1]?.getId() || unit.getId()) + 1;
     const newUnit = new BattleUnit(newRule, UnitFaction.FACTION_HOSTILE, nextId, newArmor, null, this.getDepth());
 
-    tile?.setUnit(newUnit);
+    tile?.setUnit(newUnit, this.getTile(unit.getPosition().add(new Position(0, 0, -1))));
     newUnit.setPosition(unit.getPosition());
     newUnit.setDirection(unit.getDirection());
     newUnit.setCache(0);
@@ -698,9 +915,95 @@ export class SavedBattleGame {
   }
 
   prepareNewTurn(): void {
+    const tilesOnFire: Tile[] = [];
+    const tilesOnSmoke: Tile[] = [];
+    const tileEngine = this.getTileEngine();
+
     for (const tile of this._tiles) {
-      tile.prepareNewTurn(this._depth === 0);
+      if (tile.getFire() > 0) {
+        tilesOnFire.push(tile);
+      }
     }
+
+    for (const tile of tilesOnFire) {
+      if (tile.getOverlaps() === 0) {
+        tile.setFire(tile.getFire() - 1);
+        if (tile.getFire()) {
+          for (let dir = 0; dir <= 6; dir += 2) {
+            const target = this.getTile(tile.getPosition().add(Pathfinding.directionToVector(dir)));
+            if (target && (tileEngine?.horizontalBlockage(tile, target, ItemDamageType.DT_IN) ?? 0) === 0) {
+              target.ignite(tile.getSmoke());
+            }
+          }
+        } else {
+          tile.setSmoke(0);
+          const object = tile.getMapData(TilePart.O_OBJECT);
+          if (object) {
+            if (object.getFlammable() !== 255 && object.getArmor() !== 255) {
+              if (tile.destroy(TilePart.O_OBJECT, this.getObjectiveType())) {
+                this.addDestroyedObjective();
+              }
+              if (tile.destroy(TilePart.O_FLOOR, this.getObjectiveType())) {
+                this.addDestroyedObjective();
+              }
+            }
+          } else {
+            const floor = tile.getMapData(TilePart.O_FLOOR);
+            if (floor && floor.getFlammable() !== 255 && floor.getArmor() !== 255) {
+              if (tile.destroy(TilePart.O_FLOOR, this.getObjectiveType())) {
+                this.addDestroyedObjective();
+              }
+            }
+          }
+          tileEngine?.applyGravity(tile);
+        }
+      }
+    }
+
+    for (const tile of this._tiles) {
+      if (tile.getSmoke() > 0) {
+        tilesOnSmoke.push(tile);
+      }
+      tile.setDangerous(false);
+    }
+
+    for (const tile of tilesOnSmoke) {
+      if (tile.getFire() === 0) {
+        tile.setSmoke(tile.getSmoke() - 1);
+        if (tile.getSmoke()) {
+          for (let dir = 0; dir <= 6; dir += 2) {
+            const target = this.getTile(tile.getPosition().add(Pathfinding.directionToVector(dir)));
+            if (target && (tileEngine?.horizontalBlockage(tile, target, ItemDamageType.DT_SMOKE) ?? 0) === 0) {
+              if (target.getSmoke() === 0 || (target.getFire() === 0 && target.getOverlaps() !== 0)) {
+                target.addSmoke(tile.getSmoke());
+              }
+            }
+          }
+        }
+      } else {
+        let target = this.getTile(tile.getPosition().add(new Position(0, 0, 1)));
+        if (target && target.hasNoFloor(tile)) {
+          target.addSmoke(Math.trunc(tile.getSmoke() / 2));
+        }
+        for (let dir = 0; dir <= 6; dir += 2) {
+          const pos = Pathfinding.directionToVector(dir);
+          target = this.getTile(tile.getPosition().add(pos));
+          if (target && (tileEngine?.horizontalBlockage(tile, target, ItemDamageType.DT_SMOKE) ?? 0) === 0) {
+            target.addSmoke(Math.trunc(tile.getSmoke() / 2));
+          }
+        }
+      }
+    }
+
+    if (tilesOnFire.length > 0 || tilesOnSmoke.length > 0) {
+      for (const tile of this._tiles) {
+        if (tile.getSmoke() !== 0) {
+          tile.prepareNewTurn(this.getDepth() === 0);
+        }
+      }
+      tileEngine?.calculateTerrainLighting();
+    }
+    this.reviveUnconsciousUnits();
   }
 
   reviveUnconsciousUnits(): void {
@@ -778,7 +1081,7 @@ export class SavedBattleGame {
         if (x === 0 && y === 0) {
           bu.setPosition(base.add(zOffset));
         }
-        this.getTile(pos)?.setUnit(bu);
+        this.getTile(pos)?.setUnit(bu, this.getTile(pos.add(new Position(0, 0, -1))));
       }
     }
     return true;
@@ -838,10 +1141,29 @@ export class SavedBattleGame {
 
   resetTiles(): void {
     for (const tile of this._tiles) {
-      tile.setVisible(-tile.getVisible());
       tile.setDiscovered(false, 0);
       tile.setDiscovered(false, 1);
       tile.setDiscovered(false, 2);
+    }
+  }
+
+  randomizeItemLocations(t: Tile): void {
+    if (this._storageSpace.length === 0) {
+      return;
+    }
+    const inventory = t.getInventory();
+    for (let i = 0; i < inventory.length;) {
+      const item = inventory[i];
+      const slot = item.getSlot();
+      if (slot?.getId() === "STR_GROUND") {
+        const destination = this.getTile(this._storageSpace[RNG.generate(0, this._storageSpace.length - 1)]);
+        if (destination) {
+          destination.addItem(item, slot);
+        }
+        inventory.splice(i, 1);
+      } else {
+        ++i;
+      }
     }
   }
 
@@ -1060,3 +1382,5 @@ export class SavedBattleGame {
     }
   }
 }
+
+registerSavedBattleGame(SavedBattleGame);

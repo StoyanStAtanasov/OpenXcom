@@ -2,11 +2,12 @@ import { Options } from "../Engine/Options.ts";
 import { State } from "../Engine/State.ts";
 import { TOK_COLOR_FLIP } from "../Engine/Unicode.ts";
 import type { Action } from "../Engine/Action.ts";
-import type { Surface } from "../Engine/Surface.ts";
 import { ALIGN_CENTER, Text } from "../Interface/Text.ts";
 import { TextButton } from "../Interface/TextButton.ts";
 import { POPUP_BOTH, Window } from "../Interface/Window.ts";
+import { BriefingState } from "../Battlescape/BriefingState.ts";
 import { BattlescapeGenerator } from "../Battlescape/BattlescapeGenerator.ts";
+import type { Texture } from "../Mod/Texture.ts";
 import { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
 import { AlienBase } from "../Savegame/AlienBase.ts";
 import { Base } from "../Savegame/Base.ts";
@@ -74,7 +75,7 @@ export class ConfirmLandingState extends State {
   private _btnYes: TextButton;
   private _btnNo: TextButton;
 
-  constructor(private _craft: Craft, private _texture: Surface | null, private _shade: number) {
+  constructor(private _craft: Craft, private _texture: Texture | null, private _shade: number) {
     super();
     this._screen = false;
 
@@ -134,7 +135,7 @@ export class ConfirmLandingState extends State {
   /**
    * Enters the mission.
    */
-  btnYesClick(_action?: Action): void {
+  async btnYesClick(_action?: Action): Promise<void> {
     this.game().popState();
     const target = getCraftDestination(this._craft) as TargetLike | Base | Ufo | null;
     const u = target instanceof Ufo ? target : null;
@@ -148,6 +149,8 @@ export class ConfirmLandingState extends State {
 
     const mod = this.game().getMod();
     const bgen = new BattlescapeGenerator(bgame, mod);
+    bgen.setWorldTexture(this._texture);
+    bgen.setWorldShade(this._shade);
     bgen.setCraft(this._craft);
     if (save?.getDifficulty) {
       bgen.setDifficulty(save.getDifficulty());
@@ -159,10 +162,13 @@ export class ConfirmLandingState extends State {
       bgen.setAlienRace(u.getAlienRace());
     } else if (m) {
       bgame.setMissionType(m.getDeployment().getType());
+      bgen.setMissionSite(m);
       bgen.setAlienRace(m.getAlienRace());
     } else if (b) {
       bgame.setMissionType(b.getDeployment().getType());
+      bgen.setAlienBase(b);
       bgen.setAlienRace(b.getAlienRace());
+      bgen.setWorldTexture(null);
     } else if (deployment && target) {
       bgame.setMissionType(deployment.getType());
       bgen.setAlienRace((target as TargetLike).getAlienRace?.() || "");
@@ -170,11 +176,8 @@ export class ConfirmLandingState extends State {
       throw new Error("No mission available!");
     }
 
-    // The browser generator does not yet expose C++ run(), setWorldTexture(),
-    // setMissionSite(), setAlienBase(), or BriefingState; keep this as an explicit boundary.
-    void this._texture;
-    void this._shade;
-    console.log("BriefingState boundary: ConfirmLandingState prepared the mission battle game.");
+    await bgen.run();
+    this.game().pushState(new BriefingState(this._craft));
   }
 
   /**

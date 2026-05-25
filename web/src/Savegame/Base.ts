@@ -6,9 +6,10 @@ import type { RuleBaseFacility } from "../Mod/RuleBaseFacility.ts";
 import type { BaseFacility } from "./BaseFacility.ts";
 import { ItemContainer } from "./ItemContainer.ts";
 import type { Soldier } from "./Soldier.ts";
-import type { CoordinateTarget } from "./Target.ts";
+import type { CoordinateTarget, TargetSaveNode } from "./Target.ts";
 import { Ufo } from "./Ufo.ts";
 import type { ResearchProject } from "./ResearchProject.ts";
+import { Vehicle } from "./Vehicle.ts";
 
 const BASE_SIZE = 6;
 
@@ -57,10 +58,12 @@ export class Base {
   private _research: ResearchProjectLike[] = [];
   private _productions: ProductionLike[] = [];
   private _defenses: BaseFacility[] = [];
-  private _vehicles: unknown[] = [];
+  private _vehicles: Vehicle[] = [];
   private _items = new ItemContainer();
   private _scientists = 0;
   private _engineers = 0;
+  private _inBattlescape = false;
+  private _retaliationTarget = false;
 
   constructor(mod: Mod | null = null) {
     this._mod = mod;
@@ -96,6 +99,23 @@ export class Base {
 
   getName(): string {
     return this._name;
+  }
+
+  getType(): string {
+    return "STR_BASE";
+  }
+
+  getId(): number {
+    return 0;
+  }
+
+  saveId(): TargetSaveNode {
+    return {
+      lon: this._lon,
+      lat: this._lat,
+      type: this.getType(),
+      id: 0
+    };
   }
 
   getCrafts(): Craft[] {
@@ -149,20 +169,146 @@ export class Base {
         this._defenses.push(facility);
       }
     }
+
+    this.removeCraftVehiclesFromDefenseList();
     this._vehicles = [];
+
+    for (const craft of this.getCrafts()) {
+      if (craft.getStatus() !== "STR_OUT") {
+        for (const vehicle of craft.getVehicles()) {
+          this._vehicles.push(vehicle);
+        }
+      }
+    }
+
+    if (!this._mod) {
+      return;
+    }
+
+    let entries = [...this._items.getContents().entries()];
+    let index = 0;
+    while (index < entries.length) {
+      const [itemId, itemQty] = entries[index];
+      const rule = this._mod.getItem(itemId, true);
+      if (!rule?.isFixed()) {
+        ++index;
+        continue;
+      }
+
+      let size = 4;
+      const unit = this._mod.getUnit(itemId);
+      if (unit) {
+        const armor = this._mod.getArmor(unit.getArmor());
+        if (armor) {
+          size = armor.getSize();
+        }
+      }
+
+      const compatibleAmmo = rule.getCompatibleAmmo();
+      if (compatibleAmmo.length === 0) {
+        for (let j = 0; j < itemQty; ++j) {
+          this._vehicles.push(new Vehicle(rule, rule.getClipSize(), size));
+        }
+        this._items.removeItem(itemId, itemQty);
+      } else {
+        const ammo = this._mod.getItem(compatibleAmmo[0], true);
+        if (!ammo) {
+          ++index;
+          continue;
+        }
+        const { ammoPerVehicle, clipSize } = this.getVehicleAmmoUsage(rule, ammo);
+        if (ammoPerVehicle <= 0) {
+          ++index;
+          continue;
+        }
+        const baseQty = Math.trunc(this._items.getItem(ammo.getType()) / ammoPerVehicle);
+        if (baseQty === 0) {
+          ++index;
+          continue;
+        }
+        const canBeAdded = Math.min(itemQty, baseQty);
+        for (let j = 0; j < canBeAdded; ++j) {
+          this._vehicles.push(new Vehicle(rule, clipSize, size));
+          this._items.removeItem(ammo.getType(), ammoPerVehicle);
+        }
+        this._items.removeItem(itemId, canBeAdded);
+      }
+
+      entries = [...this._items.getContents().entries()];
+      index = 0;
+    }
   }
 
   getDefenses(): BaseFacility[] {
     return this._defenses;
   }
 
-  getVehicles(): unknown[] {
+  getVehicles(): Vehicle[] {
     return this._vehicles;
   }
 
-  cleanupDefenses(_reclaimItems: boolean): void {
+  isInBattlescape(): boolean {
+    return this._inBattlescape;
+  }
+
+  setInBattlescape(inbattle: boolean): void {
+    this._inBattlescape = inbattle;
+  }
+
+  setRetaliationTarget(mark = true): void {
+    this._retaliationTarget = mark;
+  }
+
+  getRetaliationTarget(): boolean {
+    return this._retaliationTarget;
+  }
+
+  cleanupDefenses(reclaimItems: boolean): void {
     this._defenses = [];
+    this.removeCraftVehiclesFromDefenseList();
+
+    if (reclaimItems && this._mod) {
+      for (const vehicle of this._vehicles) {
+        const rule = vehicle.getRules();
+        this._items.addItem(rule.getType());
+        const compatibleAmmo = rule.getCompatibleAmmo();
+        if (compatibleAmmo.length > 0) {
+          const ammo = this._mod.getItem(compatibleAmmo[0], true);
+          if (ammo) {
+            const { ammoPerVehicle } = this.getVehicleAmmoUsage(rule, ammo);
+            if (ammoPerVehicle > 0) {
+              this._items.addItem(ammo.getType(), ammoPerVehicle);
+            }
+          }
+        }
+      }
+    }
+
     this._vehicles = [];
+  }
+
+  private removeCraftVehiclesFromDefenseList(): void {
+    for (const craft of this.getCrafts()) {
+      for (const vehicle of craft.getVehicles()) {
+        const index = this._vehicles.indexOf(vehicle);
+        if (index !== -1) {
+          this._vehicles.splice(index, 1);
+        }
+      }
+    }
+  }
+
+  private getVehicleAmmoUsage(rule: { getClipSize: () => number }, ammo: { getClipSize: () => number }): { ammoPerVehicle: number; clipSize: number } {
+    let ammoPerVehicle: number;
+    let clipSize: number;
+    if (ammo.getClipSize() > 0 && rule.getClipSize() > 0) {
+      clipSize = rule.getClipSize();
+      ammoPerVehicle = Math.trunc(clipSize / ammo.getClipSize());
+    } else {
+      clipSize = ammo.getClipSize();
+      ammoPerVehicle = clipSize;
+    }
+    return { ammoPerVehicle, clipSize };
   }
 
   addProduction(production: ProductionLike): void {
@@ -270,6 +416,9 @@ export class Base {
     let total = this._items.getTotalSize(this._mod);
     for (const craft of this._crafts) {
       total += craft.getItems().getTotalSize(this._mod);
+      for (const vehicle of craft.getVehicles()) {
+        total += vehicle.getRules().getSize();
+      }
     }
     if (this._mod) {
       for (const transfer of this._transfers) {
@@ -280,7 +429,7 @@ export class Base {
         }
       }
     }
-    return total;
+    return total - this.getIgnoredStores();
   }
 
   storesOverfull(offset = 0.0): boolean {
@@ -291,6 +440,36 @@ export class Base {
 
   getAvailableStores(): number {
     return this.getBuiltFacilityTotal(rules => rules.getStorage());
+  }
+
+  getIgnoredStores(): number {
+    if (!this._mod) {
+      return 0;
+    }
+    let space = 0;
+    for (const craft of this.getCrafts()) {
+      if (craft.getStatus() !== "STR_REARMING") {
+        continue;
+      }
+      for (const weapon of craft.getWeapons()) {
+        if (!weapon || !weapon.isRearming()) {
+          continue;
+        }
+        const clip = weapon.getRules().getClipItem();
+        const available = this.getStorageItems().getItem(clip);
+        if (clip.length === 0 || available <= 0) {
+          continue;
+        }
+        const clipRule = this._mod.getItem(clip, true);
+        const clipSize = clipRule?.getClipSize() || 0;
+        let needed = 0;
+        if (clipSize > 0) {
+          needed = Math.trunc((weapon.getRules().getAmmoMax() - weapon.getAmmo()) / clipSize);
+        }
+        space += Math.min(available, needed) * (clipRule?.getSize() || 0);
+      }
+    }
+    return space;
   }
 
   getUsedLaboratories(): number {

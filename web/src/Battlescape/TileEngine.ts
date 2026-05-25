@@ -1,5 +1,5 @@
 import { Position, type PositionLike } from "./Position.ts";
-import { BattleActionType, createBattleAction, type BattleAction } from "./BattlescapeGame.ts";
+import { BattleActionType, createBattleAction, type BattleAction } from "./BattleAction.ts";
 import { Pathfinding } from "./Pathfinding.ts";
 import { MeleeAttackBState } from "./MeleeAttackBState.ts";
 import { ProjectileFlyBState } from "./ProjectileFlyBState.ts";
@@ -1752,71 +1752,124 @@ export class TileEngine {
   calculateLine(originLike: PositionLike, targetLike: PositionLike, storeTrajectory: boolean, trajectory: Position[] | null = null, excludeUnit: BattleUnit | null = null, doVoxelCheck = true, onlyVisible = false, excludeAllBut: BattleUnit | null = null): VoxelType {
     const origin = Position.from(originLike);
     const target = Position.from(targetLike);
-    let x0 = origin.x;
-    let x1 = target.x;
-    let y0 = origin.y;
-    let y1 = target.y;
-    let z0 = origin.z;
-    let z1 = target.z;
-    let swapXY = Math.abs(y1 - y0) > Math.abs(x1 - x0);
-    if (swapXY) {
+
+    let x: number;
+    let x0: number;
+    let x1: number;
+    let y: number;
+    let y0: number;
+    let y1: number;
+    let z: number;
+    let z0: number;
+    let z1: number;
+    let step_x: number;
+    let step_y: number;
+    let step_z: number;
+    let swap_xy: boolean;
+    let swap_xz: boolean;
+    let delta_x: number;
+    let delta_y: number;
+    let delta_z: number;
+    let drift_xy: number;
+    let drift_xz: number;
+    let cx: number;
+    let cy: number;
+    let cz: number;
+    let result: VoxelType;
+
+    let lastPoint = origin.clone();
+    let steps = 0;
+    let excludeAllUnits = false;
+    if (this._save.isBeforeGame()) {
+      excludeAllUnits = true;
+    }
+
+    x0 = origin.x;
+    x1 = target.x;
+    y0 = origin.y;
+    y1 = target.y;
+    z0 = origin.z;
+    z1 = target.z;
+
+    swap_xy = Math.abs(y1 - y0) > Math.abs(x1 - x0);
+    if (swap_xy) {
       [x0, y0] = [y0, x0];
       [x1, y1] = [y1, x1];
     }
-    const swapXZ = Math.abs(z1 - z0) > Math.abs(x1 - x0);
-    if (swapXZ) {
+
+    swap_xz = Math.abs(z1 - z0) > Math.abs(x1 - x0);
+    if (swap_xz) {
       [x0, z0] = [z0, x0];
       [x1, z1] = [z1, x1];
     }
-    const deltaX = Math.abs(x1 - x0);
-    const deltaY = Math.abs(y1 - y0);
-    const deltaZ = Math.abs(z1 - z0);
-    let driftXY = Math.trunc(deltaX / 2);
-    let driftXZ = Math.trunc(deltaX / 2);
-    const stepX = x0 > x1 ? -1 : 1;
-    const stepY = y0 > y1 ? -1 : 1;
-    const stepZ = z0 > z1 ? -1 : 1;
-    let y = y0;
-    let z = z0;
-    const excludeAllUnits = this._save.isBeforeGame();
-    let lastPoint = origin.clone();
-    let steps = 0;
+
+    delta_x = Math.abs(x1 - x0);
+    delta_y = Math.abs(y1 - y0);
+    delta_z = Math.abs(z1 - z0);
+
+    drift_xy = Math.trunc(delta_x / 2);
+    drift_xz = Math.trunc(delta_x / 2);
+
+    if (x0 > x1) {
+      step_x = -1;
+    } else {
+      step_x = 1;
+    }
+    if (y0 > y1) {
+      step_y = -1;
+    } else {
+      step_y = 1;
+    }
+    if (z0 > z1) {
+      step_z = -1;
+    } else {
+      step_z = 1;
+    }
+
+    y = y0;
+    z = z0;
 
     if (doVoxelCheck) {
       this.voxelCheckFlush();
     }
 
-    for (let x = x0; ; x += stepX) {
-      let cx = x;
-      let cy = y;
-      let cz = z;
-      if (swapXZ) [cx, cz] = [cz, cx];
-      if (swapXY) [cx, cy] = [cy, cx];
+    for (x = x0; ; x += step_x) {
+      cx = x;
+      cy = y;
+      cz = z;
+
+      if (swap_xz) [cx, cz] = [cz, cx];
+      if (swap_xy) [cx, cy] = [cy, cx];
+
       if (storeTrajectory && trajectory) {
         trajectory.push(new Position(cx, cy, cz));
       }
+
       if (doVoxelCheck) {
-        const result = this.voxelCheck(new Position(cx, cy, cz), excludeUnit, false, onlyVisible, excludeAllBut);
+        result = this.voxelCheck(new Position(cx, cy, cz), excludeUnit, false, onlyVisible, excludeAllBut);
         if (result !== VoxelType.V_EMPTY) {
-          trajectory?.push(new Position(cx, cy, cz));
+          if (trajectory) {
+            trajectory.push(new Position(cx, cy, cz));
+          }
           return result;
         }
       } else {
         const currentPoint = new Position(cx, cy, cz);
-        const vertical = this.verticalBlockage(this._save.getTile(lastPoint), this._save.getTile(currentPoint), ItemDamageType.DT_NONE);
-        let result = this.horizontalBlockage(this._save.getTile(lastPoint), this._save.getTile(currentPoint), ItemDamageType.DT_NONE, steps < 2);
+        const temp_res = this.verticalBlockage(this._save.getTile(lastPoint), this._save.getTile(currentPoint), ItemDamageType.DT_NONE);
+        result = this.horizontalBlockage(this._save.getTile(lastPoint), this._save.getTile(currentPoint), ItemDamageType.DT_NONE, steps < 2);
         steps++;
         if (result === -1) {
-          if (vertical > 127) {
+          if (temp_res > 127) {
             result = 0;
           } else {
             return result;
           }
         }
-        result += vertical;
+        result = result + temp_res;
         if (result > 127) {
           return result;
         }
+
         lastPoint = currentPoint;
       }
 
@@ -1824,41 +1877,48 @@ export class TileEngine {
         break;
       }
 
-      driftXY -= deltaY;
-      driftXZ -= deltaZ;
-      if (driftXY < 0) {
-        y += stepY;
-        driftXY += deltaX;
+      drift_xy = drift_xy - delta_y;
+      drift_xz = drift_xz - delta_z;
+
+      if (drift_xy < 0) {
+        y = y + step_y;
+        drift_xy = drift_xy + delta_x;
         if (doVoxelCheck) {
-          let ix = x;
-          let iy = y;
-          let iz = z;
-          if (swapXZ) [ix, iz] = [iz, ix];
-          if (swapXY) [ix, iy] = [iy, ix];
-          const result = this.voxelCheck(new Position(ix, iy, iz), excludeUnit, excludeAllUnits, onlyVisible, excludeAllBut);
+          cx = x;
+          cz = z;
+          cy = y;
+          if (swap_xz) [cx, cz] = [cz, cx];
+          if (swap_xy) [cx, cy] = [cy, cx];
+          result = this.voxelCheck(new Position(cx, cy, cz), excludeUnit, excludeAllUnits, onlyVisible, excludeAllBut);
           if (result !== VoxelType.V_EMPTY) {
-            trajectory?.push(new Position(ix, iy, iz));
+            if (trajectory) {
+              trajectory.push(new Position(cx, cy, cz));
+            }
             return result;
           }
         }
       }
-      if (driftXZ < 0) {
-        z += stepZ;
-        driftXZ += deltaX;
+
+      if (drift_xz < 0) {
+        z = z + step_z;
+        drift_xz = drift_xz + delta_x;
         if (doVoxelCheck) {
-          let ix = x;
-          let iy = y;
-          let iz = z;
-          if (swapXZ) [ix, iz] = [iz, ix];
-          if (swapXY) [ix, iy] = [iy, ix];
-          const result = this.voxelCheck(new Position(ix, iy, iz), excludeUnit, excludeAllUnits, onlyVisible, excludeAllBut);
+          cx = x;
+          cy = y;
+          cz = z;
+          if (swap_xz) [cx, cz] = [cz, cx];
+          if (swap_xy) [cx, cy] = [cy, cx];
+          result = this.voxelCheck(new Position(cx, cy, cz), excludeUnit, excludeAllUnits, onlyVisible, excludeAllBut);
           if (result !== VoxelType.V_EMPTY) {
-            trajectory?.push(new Position(ix, iy, iz));
+            if (trajectory) {
+              trajectory.push(new Position(cx, cy, cz));
+            }
             return result;
           }
         }
       }
     }
+
     return VoxelType.V_EMPTY;
   }
 

@@ -4,6 +4,7 @@ import type { Action } from "../Engine/Action.ts";
 import { ALIGN_CENTER, Text } from "../Interface/Text.ts";
 import { TextButton } from "../Interface/TextButton.ts";
 import { Window } from "../Interface/Window.ts";
+import { BriefingState } from "../Battlescape/BriefingState.ts";
 import { BattlescapeGenerator } from "../Battlescape/BattlescapeGenerator.ts";
 import { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
 import type { Craft } from "../Savegame/Craft.ts";
@@ -74,7 +75,7 @@ export class ConfirmCydoniaState extends State {
   /**
    * Starts the Cydonia mission setup and leaves a source-named BriefingState boundary.
    */
-  btnYesClick(_action?: Action): void {
+  async btnYesClick(_action?: Action): Promise<void> {
     this.game().popState();
     this.game().popState();
 
@@ -97,8 +98,8 @@ export class ConfirmCydoniaState extends State {
       bgen.setDifficulty(save.getDifficulty());
     }
 
-    // BriefingState is not translated in web/src yet; the source boundary is intentionally explicit.
-    console.log("BriefingState boundary: ConfirmCydoniaState prepared the final mission battle game.");
+    await bgen.run();
+    this.game().pushState(new BriefingState(this._craft));
   }
 
   /**

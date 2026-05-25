@@ -199,6 +199,7 @@ async function main() {
   } else {
     console.log(`credits: ${JSON.stringify(output.rate_limits.credits)}`);
   }
+  console.log("other model buckets: not reported in local token_count event; use /status or a tiny empirical spawn for Spark");
   if (output.rate_limits?.rate_limit_reached_type) {
     console.log(`limit reached: ${output.rate_limits.rate_limit_reached_type}`);
   }

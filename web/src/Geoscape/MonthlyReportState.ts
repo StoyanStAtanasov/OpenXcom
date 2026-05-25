@@ -13,6 +13,10 @@ import type { SoldierDiaryModLike } from "../Savegame/SoldierDiary.ts";
 import type { MissionStatistics } from "../Savegame/MissionStatistics.ts";
 import type { Globe } from "./Globe.ts";
 import { PsiTrainingState } from "./PsiTrainingState.ts";
+import { CommendationState } from "../Battlescape/CommendationState.ts";
+import { CutsceneState } from "../Menu/CutsceneState.ts";
+import { OPT_GEOSCAPE } from "../Menu/OptionsBaseState.ts";
+import { SaveGameState, SaveType } from "../Menu/SaveGameState.ts";
 
 const COLOR_FLIP = String.fromCharCode(TOK_COLOR_FLIP);
 const END_LOSE = 2;
@@ -242,20 +246,20 @@ export class MonthlyReportState extends State {
         }
       }
       if (this._soldiersMedalled.length > 0) {
-        console.log("CommendationState is not translated yet.");
+        this.game().pushState(new CommendationState(this._soldiersMedalled));
       }
       if (this._psi) {
         this.game().pushState(new PsiTrainingState());
       }
       if (save.isIronman()) {
-        console.log("SaveGameState(OPT_GEOSCAPE, SAVE_IRONMAN) is not translated yet.");
+        this.game().pushState(new SaveGameState(OPT_GEOSCAPE, SaveType.SAVE_IRONMAN, this._palette));
       } else if ((Options as OptionsWithAutosave).autosave) {
-        console.log("SaveGameState(OPT_GEOSCAPE, SAVE_AUTO_GEOSCAPE) is not translated yet.");
+        this.game().pushState(new SaveGameState(OPT_GEOSCAPE, SaveType.SAVE_AUTO_GEOSCAPE, this._palette));
       }
     } else if (this._txtFailure.getVisible()) {
-      console.log("CutsceneState(LOSE_GAME) is not translated yet.");
+      this.game().pushState(new CutsceneState(CutsceneState.LOSE_GAME));
       if (save.isIronman()) {
-        console.log("SaveGameState(OPT_GEOSCAPE, SAVE_IRONMAN) is not translated yet.");
+        this.game().pushState(new SaveGameState(OPT_GEOSCAPE, SaveType.SAVE_IRONMAN, this._palette));
       }
     } else {
       const color2 = this.game().getMod()?.getInterface("monthlyReport")?.getElement("window")?.color2;

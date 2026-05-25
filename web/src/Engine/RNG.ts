@@ -31,6 +31,13 @@ export class RNG {
     return Number(RNG.next() % range) + min;
   }
 
+  static seedless(min: number, max: number): number {
+    if (max < min) {
+      return min;
+    }
+    return Math.trunc(Math.random() * (max - min + 1)) + min;
+  }
+
   static percent(value: number): boolean {
     return RNG.generate(0, 99) < value;
   }

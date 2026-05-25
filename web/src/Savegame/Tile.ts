@@ -3,10 +3,11 @@ import { MovementType } from "../Mod/Armor.ts";
 import { MapData, SpecialTileType, TilePart } from "../Mod/MapData.ts";
 import { ItemDamageType } from "../Mod/RuleItem.ts";
 import type { RuleInventory } from "../Mod/RuleInventory.ts";
-import { BattleActionType } from "../Battlescape/BattlescapeGame.ts";
+import { BattleActionType } from "../Battlescape/BattleAction.ts";
 import { Position } from "../Battlescape/Position.ts";
 import { BattleItem } from "./BattleItem.ts";
 import { BattleUnit } from "./BattleUnit.ts";
+import { serializeInt, unserializeInt } from "./SerializationHelper.ts";
 
 export type TileSave = {
   position?: [number, number, number] | number[];
@@ -27,6 +28,15 @@ function clamp(value: number, min: number, max: number): number {
 
 export class Tile {
   static NOT_CALCULATED = -1;
+  static serializationKey = {
+    index: 4,
+    _mapDataSetID: 2,
+    _mapDataID: 2,
+    _fire: 1,
+    _smoke: 1,
+    boolFields: 1,
+    totalBytes: 4 + 2 * 4 + 2 * 4 + 1 + 1 + 1
+  };
 
   private _objects: Array<MapData | null> = [null, null, null, null];
   private _mapDataID = [-1, -1, -1, -1];
@@ -76,6 +86,26 @@ export class Tile {
     }
   }
 
+  loadBinary(cursor: { buffer: Uint8Array; offset: number }, serializationKey = Tile.serializationKey): void {
+    for (let i = 0; i < 4; ++i) {
+      this._mapDataID[i] = unserializeInt(cursor, serializationKey._mapDataID);
+    }
+    for (let i = 0; i < 4; ++i) {
+      this._mapDataSetID[i] = unserializeInt(cursor, serializationKey._mapDataSetID);
+    }
+    this._smoke = unserializeInt(cursor, serializationKey._smoke);
+    this._fire = unserializeInt(cursor, serializationKey._fire);
+    const boolFields = unserializeInt(cursor, serializationKey.boolFields);
+    this._discovered[TilePart.O_FLOOR] = Boolean(boolFields & 1);
+    this._discovered[TilePart.O_WESTWALL] = Boolean(boolFields & 2);
+    this._discovered[TilePart.O_NORTHWALL] = Boolean(boolFields & 4);
+    this._currentFrame[TilePart.O_WESTWALL] = (boolFields & 8) ? 7 : 0;
+    this._currentFrame[TilePart.O_NORTHWALL] = (boolFields & 0x10) ? 7 : 0;
+    if (this._fire || this._smoke) {
+      this._animationOffset = RNG.generate(0, 3);
+    }
+  }
+
   save(): TileSave {
     const node: TileSave = {
       position: this._pos.toArray(),
@@ -102,6 +132,24 @@ export class Tile {
       node.openDoorNorth = true;
     }
     return node;
+  }
+
+  saveBinary(cursor: { buffer: Uint8Array; offset: number }, serializationKey = Tile.serializationKey): void {
+    for (let i = 0; i < 4; ++i) {
+      serializeInt(cursor, serializationKey._mapDataID, this._mapDataID[i]);
+    }
+    for (let i = 0; i < 4; ++i) {
+      serializeInt(cursor, serializationKey._mapDataSetID, this._mapDataSetID[i]);
+    }
+    serializeInt(cursor, serializationKey._smoke, this._smoke);
+    serializeInt(cursor, serializationKey._fire, this._fire);
+    let boolFields = 0;
+    boolFields |= this._discovered[TilePart.O_FLOOR] ? 1 : 0;
+    boolFields |= this._discovered[TilePart.O_WESTWALL] ? 2 : 0;
+    boolFields |= this._discovered[TilePart.O_NORTHWALL] ? 4 : 0;
+    boolFields |= this.isUfoDoorOpen(TilePart.O_WESTWALL) ? 8 : 0;
+    boolFields |= this.isUfoDoorOpen(TilePart.O_NORTHWALL) ? 0x10 : 0;
+    serializeInt(cursor, serializationKey.boolFields, boolFields);
   }
 
   getMapData(part: TilePart): MapData | null;
@@ -384,9 +432,9 @@ export class Tile {
     this._particles = this._particles.filter(particle => particle.animate?.() ?? true);
   }
 
-  setUnit(unit: BattleUnit | null): void {
+  setUnit(unit: BattleUnit | null, tileBelow: Tile | null = null): void {
     if (unit) {
-      unit.setTile(this);
+      unit.setTile(this, tileBelow);
     }
     this._unit = unit;
   }

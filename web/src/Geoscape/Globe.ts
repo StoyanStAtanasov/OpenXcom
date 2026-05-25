@@ -1,6 +1,7 @@
 import { InteractiveSurface } from "../Engine/InteractiveSurface.ts";
 import type { Action } from "../Engine/Action.ts";
 import type { Game } from "../Engine/Game.ts";
+import { Options } from "../Engine/Options.ts";
 import type { State } from "../Engine/State.ts";
 import type { Polygon } from "../Mod/Polygon.ts";
 import type { RuleGlobe } from "../Mod/RuleGlobe.ts";
@@ -184,6 +185,21 @@ export class Globe extends InteractiveSurface {
 
   insideLand(lon: number, lat: number): boolean {
     return this.getPolygonFromLonLat(lon, lat) != null;
+  }
+
+  getPolygonTextureAndShade(lon: number, lat: number): { texture: number; shade: number } {
+    const worldshades = [
+      0, 0, 0, 0, 1, 1, 2, 2,
+      3, 3, 4, 4, 5, 5, 6, 6,
+      7, 7, 8, 8, 9, 9, 10, 11,
+      11, 12, 12, 13, 13, 14, 15, 15
+    ];
+    const polygon = this.getPolygonFromLonLat(lon, lat);
+    const shadow = this.getShadowValue({ x: 0, y: 0, z: 1 }, this.getSunDirection(lon, lat), 0);
+    return {
+      texture: polygon?.getTexture() ?? -1,
+      shade: worldshades[shadow] ?? 0
+    };
   }
 
   getTargets(x: number, y: number, craft: boolean): GlobeTarget[] {
@@ -400,5 +416,83 @@ export class Globe extends InteractiveSurface {
   private normalizeLon(lon: number): number {
     const tau = Math.PI * 2;
     return ((lon % tau) + tau) % tau;
+  }
+
+  private getSunDirection(lon: number, lat: number): { x: number; y: number; z: number } {
+    const time = this._game.getSavedGame()?.getTime();
+    const curTime = time?.getDaylight() ?? 0;
+    const rot = curTime * 2 * Math.PI;
+    let sun = 0;
+    if (Options.globeSeasons && time) {
+      const monthDays1 = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365];
+      const monthDays2 = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366];
+      const year = time.getYear();
+      const month = time.getMonth() - 1;
+      const day = time.getDay() - 1;
+      const tm = (((time.getHour() * 60) + time.getMinute()) * 60 + time.getSecond()) / 86400;
+      const leap = year % 4 === 0 && !(year % 100 === 0 && year % 400 !== 0);
+      let curDay = ((leap ? monthDays2[month] : monthDays1[month]) + day + tm) / (leap ? 366 : 365) - 0.219;
+      if (curDay < 0) {
+        curDay += 1.0;
+      }
+      sun = -0.261 * Math.sin(curDay * 2 * Math.PI);
+    }
+
+    const scale = sun > 0 ? 1.0 - sun : 1.0 + sun;
+    const direction = {
+      x: Math.cos(rot + lon) * scale,
+      y: Math.sin(rot + lon) * -Math.sin(lat) * scale + Math.cos(lat) * sun,
+      z: Math.sin(rot + lon) * Math.cos(lat) * scale + Math.sin(lat) * sun
+    };
+    const norm = Math.sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
+    if (norm <= 0) {
+      return { x: 0, y: 0, z: 1 };
+    }
+    return {
+      x: direction.x / norm,
+      y: direction.y / norm,
+      z: direction.z / norm
+    };
+  }
+
+  private getShadowValue(earth: { x: number; y: number; z: number }, sun: { x: number; y: number; z: number }, noise: number): number {
+    let value = (earth.x - sun.x) * (earth.x - sun.x) +
+      (earth.y - sun.y) * (earth.y - sun.y) +
+      (earth.z - sun.z) * (earth.z - sun.z);
+    value -= 2.0;
+    value *= 125.0;
+    if (value < -110) {
+      value = -31;
+    } else if (value > 120) {
+      value = 50;
+    } else {
+      value = this.shadeGradient(Math.trunc(value) + 120);
+    }
+    value -= noise;
+    return Math.max(0, Math.min(31, Math.trunc(value)));
+  }
+
+  private shadeGradient(index: number): number {
+    let j = index - 120;
+    if (j < -66) j = -16;
+    else if (j < -48) j = -15;
+    else if (j < -33) j = -14;
+    else if (j < -22) j = -13;
+    else if (j < -15) j = -12;
+    else if (j < -11) j = -11;
+    else if (j < -9) j = -10;
+
+    if (j > 120) j = 19;
+    else if (j > 98) j = 18;
+    else if (j > 86) j = 17;
+    else if (j > 74) j = 16;
+    else if (j > 54) j = 15;
+    else if (j > 38) j = 14;
+    else if (j > 26) j = 13;
+    else if (j > 18) j = 12;
+    else if (j > 13) j = 11;
+    else if (j > 10) j = 10;
+    else if (j > 8) j = 9;
+    return j + 16;
   }
 }

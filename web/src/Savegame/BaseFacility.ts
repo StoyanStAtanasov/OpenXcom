@@ -2,6 +2,8 @@ import type { RuleBaseFacility, BaseFacilityPlacement } from "../Mod/RuleBaseFac
 import type { Base } from "./Base.ts";
 import type { Craft } from "./Craft.ts";
 
+export type BaseFacilitySave = BaseFacilityPlacement;
+
 export class BaseFacility {
   private _x = 0;
   private _y = 0;
@@ -14,6 +16,18 @@ export class BaseFacility {
     this._x = node.x ?? this._x;
     this._y = node.y ?? this._y;
     this._buildTime = node.buildTime ?? this._buildTime;
+  }
+
+  save(): BaseFacilitySave {
+    const node: BaseFacilitySave = {
+      type: this._rules.getType(),
+      x: this._x,
+      y: this._y
+    };
+    if (this._buildTime !== 0) {
+      node.buildTime = this._buildTime;
+    }
+    return node;
   }
 
   getRules(): RuleBaseFacility {

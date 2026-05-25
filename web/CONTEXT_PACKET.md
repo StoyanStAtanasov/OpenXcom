@@ -1,6 +1,6 @@
 # OpenXcom TS Port Context Packet
 
-Generated: 2026-05-24T21:51:15.021Z
+Generated: 2026-05-25T14:28:41.455Z
 Role: resume
 
 This is the compact handoff surface for resumed turns and subagents. Regenerate it with `npm run context` instead of rereading long narrative docs.
@@ -8,36 +8,36 @@ This is the compact handoff surface for resumed turns and subagents. Regenerate 
 ## Snapshot
 
 - Objective: Faithfully translate OpenXcom C++ source into the browser TypeScript port.
-- Path parity: 210/336 (62.5%)
-- Tracked slices: 13
-- Integrated verified slices: 12
+- Path parity: 336/336 (100%)
+- Tracked slices: 16
+- Integrated verified slices: 15
 - Slice path warnings: 0
-- Status rollup: integrated-verified=12, worker-build=1
+- Status rollup: integrated-verified=15, partial-integrated-verified=1
+- Local Codex status: gpt-5.5 (xhigh); context 50.5% left (127989/258400 latest input tokens); credits not reported locally
 
 ## Active Slice
 
-- Name: Geoscape confirmations dogfight base defense
-- Area: Geoscape
-- Status: worker-build
-- Slice percent: 70%
-- Next action: Geoscape integration wiring pending
+- Name: Original save conversion folder ingestion data
+- Area: Savegame
+- Status: partial-integrated-verified
+- Slice percent: 99.6%
+- Next action: Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting baseline: next source-backed targets are deeper reaction LOS/canTargetUnit potential-unit edge cases plus projectile/explosion casualty aftermath; remaining original-save UX is drag/drop/detail polish rather than core ingestion diagnostics
 - Verification markers: none
 
 Boundaries:
-- Geoscape integration wiring pending
-- Craft destination/return-to-base and waypoint storage helpers pending
-- BriefingState and full mission generation boundaries pending
-- Dogfight sound/blob/runtime fidelity pending
+- SaveConverter DAT reader parity now includes the TFTD SITE.DAT artifact-site counter branch; original tactical GAME_# slots still show the source-matching unsupported-battlescape-save error rather than inventing tactical DAT conversion.
+- SavedGame now persists and restores battleGame payloads when SavedBattleGame is registered; ListLoadOriginalState mirrors the C++ post-load saved-battle resume branch; SavedBattleGame binary tile/moduleMap/loadMapResources/prepareNewTurn/randomizeItemLocations/resetTiles/setDebugMode paths, ammo link rule-skip behavior, Tile/BattleUnit tileBelow placement transitions, UnitWalkBState/UnitFallBState movement occupancy tileBelow handoffs, Pathfinding Bresenham/A* and vertical movement, TileEngine::calculateLine, and AIModule::getSpottingUnits source parity are covered by browser verification or scoped source audit. Remaining battle restoration is deeper tactical runtime behavior, not core saved-battle/original-save ingestion.
+- Browser original-save ingestion now imports selected GAME_# folder files into localStorage, rejects no-op selections, missing SAVEINFO.DAT, and invalid SAVEINFO.DAT with explicit errors, and displays corrupt-slot errors in ListLoadOriginalState. Remaining UX polish is drag/drop/detail presentation rather than core ingestion diagnostics.
 
-Source files (5): src/Geoscape/ConfirmLandingState.cpp; src/Geoscape/ConfirmDestinationState.cpp; src/Geoscape/ConfirmCydoniaState.cpp; src/Geoscape/DogfightState.cpp; src/Geoscape/BaseDefenseState.cpp
+Source files (35): src/Mod/RuleConverter.cpp; src/Mod/RuleConverter.h; src/Mod/Mod.cpp; src/Mod/Mod.h; src/Savegame/SaveConverter.cpp; src/Savegame/SaveConverter.h; src/Savegame/Base.cpp; src/Savegame/BaseFacility.cpp; src/Savegame/ItemContainer.cpp; src/Savegame/Ufo.cpp; src/Savegame/Craft.cpp; src/Savegame/AlienBase.cpp; src/Savegame/Waypoint.cpp; src/Savegame/MissionSite.cpp; ... (21 more in web/context-packet.json)
 
-Target files (5): web/src/Geoscape/ConfirmLandingState.ts; web/src/Geoscape/ConfirmDestinationState.ts; web/src/Geoscape/ConfirmCydoniaState.ts; web/src/Geoscape/DogfightState.ts; web/src/Geoscape/BaseDefenseState.ts
+Target files (36): web/src/Mod/RuleConverter.ts; web/src/Mod/Mod.ts; web/src/Savegame/SaveConverter.ts; web/src/Savegame/Base.ts; web/src/Savegame/BaseFacility.ts; web/src/Savegame/ItemContainer.ts; web/src/Savegame/Ufo.ts; web/src/Savegame/Craft.ts; web/src/Savegame/AlienBase.ts; web/src/Savegame/Waypoint.ts; web/src/Savegame/MissionSite.ts; web/src/Savegame/CraftWeapon.ts; web/src/Savegame/Vehicle.ts; web/src/Savegame/AlienMission.ts; ... (22 more in web/context-packet.json)
 
 ## Integration Queue
 
 | Slice | Area | Status | % | Next action |
 | --- | --- | --- | ---: | --- |
-| Geoscape confirmations dogfight base defense | Geoscape | worker-build | 70% | Geoscape integration wiring pending |
+| Original save conversion folder ingestion data | Savegame | partial-integrated-verified | 99.6% | Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting baseline: next source-backed targets are deeper reaction LOS/canTargetUnit potential-unit edge cases plus projectile/explosion casualty aftermath; remaining original-save UX is drag/drop/detail polish rather than core ingestion diagnostics |
 
 ## Subagent Packet
 
@@ -61,11 +61,11 @@ Worker final format:
 Prompt skeletons:
 
 ```text
-Read-only sidecar for OpenXcom TS port slice "Geoscape confirmations dogfight base defense" (70%).
+Read-only sidecar for OpenXcom TS port slice "Original save conversion folder ingestion data" (99.6%).
 Do not edit files.
 Inspect only the exact file list provided by the main agent plus this context packet.
-Next action: Geoscape integration wiring pending.
-Boundaries: Geoscape integration wiring pending; Craft destination/return-to-base and waypoint storage helpers pending; BriefingState and full mission generation boundaries pending; Dogfight sound/blob/runtime fidelity pending.
+Next action: Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting baseline: next source-backed targets are deeper reaction LOS/canTargetUnit potential-unit edge cases plus projectile/explosion casualty aftermath; remaining original-save UX is drag/drop/detail polish rather than core ingestion diagnostics.
+Boundaries: SaveConverter DAT reader parity now includes the TFTD SITE.DAT artifact-site counter branch; original tactical GAME_# slots still show the source-matching unsupported-battlescape-save error rather than inventing tactical DAT conversion.; SavedGame now persists and restores battleGame payloads when SavedBattleGame is registered; ListLoadOriginalState mirrors the C++ post-load saved-battle resume branch; SavedBattleGame binary tile/moduleMap/loadMapResources/prepareNewTurn/randomizeItemLocations/resetTiles/setDebugMode paths, ammo link rule-skip behavior, Tile/BattleUnit tileBelow placement transitions, UnitWalkBState/UnitFallBState movement occupancy tileBelow handoffs, Pathfinding Bresenham/A* and vertical movement, TileEngine::calculateLine, and AIModule::getSpottingUnits source parity are covered by browser verification or scoped source audit. Remaining battle restoration is deeper tactical runtime behavior, not core saved-battle/original-save ingestion.; Browser original-save ingestion now imports selected GAME_# folder files into localStorage, rejects no-op selections, missing SAVEINFO.DAT, and invalid SAVEINFO.DAT with explicit errors, and displays corrupt-slot errors in ListLoadOriginalState. Remaining UX polish is drag/drop/detail presentation rather than core ingestion diagnostics..
 Return summary-first: files inspected, source facts, risks, recommended integration/verifier checks.
 ```
 
@@ -78,7 +78,9 @@ Return summary-first: files inspected, source facts, risks, recommended integrat
 - statusJson: `cd web; npm run status -- --json`
 - build: `cd web; npm run build`
 - typecheck: `cd web; npm run typecheck`
+- codexStatus: `cd web; npm run codex:status`
+- orchestrator: `cd web; npm run orchestrator`
 - agentLedger: `cd web; npm run agents`
 - agentPrompt: `cd web; npm run agents:prompt -- --role readonly --task "..." --scope "src/Foo.cpp; web/src/Foo.ts"`
-- codexStatus: `node tools/codex-status.mjs`
+- codexStatusRepoRoot: `node tools/codex-status.mjs`
 

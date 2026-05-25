@@ -1,13 +1,9 @@
 import type { Language } from "../Engine/Language.ts";
 import type { AlienDeployment } from "../Mod/AlienDeployment.ts";
 import type { RuleAlienMission } from "../Mod/RuleAlienMission.ts";
-import { Target } from "./Target.ts";
+import { Target, type TargetSaveNode } from "./Target.ts";
 
-export type MissionSiteSave = {
-  lon?: number;
-  lat?: number;
-  id?: number;
-  name?: string;
+export type MissionSiteSave = TargetSaveNode & {
   type?: string;
   deployment?: string;
   texture?: number;
@@ -33,10 +29,7 @@ export class MissionSite extends Target {
   }
 
   load(node: MissionSiteSave): void {
-    this._lon = typeof node.lon === "number" ? node.lon : this._lon;
-    this._lat = typeof node.lat === "number" ? node.lat : this._lat;
-    this._id = typeof node.id === "number" ? node.id : this._id;
-    this._name = typeof node.name === "string" ? node.name : this._name;
+    super.load(node);
     this._texture = typeof node.texture === "number" ? node.texture : this._texture;
     this._secondsRemaining = typeof node.secondsRemaining === "number" ? node.secondsRemaining : this._secondsRemaining;
     this._race = typeof node.race === "string" ? node.race : this._race;
@@ -46,20 +39,13 @@ export class MissionSite extends Target {
 
   save(): MissionSiteSave {
     const node: MissionSiteSave = {
-      lon: this._lon,
-      lat: this._lat,
+      ...super.save(),
       type: this._rules.getType(),
       deployment: this._deployment.getType(),
       texture: this._texture,
       race: this._race,
       detected: this._detected
     };
-    if (this._id) {
-      node.id = this._id;
-    }
-    if (this._name) {
-      node.name = this._name;
-    }
     if (this._secondsRemaining) {
       node.secondsRemaining = this._secondsRemaining;
     }

@@ -8,13 +8,24 @@
     "agents:prompt": "node scripts/agent-ledger.mjs prompt",
     "agents:start": "node scripts/agent-ledger.mjs start",
     "build": "node scripts/build.mjs",
+    "codex-status": "node ../tools/codex-status.mjs",
+    "codex:status": "node ../tools/codex-status.mjs",
     "context": "node scripts/context-pack.mjs",
     "context:json": "node scripts/context-pack.mjs --json",
     "context:readonly": "node scripts/context-pack.mjs --role readonly",
     "context:worker": "node scripts/context-pack.mjs --role worker",
     "status": "node scripts/translation-status.mjs",
     "typecheck": "npx --yes --package typescript tsc --noEmit",
-    "serve": "node scripts/serve.mjs"
+    "orchestrator": "node scripts/orchestrator-status.mjs",
+    "orchestrator:json": "node scripts/orchestrator-status.mjs --json",
+    "serve": "node scripts/serve.mjs",
+    "verify:geoscape-confirmations": "node scripts/verify-geoscape-confirmations.mjs",
+    "verify:base-transfer-persistence": "node scripts/verify-base-transfer-persistence.mjs",
+    "verify:research-manufacture-persistence": "node scripts/verify-research-manufacture-persistence.mjs",
+    "verify:debriefing": "node scripts/verify-debriefing.mjs",
+    "verify:craft-management": "node scripts/verify-craft-management.mjs",
+    "verify:battle-runtime": "node scripts/verify-battle-runtime.mjs",
+    "verify:saveconverter-metadata": "node scripts/verify-saveconverter-metadata.mjs"
   },
   "engines": {
     "node": ">=24"

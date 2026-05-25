@@ -1,6 +1,22 @@
 import { RNG } from "../Engine/RNG.ts";
 import type { RuleCountry } from "../Mod/RuleCountry.ts";
 
+export type CountrySave = {
+  type?: string;
+  funding?: number[];
+  activityXcom?: number[];
+  activityAlien?: number[];
+  pact?: boolean;
+  newPact?: boolean;
+};
+
+function numberArray(value: unknown, fallback: number[]): number[] {
+  if (!Array.isArray(value)) {
+    return [...fallback];
+  }
+  return value.filter(entry => typeof entry === "number" && Number.isFinite(entry)).map(entry => Math.trunc(entry));
+}
+
 export class Country {
   private _pact = false;
   private _newPact = false;
@@ -19,6 +35,29 @@ export class Country {
 
   getRules(): RuleCountry {
     return this._rules;
+  }
+
+  load(node: CountrySave = {}): void {
+    this._funding = numberArray(node.funding, this._funding);
+    this._activityXcom = numberArray(node.activityXcom, this._activityXcom);
+    this._activityAlien = numberArray(node.activityAlien, this._activityAlien);
+    this._pact = typeof node.pact === "boolean" ? node.pact : this._pact;
+    this._newPact = typeof node.newPact === "boolean" ? node.newPact : this._newPact;
+  }
+
+  save(): CountrySave {
+    const node: CountrySave = {
+      type: this._rules.getType(),
+      funding: [...this._funding],
+      activityXcom: [...this._activityXcom],
+      activityAlien: [...this._activityAlien]
+    };
+    if (this._pact) {
+      node.pact = this._pact;
+    } else if (this._newPact) {
+      node.newPact = this._newPact;
+    }
+    return node;
   }
 
   getFunding(): number[] {

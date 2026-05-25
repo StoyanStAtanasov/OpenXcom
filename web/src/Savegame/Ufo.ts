@@ -1,6 +1,10 @@
 import type { Language } from "../Engine/Language.ts";
+import type { Mod } from "../Mod/Mod.ts";
 import type { RuleUfo } from "../Mod/RuleUfo.ts";
 import type { MovingTarget } from "./MovingTarget.ts";
+import type { SavedGame } from "./SavedGame.ts";
+import type { TargetSaveNode } from "./Target.ts";
+import { Waypoint } from "./Waypoint.ts";
 
 export const ALTITUDE_STRING = [
   "STR_GROUND",
@@ -23,7 +27,7 @@ export type UfoSaveNode = {
   lat?: number;
   id?: number;
   name?: string;
-  dest?: { lon?: number; lat?: number };
+  dest?: TargetSaveNode;
   speedLon?: number;
   speedLat?: number;
   speedRadian?: number;
@@ -112,7 +116,7 @@ export class Ufo {
 
   constructor(private _rules: RuleUfo) {}
 
-  load(node: UfoSaveNode): void {
+  load(node: UfoSaveNode, mod: Mod | null = null, game: SavedGame | null = null): void {
     this._lon = node.lon ?? this._lon;
     this._lat = node.lat ?? this._lat;
     this._id = node.id ?? this._id;
@@ -147,7 +151,23 @@ export class Ufo {
     if (node.dest) {
       const lon = node.dest.lon ?? this._lon;
       const lat = node.dest.lat ?? this._lat;
-      this._dest = { getLongitude: () => lon, getLatitude: () => lat };
+      const waypoint = new Waypoint();
+      waypoint.setLongitude(lon);
+      waypoint.setLatitude(lat);
+      this._dest = waypoint;
+    }
+    if (mod && game && game.getMonthsPassed() !== -1 && node.mission != null) {
+      const mission = game.getAlienMissions().find(alienMission => alienMission.getId() === node.mission) || null;
+      if (!mission) {
+        throw new Error("Unknown UFO mission, save file is corrupt.");
+      }
+      const trajectory = mod.getUfoTrajectory(node.trajectory || "");
+      if (!trajectory) {
+        throw new Error("Unknown UFO trajectory, save file is corrupt.");
+      }
+      this._mission = mission;
+      this._trajectory = trajectory;
+      this._trajectoryPoint = node.trajectoryPoint ?? this._trajectoryPoint;
     }
     if (this._inBattlescape) {
       this.setSpeed(0);
@@ -177,7 +197,8 @@ export class Ufo {
       node.name = this._name;
     }
     if (this._dest) {
-      node.dest = { lon: this._dest.getLongitude(), lat: this._dest.getLatitude() };
+      const saveId = (this._dest as GlobeTarget & { saveId?: () => TargetSaveNode }).saveId?.();
+      node.dest = saveId || { lon: this._dest.getLongitude(), lat: this._dest.getLatitude() };
     }
     if (this._crashId) {
       node.crashId = this._crashId;

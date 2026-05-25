@@ -1,5 +1,6 @@
 import { Surface } from "../Engine/Surface.ts";
 import { Timer } from "../Engine/Timer.ts";
+import { RNG } from "../Engine/RNG.ts";
 import type { State } from "../Engine/State.ts";
 
 export const POPUP_NONE = "POPUP_NONE";
@@ -70,6 +71,10 @@ export class Window extends Surface {
   }
 
   popup(): void {
+    if (this._popupStep === 0.0) {
+      const sound = RNG.seedless(0, 2);
+      Window.soundPopup[sound]?.play();
+    }
     if (this._popupStep < 1.0) {
       this._popupStep += Window.POPUP_SPEED;
     } else {

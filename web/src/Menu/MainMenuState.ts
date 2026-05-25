@@ -9,6 +9,10 @@ import { TOK_NL_SMALL } from "../Engine/Unicode.ts";
 import { OPENXCOM_VERSION_GIT, OPENXCOM_VERSION_SHORT } from "../version.ts";
 import { NewGameState } from "./NewGameState.ts";
 import { NewBattleState } from "./NewBattleState.ts";
+import { ListLoadState } from "./ListLoadState.ts";
+import { ModListState } from "./ModListState.ts";
+import { OptionsVideoState } from "./OptionsVideoState.ts";
+import { OPT_MENU } from "./OptionsBaseState.ts";
 
 export class GoToMainMenuState extends State {
   override init(): void {
@@ -86,16 +90,16 @@ export class MainMenuState extends State {
   }
 
   btnLoadClick(_action: Action): void {
-    console.log("ListLoadState is not translated yet.");
+    this.game().pushState(new ListLoadState(OPT_MENU));
   }
 
   btnOptionsClick(_action: Action): void {
     Options.backupDisplay();
-    console.log("OptionsVideoState is not translated yet.");
+    this.game().pushState(new OptionsVideoState(OPT_MENU));
   }
 
   btnModsClick(_action: Action): void {
-    console.log("ModListState is not translated yet.");
+    this.game().pushState(new ModListState());
   }
 
   btnQuitClick(_action: Action): void {

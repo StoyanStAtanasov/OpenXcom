@@ -28,6 +28,7 @@ import { NewPossibleResearchState } from "./NewPossibleResearchState.ts";
 import { ResearchRequiredState } from "./ResearchRequiredState.ts";
 import { NewPossibleManufactureState } from "./NewPossibleManufactureState.ts";
 import { Waypoint } from "../Savegame/Waypoint.ts";
+import { AlienMission } from "../Savegame/AlienMission.ts";
 import type { Craft } from "../Savegame/Craft.ts";
 import type { Production } from "../Savegame/Production.ts";
 import type { ResearchProject } from "../Savegame/ResearchProject.ts";
@@ -37,6 +38,9 @@ import { Ufo, UfoStatus } from "../Savegame/Ufo.ts";
 import { UfoTrajectory } from "../Mod/UfoTrajectory.ts";
 import { BattleType } from "../Mod/RuleItem.ts";
 import type { RuleResearch } from "../Mod/RuleResearch.ts";
+import type { Mod } from "../Mod/Mod.ts";
+import { GenerationType, type RuleMissionScript } from "../Mod/RuleMissionScript.ts";
+import type { RuleAlienMission } from "../Mod/RuleAlienMission.ts";
 import { RNG } from "../Engine/RNG.ts";
 import { GeoscapeCraftState } from "./GeoscapeCraftState.ts";
 import { ConfirmLandingState } from "./ConfirmLandingState.ts";
@@ -47,6 +51,8 @@ import { DogfightState } from "./DogfightState.ts";
 import { DogfightErrorState } from "./DogfightErrorState.ts";
 import { BaseDefenseState } from "./BaseDefenseState.ts";
 import { BaseDestroyedState } from "./BaseDestroyedState.ts";
+import { BriefingState } from "../Battlescape/BriefingState.ts";
+import { CutsceneState } from "../Menu/CutsceneState.ts";
 import { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
 import { BattlescapeGenerator } from "../Battlescape/BattlescapeGenerator.ts";
 import { Base } from "../Savegame/Base.ts";
@@ -190,6 +196,26 @@ export class GeoscapeState extends State {
     }
 
     this.timeDisplay();
+  }
+
+  override init(): void {
+    super.init();
+    this.timeDisplay();
+    this._globe.rotateStop();
+    this._globe.setFocus(true);
+    this._globe.draw();
+
+    const save = this.game().getSavedGame();
+    if (this._dogfights.length === 0 && this._dogfightsToBeStarted.length === 0) {
+      if (save?.getMonthsPassed() === -1) {
+        this.game().getMod()?.playMusic("GMGEO", 1);
+      } else {
+        this.game().getMod()?.playMusic("GMGEO");
+      }
+    } else {
+      this.game().getMod()?.playMusic("GMINTER");
+    }
+    this._globe.setNewBaseHover(false);
   }
 
   getGlobe(): Globe {
@@ -441,7 +467,7 @@ export class GeoscapeState extends State {
                 if (craft.getNumSoldiers() > 0 || craft.getNumVehicles() > 0) {
                   if (!craft.isInDogfight()) {
                     this.timerReset();
-                    this.popup(new ConfirmLandingState(craft, null, 0));
+                    this.popup(this.createConfirmLandingState(craft, reached));
                   }
                 } else if (reached.getStatus() !== UfoStatus.LANDED) {
                   craft.returnToBase();
@@ -454,7 +480,7 @@ export class GeoscapeState extends State {
           } else if (reached instanceof MissionSite) {
             if (craft.getNumSoldiers() > 0 || craft.getNumVehicles() > 0) {
               this.timerReset();
-              this.popup(new ConfirmLandingState(craft, null, 0));
+              this.popup(this.createConfirmLandingState(craft, reached));
             } else {
               craft.returnToBase();
             }
@@ -462,7 +488,7 @@ export class GeoscapeState extends State {
             if (reached.isDiscovered()) {
               if (craft.getNumSoldiers() > 0 || craft.getNumVehicles() > 0) {
                 this.timerReset();
-                this.popup(new ConfirmLandingState(craft, null, 0));
+                this.popup(this.createConfirmLandingState(craft, reached));
               } else {
                 craft.returnToBase();
               }
@@ -479,6 +505,19 @@ export class GeoscapeState extends State {
         ++i;
       }
     }
+  }
+
+  private createConfirmLandingState(craft: Craft, target: Ufo | MissionSite | AlienBase): ConfirmLandingState {
+    const polygon = this._globe.getPolygonTextureAndShade(target.getLongitude(), target.getLatitude());
+    let texture = polygon.texture;
+    if (target instanceof MissionSite && this.game().getMod()?.getGlobe().getTexture(target.getTexture())) {
+      texture = target.getTexture();
+    }
+    return new ConfirmLandingState(
+      craft,
+      this.game().getMod()?.getGlobe().getTexture(texture) || null,
+      polygon.shade
+    );
   }
 
   time10Minutes(): void {
@@ -810,6 +849,12 @@ export class GeoscapeState extends State {
           }
         }
 
+        if (research.getCutscene().length > 0) {
+          this.popup(new CutsceneState(research.getCutscene()));
+        }
+        if (bonus && bonus.getCutscene().length > 0) {
+          this.popup(new CutsceneState(bonus.getCutscene()));
+        }
         this.popup(new ResearchCompleteState(newResearch, bonus, research));
         this.timerReset();
 
@@ -864,6 +909,46 @@ export class GeoscapeState extends State {
         }
       }
     }
+
+    for (const alienBase of save.getAlienBases()) {
+      const region = save.locateRegion(alienBase.getLongitude(), alienBase.getLatitude());
+      if (region) {
+        region.addActivityAlien(alienBase.getDeployment().getPoints());
+      }
+      for (const country of save.getCountries()) {
+        if (country.getRules().insideCountry(alienBase.getLongitude(), alienBase.getLatitude())) {
+          country.addActivityAlien(alienBase.getDeployment().getPoints());
+          break;
+        }
+      }
+    }
+
+    for (const alienBase of save.getAlienBases()) {
+      this.generateSupplyMission(alienBase, save, mod);
+    }
+  }
+
+  private generateSupplyMission(alienBase: AlienBase, save: SavedGame, mod: Mod): void {
+    const deployment = alienBase.getDeployment();
+    const missionName = deployment.chooseGenMissionType();
+    const missionRule = mod.getAlienMission(missionName);
+    if (missionRule) {
+      if (RNG.percent(deployment.getGenMissionFrequency())) {
+        const mission = new AlienMission(missionRule);
+        const region = save.locateRegion(alienBase.getLongitude(), alienBase.getLatitude());
+        if (!region) {
+          return;
+        }
+        mission.setRegion(region.getRules().getType(), mod);
+        mission.setId(save.getId("ALIEN_MISSIONS"));
+        mission.setRace(alienBase.getAlienRace());
+        mission.setAlienBase(alienBase);
+        mission.start();
+        save.getAlienMissions().push(mission);
+      }
+    } else if (missionName.length > 0) {
+      throw new Error(`Alien Base tried to generate undefined mission: ${missionName}`);
+    }
   }
 
   time1Month(): void {
@@ -874,7 +959,7 @@ export class GeoscapeState extends State {
     }
     save.addMonth();
 
-    // determineAlienMissions() is still a broader monthly alien-strategy boundary.
+    this.determineAlienMissions(save, mod);
 
     let psi = false;
     if (!Options.anytimePsiTraining) {
@@ -904,6 +989,287 @@ export class GeoscapeState extends State {
         }
       }
     }
+  }
+
+  private determineAlienMissions(save: SavedGame, mod: Mod): void {
+    const strategy = save.getAlienStrategy();
+    const month = save.getMonthsPassed();
+    const availableMissions: RuleMissionScript[] = [];
+    const conditions = new Map<number, boolean>();
+
+    for (const name of mod.getMissionScriptList()) {
+      const command = mod.getMissionScript(name);
+      if (!command) {
+        continue;
+      }
+      if (
+        command.getFirstMonth() <= month &&
+        (command.getLastMonth() >= month || command.getLastMonth() === -1) &&
+        (command.getMaxRuns() === -1 || command.getMaxRuns() > strategy.getMissionsRun(command.getVarName())) &&
+        command.getMinDifficulty() <= save.getDifficulty()
+      ) {
+        let triggerHappy = true;
+        for (const [research, required] of command.getResearchTriggers()) {
+          triggerHappy = save.isResearched(research) === required;
+          if (!triggerHappy) {
+            break;
+          }
+        }
+        if (triggerHappy) {
+          availableMissions.push(command);
+        }
+      }
+    }
+
+    for (const command of availableMissions) {
+      let process = true;
+      let success = false;
+      for (const conditional of command.getConditionals()) {
+        if (!process) {
+          break;
+        }
+        const found = conditions.get(Math.abs(conditional));
+        process = found == null || (found === true && conditional > 0) || (found === false && conditional < 0);
+      }
+      if (command.getLabel() > 0 && conditions.has(command.getLabel())) {
+        const shared = availableMissions
+          .filter(other => other !== command && other.getLabel() === command.getLabel())
+          .map(other => other.getType())
+          .join(", ");
+        throw new Error(`Mission generator encountered an error: multiple commands: ${command.getType()} and ${shared}, are sharing the same label: ${command.getLabel()}`);
+      }
+      if (process && RNG.percent(command.getExecutionOdds())) {
+        success = this.processCommand(command, save, mod);
+      }
+      if (command.getLabel() > 0) {
+        if (conditions.has(command.getLabel())) {
+          throw new Error(`Error in mission scripts: ${command.getType()}. Two or more commands sharing the same label. That's bad, Mmmkay?`);
+        }
+        conditions.set(command.getLabel(), success);
+      }
+    }
+  }
+
+  private processCommand(command: RuleMissionScript, save: SavedGame, mod: Mod): boolean {
+    const strategy = save.getAlienStrategy();
+    const month = save.getMonthsPassed();
+    let targetRegion = "";
+    let missionRules: RuleAlienMission | null = null;
+    let missionType = "";
+    let missionRace = "";
+    let targetZone = -1;
+
+    if (command.getSiteType()) {
+      missionType = command.generate(month, GenerationType.GEN_MISSION);
+      const missions = command.getMissionTypes(month);
+      const maxMissions = missions.length;
+      const targetBase = RNG.percent(command.getTargetBaseOdds());
+      let currPos = 0;
+      for (; currPos !== maxMissions; ++currPos) {
+        if (missions[currPos] === missionType) {
+          break;
+        }
+      }
+
+      const validAreas: Array<[string, number]> = [];
+      for (let h = 0; h !== maxMissions; ++h) {
+        let regions = command.hasRegionWeights() ? command.getRegions(month) : [...mod.getRegionsList()];
+        missionRules = mod.getAlienMission(missionType, true);
+        if (!missionRules) {
+          return false;
+        }
+        targetZone = missionRules.getSpawnZone();
+
+        if (targetBase) {
+          const regionsToKeep: string[] = [];
+          for (const base of save.getBases()) {
+            const located = save.locateRegion(base.getLongitude(), base.getLatitude());
+            if (located) {
+              regionsToKeep.push(located.getRules().getType());
+            }
+          }
+          regions = regions.filter(region => regionsToKeep.includes(region));
+        }
+
+        for (const regionName of regions) {
+          let processThisRegion = true;
+          for (const mission of save.getAlienMissions()) {
+            if (mission.getRules().getType() === missionRules.getType() && mission.getRegion() === regionName) {
+              processThisRegion = false;
+              break;
+            }
+          }
+          if (!processThisRegion) {
+            continue;
+          }
+          const region = mod.getRegion(regionName);
+          if (!region) {
+            throw new Error(`Error proccessing mission script named: ${command.getType()}, region named: ${regionName} is not defined`);
+          }
+          if (region.getMissionZones().length > targetZone) {
+            const areas = region.getMissionZones()[targetZone].areas;
+            let counter = 0;
+            for (const area of areas) {
+              if (this.missionAreaIsPoint(area) && strategy.validMissionLocation(command.getVarName(), region.getType(), counter)) {
+                validAreas.push([region.getType(), counter]);
+              }
+              ++counter;
+            }
+          }
+        }
+
+        if (validAreas.length === 0) {
+          if (maxMissions > 1 && ++currPos === maxMissions) {
+            currPos = 0;
+          }
+          missionType = missions[currPos] || "";
+        } else {
+          break;
+        }
+      }
+
+      if (validAreas.length === 0) {
+        return false;
+      }
+
+      targetZone = -1;
+      while (targetZone === -1) {
+        if (command.hasRegionWeights()) {
+          targetRegion = command.generate(month, GenerationType.GEN_REGION);
+        } else {
+          const regions = mod.getRegionsList();
+          targetRegion = regions[RNG.generate(0, regions.length - 1)] || "";
+        }
+
+        let min = -1;
+        let max = -1;
+        let curr = 0;
+        for (const [region, zone] of validAreas) {
+          if (region === targetRegion) {
+            if (min === -1) {
+              min = curr;
+            }
+            max = curr;
+          } else if (min > -1) {
+            break;
+          }
+          ++curr;
+        }
+        if (min !== -1) {
+          targetZone = validAreas[RNG.generate(min, max)][1];
+        }
+      }
+      strategy.addMissionLocation(command.getVarName(), targetRegion, targetZone, command.getRepeatAvoidance());
+    } else if (RNG.percent(command.getTargetBaseOdds())) {
+      const types = command.getMissionTypes(month);
+      const regionsMaster: string[] = [];
+      for (const base of save.getBases()) {
+        const located = save.locateRegion(base.getLongitude(), base.getLatitude());
+        if (located) {
+          regionsMaster.push(located.getRules().getType());
+        }
+      }
+      if (types.length === 0) {
+        for (let i = 0; i < regionsMaster.length;) {
+          if (!strategy.validMissionRegion(regionsMaster[i])) {
+            regionsMaster.splice(i, 1);
+          } else {
+            ++i;
+          }
+        }
+        if (regionsMaster.length === 0) {
+          return false;
+        }
+        targetRegion = regionsMaster[RNG.generate(0, regionsMaster.length - 1)] || "";
+      } else {
+        const max = types.length;
+        let entry = RNG.generate(0, max - 1);
+        let regions: string[] = [];
+        for (let i = 0; i !== max; ++i) {
+          regions = [...regionsMaster];
+          for (const mission of save.getAlienMissions()) {
+            if (types[entry] === mission.getRules().getType()) {
+              for (let k = 0; k < regions.length;) {
+                if (regions[k] === mission.getRegion()) {
+                  regions.splice(k, 1);
+                } else {
+                  ++k;
+                }
+              }
+            }
+          }
+          if (regions.length > 0) {
+            missionType = types[entry];
+            targetRegion = regions[RNG.generate(0, regions.length - 1)] || "";
+            break;
+          }
+          if (max > 1 && ++entry === max) {
+            entry = 0;
+          }
+        }
+      }
+    } else if (!command.hasRegionWeights()) {
+      targetRegion = strategy.chooseRandomRegion(mod);
+    } else {
+      targetRegion = command.generate(month, GenerationType.GEN_REGION);
+    }
+
+    if (targetRegion.length === 0) {
+      return false;
+    }
+
+    if (!mod.getRegion(targetRegion)) {
+      throw new Error(`Error proccessing mission script named: ${command.getType()}, region named: ${targetRegion} is not defined`);
+    }
+
+    if (missionType.length === 0) {
+      if (!command.hasMissionWeights()) {
+        missionType = strategy.chooseRandomMission(targetRegion);
+      } else {
+        missionType = command.generate(month, GenerationType.GEN_MISSION);
+      }
+    }
+
+    if (missionType.length === 0) {
+      return false;
+    }
+
+    missionRules = mod.getAlienMission(missionType);
+    if (!missionRules) {
+      throw new Error(`Error proccessing mission script named: ${command.getType()}, mission type: ${missionType} is not defined`);
+    }
+
+    if (!command.hasRaceWeights()) {
+      missionRace = missionRules.generateRace(month);
+    } else {
+      missionRace = command.generate(month, GenerationType.GEN_RACE);
+    }
+
+    if (missionRace.length === 0) {
+      throw new Error(`Error proccessing mission script named: ${command.getType()}, mission type: ${missionType} has no available races`);
+    }
+
+    if (!mod.getAlienRace(missionRace)) {
+      throw new Error(`Error proccessing mission script named: ${command.getType()}, race: ${missionRace} is not defined`);
+    }
+
+    const mission = new AlienMission(missionRules);
+    mission.setRace(missionRace);
+    mission.setId(save.getId("ALIEN_MISSIONS"));
+    mission.setRegion(targetRegion, mod);
+    mission.setMissionSiteZone(targetZone);
+    strategy.addMissionRun(command.getVarName());
+    mission.start(command.getDelay());
+    save.getAlienMissions().push(mission);
+    if (command.getUseTable()) {
+      strategy.removeMission(targetRegion, missionType);
+    }
+    return true;
+  }
+
+  private missionAreaIsPoint(area: { lonMin: number; lonMax: number; latMin: number; latMax: number }): boolean {
+    return Math.abs(area.lonMin - area.lonMax) <= Number.EPSILON &&
+      Math.abs(area.latMin - area.latMax) <= Number.EPSILON;
   }
 
   timerReset(): void {
@@ -984,7 +1350,7 @@ export class GeoscapeState extends State {
     return slotNo;
   }
 
-  handleBaseDefense(base: Base, ufo: Ufo): void {
+  async handleBaseDefense(base: Base, ufo: Ufo): Promise<void> {
     ufo.setStatus(UfoStatus.DESTROYED);
 
     if (base.getAvailableSoldiers(true) > 0 || base.getVehicles().length > 0) {
@@ -999,7 +1365,8 @@ export class GeoscapeState extends State {
         bgen.setDifficulty(save.getDifficulty());
       }
       this._pause = true;
-      console.log("BriefingState boundary: GeoscapeState prepared the base-defense battle game.");
+      await bgen.run();
+      this.game().pushState(new BriefingState(null, base));
     } else {
       this.popup(new BaseDestroyedState(base));
     }

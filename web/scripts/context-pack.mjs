@@ -35,6 +35,13 @@ function bulletList(items, empty = "none") {
   return items.length === 0 ? empty : items.map(item => `- ${item}`).join("\n");
 }
 
+function tableCell(value) {
+  return String(value ?? "")
+    .replaceAll("|", "\\|")
+    .replace(/\r?\n/g, " ")
+    .trim();
+}
+
 function verificationMarkers(text) {
   return [...new Set((text || "").match(/\bVERIFY_[A-Z0-9_]+\b/g) || [])];
 }
@@ -109,6 +116,40 @@ async function refreshStatus() {
   });
 }
 
+async function readCodexStatus() {
+  try {
+    const { stdout } = await execFileAsync(process.execPath, [join(repoRoot, "tools", "codex-status.mjs"), "--json"], {
+      cwd: repoRoot,
+      windowsHide: true,
+      maxBuffer: 1024 * 1024
+    });
+    const status = JSON.parse(stdout);
+    const inputTokens = status.last_token_usage?.input_tokens ?? null;
+    const contextWindow = status.model_context_window ?? null;
+    const contextLeftPercent = typeof inputTokens === "number" && typeof contextWindow === "number" && contextWindow > 0
+      ? Math.max(0, Math.round((100 - inputTokens / contextWindow * 100) * 10) / 10)
+      : null;
+    return {
+      available: true,
+      sessionId: status.session_id || null,
+      model: status.model || null,
+      reasoningEffort: status.reasoning_effort || null,
+      lastEventAt: status.last_event_at || null,
+      latestInputTokens: inputTokens,
+      contextWindow,
+      contextLeftPercent,
+      primaryLimit: status.rate_limits?.primary || null,
+      weeklyLimit: status.rate_limits?.secondary || null,
+      creditsReported: status.rate_limits?.credits != null
+    };
+  } catch (error) {
+    return {
+      available: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
 function selectActiveSlice(slices) {
   const requested = args.get("--slice");
   if (requested) {
@@ -116,6 +157,8 @@ function selectActiveSlice(slices) {
     if (found) {
       return found;
     }
+    const names = slices.map(slice => slice.name).sort((a, b) => a.localeCompare(b));
+    throw new Error(`Unknown slice "${requested}". Available slices: ${names.join("; ")}`);
   }
   return slices.find(slice => slice.status === "partial-integrated-verified")
     || slices.find(slice => slice.status !== "integrated-verified")
@@ -162,6 +205,7 @@ async function main() {
   const slices = JSON.parse(await readFile(join(webRoot, "translation-slices.json"), "utf8"));
   const activeSlice = selectActiveSlice(slices);
   const activeSlices = slices.filter(slice => slice.status !== "integrated-verified");
+  const codexStatus = await readCodexStatus();
 
   const packet = {
     generatedAt: new Date().toISOString(),
@@ -184,6 +228,9 @@ async function main() {
       slicePathWarnings: status.summary.slicePathWarnings,
       statusRollups: status.statusRollups
     },
+    observability: {
+      codexStatus
+    },
     activeSlice: compactSlice(activeSlice),
     integrationQueue: activeSlices.map(compactSlice),
     hotFilesRequireExplicitOwnership: [
@@ -203,9 +250,11 @@ async function main() {
       statusJson: "cd web; npm run status -- --json",
       build: "cd web; npm run build",
       typecheck: "cd web; npm run typecheck",
+      codexStatus: "cd web; npm run codex:status",
+      orchestrator: "cd web; npm run orchestrator",
       agentLedger: "cd web; npm run agents",
       agentPrompt: "cd web; npm run agents:prompt -- --role readonly --task \"...\" --scope \"src/Foo.cpp; web/src/Foo.ts\"",
-      codexStatus: "node tools/codex-status.mjs"
+      codexStatusRepoRoot: "node tools/codex-status.mjs"
     },
     subagentHandoffSchema: {
       include: [
@@ -257,6 +306,16 @@ async function main() {
   md.push(`- Integrated verified slices: ${packet.progress.integratedVerifiedSlices}`);
   md.push(`- Slice path warnings: ${packet.progress.slicePathWarnings}`);
   md.push(`- Status rollup: ${Object.entries(packet.progress.statusRollups).map(([statusName, count]) => `${statusName}=${count}`).join(", ")}`);
+  if (packet.observability.codexStatus.available) {
+    const localStatus = packet.observability.codexStatus;
+    const modelText = `${localStatus.model || "unknown"}${localStatus.reasoningEffort ? ` (${localStatus.reasoningEffort})` : ""}`;
+    const contextText = localStatus.contextLeftPercent == null
+      ? "unknown"
+      : `${localStatus.contextLeftPercent}% left (${localStatus.latestInputTokens}/${localStatus.contextWindow} latest input tokens)`;
+    md.push(`- Local Codex status: ${modelText}; context ${contextText}; credits ${localStatus.creditsReported ? "reported" : "not reported locally"}`);
+  } else {
+    md.push(`- Local Codex status: unavailable (${packet.observability.codexStatus.error})`);
+  }
   md.push("");
   md.push("## Active Slice");
   md.push("");
@@ -292,7 +351,7 @@ async function main() {
     md.push("| Slice | Area | Status | % | Next action |");
     md.push("| --- | --- | --- | ---: | --- |");
     for (const item of packet.integrationQueue) {
-      md.push(`| ${item.name} | ${item.area} | ${item.status} | ${item.slicePercent}% | ${item.nextAction} |`);
+      md.push(`| ${tableCell(item.name)} | ${tableCell(item.area)} | ${tableCell(item.status)} | ${item.slicePercent}% | ${tableCell(item.nextAction)} |`);
     }
     md.push("");
   }

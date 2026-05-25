@@ -1,5 +1,5 @@
 import { Options } from "../Engine/Options.ts";
-import { Target, type CoordinateTarget, type TargetLike, nautical, targetsAreSame } from "./Target.ts";
+import { Target, type CoordinateTarget, type TargetLike, type TargetSaveNode, nautical, targetsAreSame } from "./Target.ts";
 
 type MovingTargetLike = CoordinateTarget & {
   getDestination?: () => CoordinateTarget | null;
@@ -18,6 +18,14 @@ function hasFollowers(target: CoordinateTarget | null): target is FollowerTarget
   return typeof (target as TargetLike | null)?.getFollowers === "function";
 }
 
+export type MovingTargetSaveNode = TargetSaveNode & {
+  dest?: TargetSaveNode;
+  speedLon?: number;
+  speedLat?: number;
+  speedRadian?: number;
+  speed?: number;
+};
+
 /**
  * Base class for moving targets on the globe with a certain speed and destination.
  */
@@ -33,6 +41,40 @@ export abstract class MovingTarget extends Target {
 
   getDestination(): TargetLike | null {
     return this._dest;
+  }
+
+  override load(node: MovingTargetSaveNode | null | undefined): void {
+    super.load(node);
+    if (!node) {
+      return;
+    }
+    this._speedLon = typeof node.speedLon === "number" ? node.speedLon : this._speedLon;
+    this._speedLat = typeof node.speedLat === "number" ? node.speedLat : this._speedLat;
+    this._speedRadian = typeof node.speedRadian === "number" ? node.speedRadian : this._speedRadian;
+    this._speed = typeof node.speed === "number" ? node.speed : this._speed;
+  }
+
+  override save(): MovingTargetSaveNode {
+    const node: MovingTargetSaveNode = {
+      ...super.save(),
+      speedLon: this._speedLon,
+      speedLat: this._speedLat,
+      speedRadian: this._speedRadian,
+      speed: this._speed
+    };
+    if (this._dest) {
+      if (typeof this._dest.saveId === "function") {
+        node.dest = this._dest.saveId();
+      } else {
+        node.dest = {
+          lon: this._dest.getLongitude(),
+          lat: this._dest.getLatitude(),
+          type: this._dest.getType?.(),
+          id: this._dest.getId?.() ?? 0
+        };
+      }
+    }
+    return node;
   }
 
   setDestination(dest: TargetLike | null): void {

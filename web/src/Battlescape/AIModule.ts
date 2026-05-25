@@ -5,7 +5,7 @@ import { BattleType, ItemDamageType } from "../Mod/RuleItem.ts";
 import { UnitFaction, UnitStatus, type BattleUnit } from "../Savegame/BattleUnit.ts";
 import { Node } from "../Savegame/Node.ts";
 import type { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
-import { BattleActionType, createBattleAction, type BattleAction } from "./BattlescapeGame.ts";
+import { BattleActionType, createBattleAction, type BattleAction } from "./BattleAction.ts";
 import { Pathfinding } from "./Pathfinding.ts";
 import { Position, type PositionLike } from "./Position.ts";
 
