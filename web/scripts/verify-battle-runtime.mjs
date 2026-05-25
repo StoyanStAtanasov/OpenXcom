@@ -826,14 +826,16 @@ const verifier = String.raw`async page => {
       getMarkerColor: () => 0,
       getPreview: () => -1
     };
+    const animatedUnits = [];
     const mapSave = {
       getMapSizeX: () => 4,
       getMapSizeY: () => 4,
       getMapSizeZ: () => 2,
       getTiles: () => [mapTile],
       getTile: () => mapTile,
-      getUnits: () => [],
-      getSelectedUnit: () => null
+      getUnits: () => animatedUnits,
+      getSelectedUnit: () => null,
+      getDepth: () => 1
     };
     const battleMap = new BattleMap({ getSavedGame: () => ({ getSavedBattle: () => mapSave }) }, 320, 200, 0, 0, 180);
     const timerCalls = [];
@@ -854,6 +856,60 @@ const verifier = String.raw`async page => {
     assert(battleMap._launch === true, "Map.setProjectile did not arm source smooth-camera launch flag");
     battleMap.init();
     assert(battleMap.getProjectile() === null, "Map.init did not reset projectile ownership");
+    const animationCalls = [];
+    animatedUnits.push({
+      getFloorAbove: () => false,
+      breathe: () => animationCalls.push("breathe"),
+      isOut: () => false,
+      getArmor: () => ({ getConstantAnimation: () => true }),
+      setCache: value => animationCalls.push("setCache:" + value)
+    });
+    battleMap.cacheUnit = unit => animationCalls.push(unit === animatedUnits[0] ? "cacheUnit" : "wrongCacheUnit");
+    battleMap.animate(true);
+    assert(mapTile.animateCalls === 1 && JSON.stringify(animationCalls) === JSON.stringify(["breathe", "setCache:0", "cacheUnit"]) && battleMap._redraw === true, "Map.animate did not run source tile/unit animation upkeep");
+
+    const hiddenSave = {
+      getMapSizeX: () => 1,
+      getMapSizeY: () => 1,
+      getMapSizeZ: () => 1,
+      getTiles: () => [mapTile],
+      getTile: () => mapTile,
+      getUnits: () => [],
+      getSelectedUnit: () => ({ getVisible: () => false }),
+      getDebugMode: () => false
+    };
+    const hiddenMap = new BattleMap({ getSavedGame: () => ({ getSavedBattle: () => hiddenSave }) }, 320, 200, 0, 0, 180);
+    const hiddenDrawCalls = [];
+    hiddenMap.drawTerrain = () => hiddenDrawCalls.push("terrain");
+    hiddenMap._message.blit = surface => hiddenDrawCalls.push(surface === hiddenMap ? "message" : "wrongSurface");
+    hiddenMap.draw();
+    assert(JSON.stringify(hiddenDrawCalls) === JSON.stringify(["message"]), "Map.draw did not use the C++ hidden-movement message fallback");
+    hiddenMap.setWidth(640);
+    hiddenMap.setHeight(120);
+    assert(hiddenMap._message.getX() === 160 && hiddenMap.getMessageY() === 0 && hiddenMap._message.getHeight() === 120, "Map width/height did not update hidden-movement message like C++");
+
+    const paletteSet = new SurfaceSet(1, 1);
+    paletteSet.addFrame(0);
+    const paletteMap = new BattleMap({
+      getSavedGame: () => ({ getSavedBattle: () => ({
+        getMapSizeX: () => 1,
+        getMapSizeY: () => 1,
+        getMapSizeZ: () => 1,
+        getTiles: () => [mapTile],
+        getTile: () => mapTile,
+        getUnits: () => [],
+        getSelectedUnit: () => null,
+        getMapDataSets: () => [{ getSurfaceset: () => paletteSet }]
+      }) }),
+      getMod: () => ({
+        getSurface: name => name === "TAC00.SCR" ? new Surface(320, 200) : null,
+        getFont: () => null
+      }),
+      getLanguage: () => ({ getString: id => "LANG:" + id })
+    }, 320, 200, 0, 0, 180);
+    const palette = Array.from({ length: 256 }, (_value, index) => ({ r: index, g: index + 1, b: index + 2, a: 255 }));
+    paletteMap.setPalette(palette, 0, palette.length);
+    assert(paletteSet.getFrame(0).getPalette()[7].r === 7 && paletteMap._message._text.getText() === "LANG:STR_HIDDEN_MOVEMENT", "Map.setPalette did not propagate source palette/message resources");
 
     const tileSurfaceSet = new SurfaceSet(32, 40);
     const tileFrame = tileSurfaceSet.addFrame(3);
@@ -972,6 +1028,17 @@ const verifier = String.raw`async page => {
     unitMaskMap._redraw = false;
     unitMaskMap.drawUnit(unitTile, unitTile, new Position(40, 50, 0), 0, 0, false);
     assert(unitMaskMap.getPixel(24, 50) === 0 && unitMaskMap.getPixel(24, 58) !== 0, "Map.drawUnit did not apply the source top-floor GraphSubset mask");
+    const noCacheUnit = {
+      getVisible: () => true,
+      getPosition: () => new Position(0, 0, 0),
+      getCache: () => null
+    };
+    const noCacheTile = {
+      getUnit: () => noCacheUnit,
+      getPosition: () => new Position(0, 0, 0)
+    };
+    unitMaskMap.drawUnit(noCacheTile, noCacheTile, new Position(40, 50, 0), 0, 0, false);
+    assert(unitMaskMap.getPixel(40, 44) === 0, "Map.drawUnit drew invented fallback pixels on a source cache miss");
 
     const projectileFrame = new SurfaceSet(3, 3);
     projectileFrame.addFrame(0).drawRect(0, 0, 3, 3, 93);

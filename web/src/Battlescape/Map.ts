@@ -10,11 +10,13 @@ import { Text } from "../Interface/Text.ts";
 import type { Action } from "../Engine/Action.ts";
 import type { Language } from "../Engine/Language.ts";
 import type { State } from "../Engine/State.ts";
+import type { PaletteColor } from "../types.ts";
 import { Mod } from "../Mod/Mod.ts";
 import { TilePart } from "../Mod/MapData.ts";
 import { UnitFaction, UnitStatus, type BattleUnit } from "../Savegame/BattleUnit.ts";
 import { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
 import type { Tile } from "../Savegame/Tile.ts";
+import { BattlescapeMessage } from "./BattlescapeMessage.ts";
 import { Camera } from "./Camera.ts";
 import { BattleActionType } from "./BattleAction.ts";
 import { Explosion } from "./Explosion.ts";
@@ -58,6 +60,7 @@ export class Map extends InteractiveSurface {
 
   private _save: SavedBattleGame;
   private _mod: Mod | null = null;
+  private _language: Language | null = null;
   private _spriteWidth = 32;
   private _spriteHeight = 40;
   private _selectorX = 0;
@@ -70,6 +73,7 @@ export class Map extends InteractiveSurface {
   private _camera: Camera;
   private _visibleMapHeight: number;
   private _arrow: Surface;
+  private _message: BattlescapeMessage;
   private _txtAccuracy = new Text(24, 9, 0, 0);
   private _waypoints: Position[] = [];
   private _unitDying = false;
@@ -94,6 +98,7 @@ export class Map extends InteractiveSurface {
     super(width, height, x, y);
     this._save = resolveSave(gameOrSave);
     this._mod = gameOrSave instanceof SavedBattleGame ? null : gameOrSave.getMod?.() || null;
+    this._language = gameOrSave instanceof SavedBattleGame ? null : gameOrSave.getLanguage?.() || null;
     this._arrow = this.createSelectedUnitArrow();
     this._spriteWidth = spriteWidth;
     this._spriteHeight = spriteHeight;
@@ -104,13 +109,18 @@ export class Map extends InteractiveSurface {
     this._messageColor = battlescapeInterface?.getElement("messageWindows")?.color ?? this._messageColor;
     this._previewSetting = Options.traceAI ? PATH_FULL : Options.battleNewPreviewPath;
     this._transparencies = this._mod?.getLUTs?.()?.[this._save.getDepth?.() || 0] || null;
+    this._message = new BattlescapeMessage(320, Math.min(visibleMapHeight, 200), 0, 0);
+    this._message.setX(Math.trunc((width - 320) / 2));
+    this._message.setY(Math.trunc((visibleMapHeight - this._message.getHeight()) / 2));
+    this._message.setTextColor(this._messageColor);
+    this.updateHiddenMovementMessage();
     this._txtAccuracy.setSmall();
     this._txtAccuracy.setPalette(this.getPalette());
     this._txtAccuracy.setHighContrast(true);
     this._txtAccuracy.initText(
       this._mod?.getFont?.("FONT_BIG") || null,
       this._mod?.getFont?.("FONT_SMALL") || null,
-      gameOrSave instanceof SavedBattleGame ? null : gameOrSave.getLanguage?.() || null
+      this._language
     );
     this._camera = new Camera(this._spriteWidth, this._spriteHeight, this._save.getMapSizeX(), this._save.getMapSizeY(), this._save.getMapSizeZ(), this, visibleMapHeight);
     this._scrollMouseTimer.onSurfaceTimer(this.scrollMouse.bind(this));
@@ -124,8 +134,11 @@ export class Map extends InteractiveSurface {
 
   override initText(big?: unknown, small?: unknown, lang?: unknown): void {
     super.initText(big, small, lang);
+    this._language = (lang as Language | null) || this._language;
+    this._message.initText(big, small, this._language);
+    this.updateHiddenMovementMessage();
     this._txtAccuracy.setPalette(this.getPalette());
-    this._txtAccuracy.initText(big, small, lang);
+    this._txtAccuracy.initText(big, small, this._language);
   }
 
   init(): void {
@@ -145,7 +158,12 @@ export class Map extends InteractiveSurface {
     this._redraw = false;
     this.clear(Palette.blockOffset(0) + 15);
     this.updateProjectileVisibility();
-    this.drawTerrain();
+    const selected = this._save.getSelectedUnit?.() || null;
+    if ((selected && selected.getVisible?.()) || this._unitDying || !selected || (this._save.getDebugMode?.() ?? false) || this._projectileInFOV || this._explosionInFOV) {
+      this.drawTerrain();
+    } else {
+      this._message.blit(this);
+    }
   }
 
   override mouseOver(action: Action, state: State): void {
@@ -183,6 +201,15 @@ export class Map extends InteractiveSurface {
     }
     for (const tile of this._save.getTiles()) {
       tile.animate();
+    }
+    for (const unit of this._save.getUnits()) {
+      if ((this._save.getDepth?.() || 0) > 0 && !unit.getFloorAbove()) {
+        unit.breathe();
+      }
+      if (!unit.isOut() && unit.getArmor().getConstantAnimation()) {
+        unit.setCache(0);
+        this.cacheUnit(unit);
+      }
     }
     if (redraw) {
       this.invalidate();
@@ -249,16 +276,20 @@ export class Map extends InteractiveSurface {
   override setHeight(height: number): void {
     super.setHeight(height);
     this._visibleMapHeight = height - this._iconHeight;
+    this._message.setHeight(Math.min(this._visibleMapHeight, 200));
+    this._message.setY(Math.trunc((this._visibleMapHeight - this._message.getHeight()) / 2));
     this._camera.resize();
   }
 
   override setWidth(width: number): void {
+    const dX = width - this.getWidth();
     super.setWidth(width);
+    this._message.setX(this._message.getX() + Math.trunc(dX / 2));
     this._camera.resize();
   }
 
   getMessageY(): number {
-    return Math.trunc(this._visibleMapHeight / 2);
+    return this._message.getY();
   }
 
   getIconHeight(): number {
@@ -267,6 +298,16 @@ export class Map extends InteractiveSurface {
 
   getIconWidth(): number {
     return this._iconWidth;
+  }
+
+  override setPalette(colors: PaletteColor[], firstcolor = 0, ncolors = colors.length): void {
+    super.setPalette(colors, firstcolor, ncolors);
+    for (const dataSet of this._save.getMapDataSets?.() || []) {
+      dataSet.getSurfaceset?.()?.setPalette(colors, firstcolor, ncolors);
+    }
+    this._message.setPalette(colors, firstcolor, ncolors);
+    this.updateHiddenMovementMessage();
+    this._txtAccuracy.setPalette(colors, firstcolor, ncolors);
   }
 
   getSoundAngle(pos: Position): number {
@@ -805,10 +846,9 @@ export class Map extends InteractiveSurface {
 
     const unitOffset = unitTile.getPosition().subtract(unit.getPosition());
     const part = unitOffset.x + unitOffset.y * 2;
-    let tmpSurface = unit.getCache?.(part) || null;
-    if (!tmpSurface && unit.isCacheInvalid?.()) {
-      this.cacheUnit(unit);
-      tmpSurface = unit.getCache?.(part) || null;
+    const tmpSurface = unit.getCache?.(part) || null;
+    if (!tmpSurface) {
+      return;
     }
 
     const moving = unit.getStatus?.() === UnitStatus.STATUS_WALKING || unit.getStatus?.() === UnitStatus.STATUS_FLYING;
@@ -900,17 +940,13 @@ export class Map extends InteractiveSurface {
       unitShade = obstacleShade;
     }
 
-    if (tmpSurface) {
-      tmpSurface.blitNShade(
-        this,
-        unitScreenPosition.x + mapOffset.x + walking.offset.x - Math.trunc(this._spriteWidth / 2),
-        unitScreenPosition.y + mapOffset.y + walking.offset.y,
-        unitShade,
-        mask
-      );
-    } else if (unitTile === currTile) {
-      this.drawUnitMarker(currTileScreenPosition.x, currTileScreenPosition.y, unit.getFaction(), unit === this._save.getSelectedUnit?.());
-    }
+    tmpSurface.blitNShade(
+      this,
+      unitScreenPosition.x + mapOffset.x + walking.offset.x - Math.trunc(this._spriteWidth / 2),
+      unitScreenPosition.y + mapOffset.y + walking.offset.y,
+      unitShade,
+      mask
+    );
 
     if ((unit.getFire?.() || 0) > 0) {
       const fireFrame = 4 + Math.trunc(this._animFrame / 2);
@@ -1031,23 +1067,6 @@ export class Map extends InteractiveSurface {
       }
     }
     this._flashScreen = false;
-  }
-
-  private drawUnitMarker(sx: number, sy: number, faction: UnitFaction, selected: boolean): void {
-    const cx = sx;
-    const footY = sy + Math.trunc(this._spriteWidth / 4);
-    const color = faction === UnitFaction.FACTION_PLAYER
-      ? Palette.blockOffset(5) + 11
-      : faction === UnitFaction.FACTION_HOSTILE
-        ? Palette.blockOffset(2) + 11
-        : Palette.blockOffset(10) + 11;
-    const outline = selected ? Palette.blockOffset(13) + 15 : Palette.blockOffset(0) + 4;
-    this.drawRect(cx - 3, footY - 14, 7, 5, outline);
-    this.drawRect(cx - 2, footY - 13, 5, 3, color);
-    this.drawRect(cx - 4, footY - 9, 9, 8, outline);
-    this.drawRect(cx - 3, footY - 8, 7, 6, color);
-    this.drawLine(cx - 3, footY - 1, cx - 5, footY + 4, outline);
-    this.drawLine(cx + 3, footY - 1, cx + 5, footY + 4, outline);
   }
 
   private drawProjectile(): void {
@@ -1263,6 +1282,14 @@ export class Map extends InteractiveSurface {
 
   private isVoxelVisible(voxelPos: Position): boolean {
     return this._save.getTileEngine?.()?.isVoxelVisible?.(voxelPos) ?? true;
+  }
+
+  private updateHiddenMovementMessage(): void {
+    const background = this._mod?.getSurface?.("TAC00.SCR") || null;
+    if (background) {
+      this._message.setBackground(background);
+    }
+    this._message.setText(this._language ? String(this._language.getString("STR_HIDDEN_MOVEMENT")) : "STR_HIDDEN_MOVEMENT");
   }
 
   private drawExplosions(): void {
