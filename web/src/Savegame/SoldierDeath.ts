@@ -1,4 +1,5 @@
 import { GameTime } from "./GameTime.ts";
+import type { BattleUnitKillsSave } from "./BattleUnitStatistics.ts";
 
 export type SoldierDeathSave = {
   time?: {
@@ -13,11 +14,7 @@ export type SoldierDeathSave = {
   cause?: BattleUnitKills | null;
 };
 
-export type BattleUnitKills = {
-  faction?: number;
-  race?: string;
-  mission?: number;
-};
+export type BattleUnitKills = BattleUnitKillsSave;
 
 export class SoldierDeath {
   private _time: GameTime;

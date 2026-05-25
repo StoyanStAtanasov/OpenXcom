@@ -5,8 +5,10 @@ import { KMOD_CTRL } from "../types.ts";
 import { ChronoTrigger } from "../Mod/AlienDeployment.ts";
 import { SpecialTileType } from "../Mod/MapData.ts";
 import { BattleType, ItemDamageType } from "../Mod/RuleItem.ts";
+import { SpecialAbility } from "../Mod/Unit.ts";
 import type { BattleItem } from "../Savegame/BattleItem.ts";
 import { UnitFaction, UnitStatus, type BattleUnit } from "../Savegame/BattleUnit.ts";
+import { BattleUnitKills } from "../Savegame/BattleUnitStatistics.ts";
 import type { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
 import { Pathfinding } from "./Pathfinding.ts";
 import type { TileEngine } from "./TileEngine.ts";
@@ -245,18 +247,79 @@ export class BattlescapeGame {
     let murderer = origMurderer;
     if (murderer &&
       !murderer.getGeoscapeSoldier() &&
+      (murderer.getSpecialAbility() === SpecialAbility.SPECAB_EXPLODEONDEATH || murderer.getSpecialAbility() === SpecialAbility.SPECAB_BURN_AND_EXPLODE) &&
       murderer.getStatus() === UnitStatus.STATUS_DEAD &&
       murderer.getMurdererId() !== 0) {
       murderer = this._save.getUnits().find(unit => unit.getId() === murderer?.getMurdererId()) || murderer;
     }
 
+    let tempWeapon = "STR_WEAPON_UNKNOWN";
+    let tempAmmo = "STR_WEAPON_UNKNOWN";
+    if (murderer) {
+      if (murderweapon) {
+        tempAmmo = murderweapon.getRules().getName();
+        tempWeapon = tempAmmo;
+      }
+      for (const slot of ["STR_RIGHT_HAND", "STR_LEFT_HAND"]) {
+        const weapon = murderer.getItem(slot);
+        if (weapon?.getRules().getCompatibleAmmo().includes(tempAmmo)) {
+          tempWeapon = weapon.getRules().getName();
+        }
+      }
+    }
+
+    const savedGame = this._parentState.getGame().getSavedGame();
+    if (!savedGame) {
+      throw new Error("BattlescapeGame::checkForCasualties requires SavedGame");
+    }
     for (const victim of this._save.getUnits()) {
       if (victim.getStatus() === UnitStatus.STATUS_IGNORE_ME) {
         continue;
       }
       let victimMurderer = murderer;
+      const killStat = new BattleUnitKills();
+      killStat.mission = savedGame.getMissionStatistics().length;
+      killStat.setTurn(this._save.getTurn(), this._save.getSide());
+      killStat.setUnitStats(victim);
+      killStat.faction = victim.getFaction();
+      killStat.side = victim.getFatalShotSide();
+      killStat.bodypart = victim.getFatalShotBodyPart();
+      killStat.id = victim.getId();
+      killStat.weapon = tempWeapon;
+      killStat.weaponAmmo = tempAmmo;
+
+      if (victim.getStatus() !== UnitStatus.STATUS_DEAD) {
+        if (victim.getHealth() === 0) {
+          killStat.status = UnitStatus.STATUS_DEAD;
+        } else if (victim.getStunlevel() >= victim.getHealth() && victim.getStatus() !== UnitStatus.STATUS_UNCONSCIOUS) {
+          killStat.status = UnitStatus.STATUS_UNCONSCIOUS;
+        }
+      }
+
       if (!victimMurderer && !terrainExplosion && victim.getMurdererId() !== 0) {
         victimMurderer = this._save.getUnits().find(unit => unit.getId() === victim.getMurdererId()) || null;
+        if (victimMurderer) {
+          killStat.weapon = victim.getMurdererWeapon();
+          killStat.weaponAmmo = victim.getMurdererWeaponAmmo();
+        }
+      }
+
+      if (victimMurderer && killStat.status !== UnitStatus.STATUS_IGNORE_ME) {
+        if (victimMurderer.getFaction() === UnitFaction.FACTION_PLAYER && victimMurderer.getOriginalFaction() !== UnitFaction.FACTION_PLAYER) {
+          for (const unit of this._save.getUnits()) {
+            if (unit.getId() === victimMurderer.getMindControllerId() && unit.getGeoscapeSoldier()) {
+              unit.getStatistics().kills.push(new BattleUnitKills(killStat.save()));
+              if (victim.getFaction() === UnitFaction.FACTION_HOSTILE) {
+                unit.getStatistics().slaveKills++;
+              }
+              victim.setMurdererId(unit.getId());
+              break;
+            }
+          }
+        } else if (!victimMurderer.getStatistics().duplicateEntry(killStat.status, victim.getId())) {
+          victimMurderer.getStatistics().kills.push(new BattleUnitKills(killStat.save()));
+          victim.setMurdererId(victimMurderer.getId());
+        }
       }
 
       let noSound = false;
@@ -311,6 +374,12 @@ export class BattlescapeGame {
         this.statePushNext(new UnitDieBState(this, victim, damageType, noSound, noCorpse));
         if (victim.getGeoscapeSoldier()) {
           victim.getStatistics().KIA = true;
+          const deathStat = new BattleUnitKills(killStat.save());
+          if (victimMurderer) {
+            deathStat.setUnitStats(victimMurderer);
+            deathStat.faction = victimMurderer.getFaction();
+          }
+          savedGame.killSoldier(victim.getGeoscapeSoldier()!, deathStat.save());
         }
       } else if (victim.getStunlevel() >= victim.getHealth() && victim.getStatus() !== UnitStatus.STATUS_UNCONSCIOUS) {
         if (victim.getGeoscapeSoldier()) {
@@ -319,6 +388,11 @@ export class BattlescapeGame {
         noSound = true;
         this.statePushNext(new UnitDieBState(this, victim, ItemDamageType.DT_STUN, noSound, noCorpse));
       }
+    }
+
+    const selectedUnit = this._save.getSelectedUnit();
+    if (this._save.getSide() === UnitFaction.FACTION_PLAYER) {
+      this._parentState.showPsiButton(Boolean(selectedUnit?.getSpecialWeapon(BattleType.BT_PSIAMP) && !selectedUnit.isOut()));
     }
   }
 

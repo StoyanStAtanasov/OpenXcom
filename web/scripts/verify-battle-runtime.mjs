@@ -29,13 +29,26 @@ const verifier = String.raw`async page => {
   await page.waitForFunction(() => document.readyState === "complete");
 
   const result = await page.evaluate(async () => {
-    const [{ Pathfinding }, { TileEngine }, { Position }, { MovementType }, { UnitFaction }, { TilePart, VoxelType }] = await Promise.all([
+    const [
+      { Pathfinding },
+      { TileEngine },
+      { Position },
+      { MovementType },
+      { UnitFaction, UnitStatus, UnitSide, UnitBodyPart },
+      { TilePart, VoxelType },
+      { BattlescapeGame },
+      { ItemDamageType },
+      { SpecialAbility }
+    ] = await Promise.all([
       import("/web/dist/Battlescape/Pathfinding.js"),
       import("/web/dist/Battlescape/TileEngine.js"),
       import("/web/dist/Battlescape/Position.js"),
       import("/web/dist/Mod/Armor.js"),
       import("/web/dist/Savegame/BattleUnit.js"),
-      import("/web/dist/Mod/MapData.js")
+      import("/web/dist/Mod/MapData.js"),
+      import("/web/dist/Battlescape/BattlescapeGame.js"),
+      import("/web/dist/Mod/RuleItem.js"),
+      import("/web/dist/Mod/Unit.js")
     ]);
 
     const assert = (condition, message) => {
@@ -187,13 +200,144 @@ const verifier = String.raw`async page => {
     assert(tileEngine.canTargetUnit(originVoxel, lineSave.getTile(new Position(3, 2, 0)), scanVoxel, straightUnit, false, targetUnit), "canTargetUnit rejected source potentialUnit line-of-fire path");
     assert(tileEngine.voxelCheck(scanVoxel, straightUnit) === VoxelType.V_UNIT, "canTargetUnit scan voxel did not resolve to the target unit");
 
+    const makeStats = () => ({
+      kills: [],
+      KIA: false,
+      wasUnconcious: false,
+      slaveKills: 0,
+      duplicateEntry(status, id) {
+        return this.kills.some(kill => kill.status === status && kill.id === id);
+      }
+    });
+    const makeCasualtyUnit = options => {
+      const stats = makeStats();
+      let murdererId = options.murdererId ?? 0;
+      let killCount = 0;
+      const soldier = options.soldier ?? null;
+      return {
+        _stats: stats,
+        _killCount: () => killCount,
+        getId: () => options.id,
+        getType: () => options.type ?? "STR_TEST_UNIT",
+        getUnitRules: () => ({
+          getRace: () => options.race ?? "STR_TEST_RACE",
+          getRank: () => options.rank ?? "STR_TEST_RANK",
+          getSpecialAbility: () => options.specialAbility ?? SpecialAbility.SPECAB_NONE
+        }),
+        getSpecialAbility: () => options.specialAbility ?? SpecialAbility.SPECAB_NONE,
+        getStatus: () => options.status ?? UnitStatus.STATUS_STANDING,
+        getHealth: () => options.health ?? 100,
+        getStunlevel: () => options.stun ?? 0,
+        getFaction: () => options.faction,
+        getOriginalFaction: () => options.originalFaction ?? options.faction,
+        getGeoscapeSoldier: () => soldier,
+        getMurdererId: () => murdererId,
+        setMurdererId: id => { murdererId = id; },
+        getMindControllerId: () => options.mindControllerId ?? 0,
+        getItem: slot => options.items?.[slot] ?? null,
+        getStatistics: () => stats,
+        getFatalShotSide: () => UnitSide.SIDE_LEFT,
+        getFatalShotBodyPart: () => UnitBodyPart.BODYPART_TORSO,
+        getMurdererWeapon: () => options.murdererWeapon ?? "STR_BLEED_WEAPON",
+        getMurdererWeaponAmmo: () => options.murdererWeaponAmmo ?? "STR_BLEED_AMMO",
+        addKillCount: () => { killCount++; },
+        killedBy: faction => { options.killedBy = faction; },
+        moraleChange: amount => { options.morale = (options.morale ?? 0) + amount; },
+        setTurnsSinceSpotted: value => { options.turnsSinceSpotted = value; },
+        getArmor: () => ({ getSize: () => 1 }),
+        isOut: () => false,
+        getBaseStats: () => ({ bravery: 50 }),
+        getDirection: () => 2,
+        clearVisibleTiles: () => {},
+        clearVisibleUnits: () => {},
+        freePatrolTarget: () => {},
+        getTile: () => null,
+        getSpecialWeapon: () => null
+      };
+    };
+    const makeItem = (name, damageType, ammo = []) => ({
+      getRules: () => ({
+        getName: () => name,
+        getDamageType: () => damageType,
+        getCompatibleAmmo: () => ammo
+      })
+    });
+    const plasmaClip = makeItem("STR_PLASMA_CLIP", ItemDamageType.DT_PLASMA);
+    const plasmaRifle = makeItem("STR_PLASMA_RIFLE", ItemDamageType.DT_NONE, ["STR_PLASMA_CLIP"]);
+    const casualtySoldier = {
+      getName: () => "Casualty",
+      getRankString: () => "STR_SERGEANT"
+    };
+    const killer = makeCasualtyUnit({
+      id: 7,
+      faction: UnitFaction.FACTION_HOSTILE,
+      health: 100,
+      items: { STR_RIGHT_HAND: plasmaRifle },
+      type: "STR_SECTOID"
+    });
+    const victim = makeCasualtyUnit({
+      id: 11,
+      faction: UnitFaction.FACTION_PLAYER,
+      originalFaction: UnitFaction.FACTION_PLAYER,
+      health: 0,
+      soldier: casualtySoldier,
+      type: "STR_XCOM_OPERATIVE"
+    });
+    const deadSoldiers = [];
+    const savedGame = {
+      getMissionStatistics: () => [{ id: "mission-0" }, { id: "mission-1" }],
+      killSoldier: (soldier, cause) => {
+        deadSoldiers.push({ soldier, cause });
+        return 0;
+      }
+    };
+    const psiButtonCalls = [];
+    const pushedStates = [];
+    const casualtySave = {
+      getUnits: () => [killer, victim],
+      getTurn: () => 4,
+      getSide: () => UnitFaction.FACTION_PLAYER,
+      getMoraleModifier: () => 100,
+      getSelectedUnit: () => null,
+      getBattleState: () => null
+    };
+    const parentState = {
+      getGame: () => ({ getSavedGame: () => savedGame }),
+      showPsiButton: visible => psiButtonCalls.push(visible),
+      getMap: () => ({
+        setUnitDying: value => { parentState.unitDying = value; },
+        invalidate: () => {}
+      })
+    };
+    const battleGame = Object.create(BattlescapeGame.prototype);
+    battleGame._save = casualtySave;
+    battleGame._parentState = parentState;
+    battleGame._states = pushedStates;
+    battleGame._deleted = [];
+    battleGame.checkForCasualties(plasmaClip, killer, false, false);
+    assert(killer._stats.kills.length === 1, "checkForCasualties did not award a kill to the murderer");
+    const kill = killer._stats.kills[0].save();
+    assert(kill.status === UnitStatus.STATUS_DEAD, "casualty kill status mismatch: " + kill.status);
+    assert(kill.id === 11, "casualty kill victim id mismatch: " + kill.id);
+    assert(kill.weapon === "STR_PLASMA_RIFLE", "casualty kill weapon was not resolved from compatible ammo");
+    assert(kill.weaponAmmo === "STR_PLASMA_CLIP", "casualty kill ammo mismatch: " + kill.weaponAmmo);
+    assert(kill.mission === 2, "casualty kill mission index mismatch: " + kill.mission);
+    assert(victim._stats.KIA === true, "geoscape soldier was not marked KIA");
+    assert(deadSoldiers.length === 1 && deadSoldiers[0].soldier === casualtySoldier, "saved game did not record killed soldier");
+    assert(deadSoldiers[0].cause.type === "STR_SECTOID", "soldier death cause did not record murderer unit stats");
+    assert(deadSoldiers[0].cause.faction === UnitFaction.FACTION_HOSTILE, "soldier death cause murderer faction mismatch");
+    assert(pushedStates.length === 1, "UnitDieBState was not queued for the casualty");
+    assert(psiButtonCalls.length === 1 && psiButtonCalls[0] === false, "psi button was not refreshed after casualties");
+
     return {
       straightPath: straightPath.copyPath(),
       straightTU: straightPath.getTotalTUCost(),
       aStarLength: aStarDirs.length,
       gravLift: true,
       flyingUp: true,
-      potentialUnitTarget: scanVoxel.toString()
+      potentialUnitTarget: scanVoxel.toString(),
+      casualtyKills: killer._stats.kills.length,
+      casualtyDeaths: deadSoldiers.length
     };
   });
 
