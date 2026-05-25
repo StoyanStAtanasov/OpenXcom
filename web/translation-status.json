@@ -1,14 +1,14 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T17:52:05.237Z",
+    "generatedAt": "2026-05-25T18:03:59.415Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
     "sourceCodeFiles": 646,
-    "targetTsFiles": 340,
-    "webOnlyTsFiles": 4,
-    "integratedVerifiedSlices": 17,
-    "trackedSlices": 18,
+    "targetTsFiles": 341,
+    "webOnlyTsFiles": 5,
+    "integratedVerifiedSlices": 18,
+    "trackedSlices": 19,
     "slicePathWarnings": 0
   },
   "areas": [
@@ -113,7 +113,7 @@
     }
   ],
   "statusRollups": {
-    "integrated-verified": 17,
+    "integrated-verified": 18,
     "partial-integrated-verified": 1
   },
   "nextQueue": [
@@ -868,6 +868,32 @@
       ]
     },
     {
+      "name": "Battlescape tactical controls",
+      "area": "Battlescape",
+      "status": "integrated-verified",
+      "slicePercent": 100,
+      "nextAction": "Continue remaining battlescape playability gaps: launch/psi button visibility, stricter allowButtons gating, and full finishBattle stage/debrief flow.",
+      "sourceFiles": [
+        "src/Battlescape/BattlescapeState.cpp",
+        "src/Battlescape/BattlescapeState.h",
+        "src/Menu/PauseState.cpp",
+        "src/Menu/OptionsBaseState.h"
+      ],
+      "targetFiles": [
+        "web/src/Battlescape/BattlescapeState.ts",
+        "web/src/Menu/PauseState.ts",
+        "web/src/Menu/OptionsBaseState.ts",
+        "web/src/Menu/OptionsOrigin.ts",
+        "web/scripts/verify-battle-runtime.mjs"
+      ],
+      "verification": "npm run verify:battle-runtime passed for build/typecheck/browser proof that BattlescapeState::btnInventoryClick opens InventoryState(!debugMode, this), cancels actions, blocks no-inventory units outside debug, prepares current-side units in debug mode before opening inventory without TU mode, btnEndTurnClick respects allowButtons() and clears tooltip before requestEndTurn(), and btnHelpClick calls allowButtons(true) then pushes PauseState(OPT_BATTLESCAPE). The verifier also caught and now protects against the browser startup import cycle by using the lightweight OptionsOrigin module plus PauseState lazy child-state imports.",
+      "boundaries": [
+        "showLaunchButton/showPsiButton visibility wiring remains pending",
+        "allowButtons() still needs the fuller C++ player-side/panic/projectile/save gating",
+        "finishBattle() stage/cutscene/debriefing flow remains a larger battlescape runtime boundary"
+      ]
+    },
+    {
       "name": "Whole source path parity sweep",
       "area": "All",
       "status": "integrated-verified",
@@ -900,6 +926,7 @@
   "slicePathWarnings": [],
   "webOnlyFiles": [
     "web/src/Battlescape/BattleAction.ts",
+    "web/src/Menu/OptionsOrigin.ts",
     "web/src/Mod/ModStatics.ts",
     "web/src/Savegame/SavedBattleGameRegistry.ts",
     "web/src/types.ts"
@@ -922,12 +949,12 @@
     "targetByArea": {
       "apple": 68,
       "Basescape": 9114,
-      "Battlescape": 19546,
+      "Battlescape": 19566,
       "(root)": 335,
       "Engine": 7942,
       "Geoscape": 8501,
       "Interface": 2785,
-      "Menu": 4729,
+      "Menu": 4740,
       "Mod": 12724,
       "Savegame": 14213,
       "Ufopaedia": 1902

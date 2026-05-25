@@ -8,9 +8,12 @@ import type { BattleItem } from "../Savegame/BattleItem.ts";
 import { UnitFaction, type BattleUnit } from "../Savegame/BattleUnit.ts";
 import { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
 import { SDL_BUTTON_RIGHT } from "../types.ts";
+import { OPT_BATTLESCAPE } from "../Menu/OptionsOrigin.ts";
+import { PauseState } from "../Menu/PauseState.ts";
 import { AbortMissionState } from "./AbortMissionState.ts";
 import { ActionMenuState } from "./ActionMenuState.ts";
 import { BattlescapeGame } from "./BattlescapeGame.ts";
+import { InventoryState } from "./InventoryState.ts";
 import { Map } from "./Map.ts";
 import { MiniMapState } from "./MiniMapState.ts";
 import { Pathfinding } from "./Pathfinding.ts";
@@ -180,7 +183,19 @@ export class BattlescapeState extends State {
   }
 
   btnInventoryClick(_action?: Action): void {
-    this.warning("STR_INVENTORY_IS_NOT_TRANSLATED_YET");
+    if (this._save.getDebugMode()) {
+      for (const unit of this._save.getUnits()) {
+        if (unit.getFaction() === this._save.getSide()) {
+          unit.prepareNewTurn();
+        }
+      }
+      this.updateSoldierInfo();
+    }
+    const unit = this._save.getSelectedUnit();
+    if (this.playableUnitSelected() && (unit?.hasInventory() || this._save.getDebugMode())) {
+      this._battleGame.cancelAllActions();
+      this.game().pushState(new InventoryState(!this._save.getDebugMode(), this));
+    }
   }
 
   btnCenterClick(_action?: Action): void {
@@ -218,11 +233,16 @@ export class BattlescapeState extends State {
   }
 
   btnHelpClick(_action?: Action): void {
-    this.warning("STR_OPTIONS_NOT_TRANSLATED_YET");
+    if (this.allowButtons(true)) {
+      this.game().pushState(new PauseState(OPT_BATTLESCAPE));
+    }
   }
 
   btnEndTurnClick(_action?: Action): void {
-    this._battleGame.requestEndTurn();
+    if (this.allowButtons()) {
+      this._txtTooltip.setText("");
+      this._battleGame.requestEndTurn();
+    }
   }
 
   btnAbortClick(_action?: Action): void {

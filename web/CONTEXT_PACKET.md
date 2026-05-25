@@ -1,6 +1,6 @@
 # OpenXcom TS Port Context Packet
 
-Generated: 2026-05-25T17:52:05.942Z
+Generated: 2026-05-25T18:04:00.153Z
 Role: resume
 
 This is the compact handoff surface for resumed turns and subagents. Regenerate it with `npm run context` instead of rereading long narrative docs.
@@ -9,11 +9,11 @@ This is the compact handoff surface for resumed turns and subagents. Regenerate 
 
 - Objective: Faithfully translate OpenXcom C++ source into the browser TypeScript port.
 - Path parity: 336/336 (100%)
-- Tracked slices: 18
-- Integrated verified slices: 17
+- Tracked slices: 19
+- Integrated verified slices: 18
 - Slice path warnings: 0
-- Status rollup: integrated-verified=17, partial-integrated-verified=1
-- Local Codex status: gpt-5.5 (xhigh); context 59.9% left (103635/258400 latest input tokens); credits not reported locally
+- Status rollup: integrated-verified=18, partial-integrated-verified=1
+- Local Codex status: gpt-5.5 (xhigh); context 7% left (240331/258400 latest input tokens); credits not reported locally
 
 ## Active Slice
 

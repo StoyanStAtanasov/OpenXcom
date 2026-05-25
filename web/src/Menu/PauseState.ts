@@ -4,13 +4,7 @@ import type { Action } from "../Engine/Action.ts";
 import { Text, ALIGN_CENTER } from "../Interface/Text.ts";
 import { TextButton } from "../Interface/TextButton.ts";
 import { Window, POPUP_BOTH } from "../Interface/Window.ts";
-import { AbandonGameState } from "./AbandonGameState.ts";
-import { ListLoadState } from "./ListLoadState.ts";
-import { ListSaveState } from "./ListSaveState.ts";
-import { OptionsBattlescapeState } from "./OptionsBattlescapeState.ts";
-import { OptionsGeoscapeState } from "./OptionsGeoscapeState.ts";
-import { OptionsVideoState } from "./OptionsVideoState.ts";
-import { OPT_BATTLESCAPE, OPT_GEOSCAPE, type OptionsOrigin } from "./OptionsBaseState.ts";
+import { OPT_BATTLESCAPE, OPT_GEOSCAPE, type OptionsOrigin } from "./OptionsOrigin.ts";
 
 export class PauseState extends State {
   private _btnLoad: TextButton;
@@ -72,17 +66,31 @@ export class PauseState extends State {
     }
   }
 
-  btnLoadClick(_action?: Action): void { this.game().pushState(new ListLoadState(this._origin)); }
-  btnSaveClick(_action?: Action): void { this.game().pushState(new ListSaveState(this._origin)); }
-  btnAbandonClick(_action?: Action): void { this.game().pushState(new AbandonGameState(this._origin)); }
+  async btnLoadClick(_action?: Action): Promise<void> {
+    const { ListLoadState } = await import("./ListLoadState.js");
+    this.game().pushState(new ListLoadState(this._origin));
+  }
 
-  btnOptionsClick(_action?: Action): void {
+  async btnSaveClick(_action?: Action): Promise<void> {
+    const { ListSaveState } = await import("./ListSaveState.js");
+    this.game().pushState(new ListSaveState(this._origin));
+  }
+
+  async btnAbandonClick(_action?: Action): Promise<void> {
+    const { AbandonGameState } = await import("./AbandonGameState.js");
+    this.game().pushState(new AbandonGameState(this._origin));
+  }
+
+  async btnOptionsClick(_action?: Action): Promise<void> {
     Options.backupDisplay();
     if (this._origin === OPT_GEOSCAPE) {
+      const { OptionsGeoscapeState } = await import("./OptionsGeoscapeState.js");
       this.game().pushState(new OptionsGeoscapeState(this._origin));
     } else if (this._origin === OPT_BATTLESCAPE) {
+      const { OptionsBattlescapeState } = await import("./OptionsBattlescapeState.js");
       this.game().pushState(new OptionsBattlescapeState(this._origin));
     } else {
+      const { OptionsVideoState } = await import("./OptionsVideoState.js");
       this.game().pushState(new OptionsVideoState(this._origin));
     }
   }

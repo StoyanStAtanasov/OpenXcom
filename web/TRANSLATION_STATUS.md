@@ -1,16 +1,16 @@
 # Translation Status
 
-Generated: 2026-05-25T17:52:05.237Z
+Generated: 2026-05-25T18:03:59.415Z
 
 ## Summary
 
 - Source translation units: 336
 - Units with same-path TypeScript file: 336 (100%)
 - Source code files (.cpp/.h): 646
-- TypeScript files: 340
-- TypeScript helper/web-only files: 4
-- Tracked slices: 18
-- Integrated and browser/build verified slices: 17
+- TypeScript files: 341
+- TypeScript helper/web-only files: 5
+- Tracked slices: 19
+- Integrated and browser/build verified slices: 18
 - Slice path warnings: 0
 
 Path parity is a progress signal, not proof of behavioral parity. Slice status and verifier notes carry the behavioral signal.
@@ -19,7 +19,7 @@ Path parity is a progress signal, not proof of behavioral parity. Slice status a
 
 | Status | Count |
 | --- | ---: |
-| integrated-verified | 17 |
+| integrated-verified | 18 |
 | partial-integrated-verified | 1 |
 
 ## Next Integration Queue
@@ -65,6 +65,7 @@ Path parity is a progress signal, not proof of behavioral parity. Slice status a
 | Geoscape confirmations dogfight base defense | Geoscape | integrated-verified | 100% | worker reported npm run build, node --check, and ESM import smoke passed; npm run build passed; npm run typecheck passed; Playwright VERIFY_GEOSCAPE_BASE_DEFENSE passed for UFO reached-base routing/defense popup/base-destroyed queue; npm run build passed; npm run typecheck passed; Playwright VERIFY_CONFIRM_BRIEFING passed for ConfirmLandingState crash-recovery BattlescapeGenerator.run(), BriefingState OK into BattlescapeState/NextTurnState, and GeoscapeState.handleBaseDefense() into STR_BASE_DEFENSE BriefingState; npm run build passed; npx --yes --package typescript tsc --noEmit passed; Playwright VERIFY_DOGFIGHT_RUNTIME passed for minimized DogfightErrorState popup and destroyed-UFO retaliation mission spawn; npm run build passed; npx --yes --package typescript tsc --noEmit passed; Playwright VERIFY_LANDING_TEXTURE_SHADE passed for RuleGlobe texture metadata, Globe.getPolygonTextureAndShade, ConfirmLandingState texture/shade payload, and mission-site texture override; npm run build passed; npx --yes --package typescript tsc --noEmit passed; DogfightState _ufoBlobs matched the C++ 8x13x13 table; Playwright VERIFY_BASE_DEFENSES passed for Base.setupDefenses fixed HWP conversion, craft-vehicle inclusion/exclusion, ammo consumption, and cleanupDefenses reclaim; npm run verify:geoscape-confirmations passed for build/typecheck/Dogfight blob parity, original SOUND manifest loading, CAT sound loading, Mod.getSound, TextButton and Window sound assignments, Dogfight/BaseDefense source sound calls, GeoscapeState GMGEO/GMINTER music requests, Base.setupDefenses cleanup, BriefingState -> BattlescapeState -> NextTurnState -> InventoryState, InventoryState OK back to NextTurnState, BriefingState no-alien crash branch, and AliensCrashState -> DebriefingState | Deep DebriefingState scoring/recovery/reequip behavior remains owned by the battlescape/debriefing runtime slice |
 | Battlescape debriefing runtime | Battlescape | integrated-verified | 98% | npm run verify:debriefing passed for build/typecheck and DebriefingState source behavior: reequipCraft craft item shortage removal, missing item reporting, HWP rebuild from base stores, compatible ammo consumption, armor-derived vehicle size, recoverItems alien fuel stat handling, unresearched artifact scoring, corpse geoscape recovery, ammo round aggregation, firearm clip-round aggregation, base item recovery, BT_NONE craft reuseItem notification, recoverAlien spawn-unit conversion, no-containment corpse fallback, live-alien containment scoring, storage, overfull-containment flagging, prepareDebriefing craft/base context resolution, mission success/title/objective stat handling, dead-hostile/civilian/player-unit stat accounting, soldier post-mission stat rows, conditional/tile/guaranteed recovery scans, recovered rounds-to-clips conversion, craft/base cleanup, SavedGame.getSoldier lookup, BattleUnit postMissionProcedures/updateGeoscapeStats, init total score/rating, valiantCrux, mission-stat daylight/id push, post-mortem kill, best-of-rank, best-overall, martyr/stat-delta diary updates, live/dead commendation buckets, injury-list recording, SavedGame.handlePromotions field-promotion participant filtering, saved-battle clearing, source debriefing music request, Options.autosave/fieldPromotions, btnOkClick follow-up stack order for commendations, promotions, cannot-reequip, ManageAlienContainmentState plus containment warning, SellState plus storage warning, ironman/autosave save types, direct ManageAlienContainmentState removal-to-corpse behavior, canSellLiveAliens fund gain, battlescape storage warning surface, autosave, and live-alien no-sell/sell/interrogation project persistence through SavedGame.save/load; npm run verify:geoscape-confirmations passed after shared SavedGame/CrossPlatform changes | Full campaign save/load beyond the debriefing-mutated fields, including saved-battle restoration, remains a broader save-game runtime boundary; Visual pixel parity of downstream SellState and containment popups remains broader UI polish |
 | Manage alien containment | Basescape | integrated-verified | 97% | npm run build passed; Playwright VERIFY_ALIEN_CONTAINMENT passed; npm run verify:debriefing passed for debriefing call-site construction, removal-to-corpse, canSellLiveAliens fund gain, storage-overfull SellState/ErrorMessageState follow-up, and live-alien no-sell/sell/interrogation project persistence through SavedGame.save/load | Non-debriefing call-site integrations need broader UI pass; Full campaign save/load of unrelated base/craft/soldier/mission-stat data remains broader save-game verification |
+| Battlescape tactical controls | Battlescape | integrated-verified | 100% | npm run verify:battle-runtime passed for build/typecheck/browser proof that BattlescapeState::btnInventoryClick opens InventoryState(!debugMode, this), cancels actions, blocks no-inventory units outside debug, prepares current-side units in debug mode before opening inventory without TU mode, btnEndTurnClick respects allowButtons() and clears tooltip before requestEndTurn(), and btnHelpClick calls allowButtons(true) then pushes PauseState(OPT_BATTLESCAPE). The verifier also caught and now protects against the browser startup import cycle by using the lightweight OptionsOrigin module plus PauseState lazy child-state imports. | showLaunchButton/showPsiButton visibility wiring remains pending; allowButtons() still needs the fuller C++ player-side/panic/projectile/save gating; finishBattle() stage/cutscene/debriefing flow remains a larger battlescape runtime boundary |
 | Whole source path parity sweep | All | integrated-verified | 100% | npm run build passed; npx --yes --package typescript tsc --noEmit passed; npm run status reports 336/336 source units with same-path TypeScript files; Playwright VERIFY_STARTUP passed with no console errors and a nonblank canvas | This slice proves source path coverage and browser startup, not full behavioral parity; Native audio, native OpenGL/scaler internals, exact SDL filesystem/dialog behavior, and deeper gameplay fidelity remain owned by their runtime integration slices |
 
 ## Known Verification Signals

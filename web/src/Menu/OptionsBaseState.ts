@@ -10,17 +10,10 @@ import { GeoscapeState } from "../Geoscape/GeoscapeState.ts";
 import { MainMenuState } from "./MainMenuState.ts";
 import { OptionsConfirmState } from "./OptionsConfirmState.ts";
 import { OptionsDefaultsState } from "./OptionsDefaultsState.ts";
+import { OptionsOrigin, OPT_MENU, OPT_GEOSCAPE, OPT_BATTLESCAPE } from "./OptionsOrigin.ts";
 import { StartState } from "./StartState.ts";
 
-export enum OptionsOrigin {
-  OPT_MENU = 0,
-  OPT_GEOSCAPE,
-  OPT_BATTLESCAPE
-}
-
-export const OPT_MENU = OptionsOrigin.OPT_MENU;
-export const OPT_GEOSCAPE = OptionsOrigin.OPT_GEOSCAPE;
-export const OPT_BATTLESCAPE = OptionsOrigin.OPT_BATTLESCAPE;
+export { OptionsOrigin, OPT_MENU, OPT_GEOSCAPE, OPT_BATTLESCAPE } from "./OptionsOrigin.ts";
 
 type OptionsStateCtor = new (origin: OptionsOrigin) => State;
 

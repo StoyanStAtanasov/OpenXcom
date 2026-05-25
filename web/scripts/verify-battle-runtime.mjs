@@ -27,6 +27,10 @@ const playwrightArgs = command => [
 const verifier = String.raw`async page => {
   await page.goto("http://127.0.0.1:4173/web/index.html");
   await page.waitForFunction(() => document.readyState === "complete");
+  await page.waitForFunction(() => {
+    const mod = window.openxcomGame?.getMod?.();
+    return Boolean(mod?.getInventories?.().size && mod?.getInterface?.("inventory"));
+  });
 
   const result = await page.evaluate(async () => {
     const [
@@ -42,14 +46,19 @@ const verifier = String.raw`async page => {
       { Surface },
       { SurfaceSet },
       { Particle },
+      { BattlescapeState },
+      { InventoryState },
+      { PauseState },
+      { OPT_BATTLESCAPE },
       { Position },
-      { MovementType },
-      { UnitFaction, UnitStatus, UnitSide, UnitBodyPart },
+      { MovementType, Armor },
+      { UnitFaction, UnitStatus, UnitSide, UnitBodyPart, BattleUnit },
       { Tile },
       { MapData, TilePart, VoxelType },
       { BattlescapeGame, BattleActionType },
       { ItemDamageType, BattleType },
-      { SpecialAbility },
+      { SpecialAbility, Unit },
+      { SavedBattleGame },
       { Mod },
       { Options, SCROLL_AUTO, SCROLL_TRIGGER, PATH_FULL },
       { SDL_BUTTON_LEFT, SDL_BUTTON_MIDDLE, SDL_BUTTON_WHEELUP, SDL_KEYDOWN, SDL_KEYUP, SDL_MOUSEBUTTONDOWN, SDL_MOUSEBUTTONUP, SDL_MOUSEMOTION }
@@ -66,6 +75,10 @@ const verifier = String.raw`async page => {
       import("/web/dist/Engine/Surface.js"),
       import("/web/dist/Engine/SurfaceSet.js"),
       import("/web/dist/Battlescape/Particle.js"),
+      import("/web/dist/Battlescape/BattlescapeState.js"),
+      import("/web/dist/Battlescape/InventoryState.js"),
+      import("/web/dist/Menu/PauseState.js"),
+      import("/web/dist/Menu/OptionsOrigin.js"),
       import("/web/dist/Battlescape/Position.js"),
       import("/web/dist/Mod/Armor.js"),
       import("/web/dist/Savegame/BattleUnit.js"),
@@ -74,6 +87,7 @@ const verifier = String.raw`async page => {
       import("/web/dist/Battlescape/BattlescapeGame.js"),
       import("/web/dist/Mod/RuleItem.js"),
       import("/web/dist/Mod/Unit.js"),
+      import("/web/dist/Savegame/SavedBattleGame.js"),
       import("/web/dist/Mod/Mod.js"),
       import("/web/dist/Engine/Options.js"),
       import("/web/dist/types.js")
@@ -84,6 +98,177 @@ const verifier = String.raw`async page => {
         throw new Error(message);
       }
     };
+
+    const makeBattleStateUnit = ({ id, faction = UnitFaction.FACTION_PLAYER, allowInventory = true }) => {
+      const armor = new Armor("STR_TEST_ARMOR_" + id);
+      armor.load({
+        type: "STR_TEST_ARMOR_" + id,
+        allowInv: allowInventory,
+        corpseBattle: [],
+        damageModifier: [],
+        loftempsSet: [],
+        spriteFaceColor: [],
+        spriteHairColor: [],
+        spriteUtileColor: [],
+        spriteRankColor: [],
+        units: [],
+        frontArmor: 10,
+        sideArmor: 8,
+        rearArmor: 6,
+        underArmor: 4,
+        size: 1
+      });
+      const unitRule = new Unit("STR_TEST_UNIT_" + id);
+      unitRule.load({
+        type: "STR_TEST_UNIT_" + id,
+        rank: "STR_ROOKIE",
+        armor: armor.getType(),
+        stats: {
+          tu: 60,
+          stamina: 60,
+          health: 40,
+          bravery: 50,
+          reactions: 50,
+          firing: 50,
+          throwing: 50,
+          strength: 30,
+          psiStrength: 40,
+          psiSkill: 0,
+          melee: 30
+        },
+        standHeight: 22,
+        kneelHeight: 16,
+        floatHeight: 0,
+        value: 20
+      });
+      const unit = new BattleUnit(unitRule, faction, id, armor, null, 0);
+      unit.setTimeUnits(12);
+      return unit;
+    };
+
+    const makeInventoryBattle = (selectedUnit, extraUnits = []) => {
+      const battle = new SavedBattleGame();
+      battle.initMap(4, 4, 1);
+      battle.initUtilities(window.openxcomGame.getMod());
+      battle.getUnits().push(selectedUnit, ...extraUnits);
+      battle.setSelectedUnit(selectedUnit);
+      battle.setUnitPosition(selectedUnit, new Position(1, 1, 0));
+      return battle;
+    };
+
+    const runInventoryButtonScenario = (battle, expectedTuMode) => {
+      const game = window.openxcomGame;
+      const originalSave = game.getSavedGame();
+      const originalPushState = game.pushState;
+      const pushedStates = [];
+      const saveWrapper = {
+        getSavedBattle: () => battle,
+        isIronman: () => false
+      };
+      game.setSavedGame(saveWrapper);
+      game.pushState = state => { pushedStates.push(state); };
+      try {
+        const state = new BattlescapeState(battle);
+        let cancelled = 0;
+        state._battleGame.cancelAllActions = () => { cancelled++; };
+        state.btnInventoryClick();
+        assert(pushedStates.length === 1, "Battlescape inventory button should push exactly one state");
+        assert(pushedStates[0] instanceof InventoryState, "Battlescape inventory button should push InventoryState");
+        assert(pushedStates[0]._tu === expectedTuMode, "InventoryState TU mode mismatch");
+        assert(cancelled === 1, "Battlescape inventory button should cancel current actions before opening inventory");
+        assert(state._currentTooltip !== "STR_INVENTORY_IS_NOT_TRANSLATED_YET", "Inventory button should not use the old untranslated warning");
+        return state;
+      } finally {
+        game.pushState = originalPushState;
+        game.setSavedGame(originalSave);
+      }
+    };
+
+    const inventoryUnit = makeBattleStateUnit({ id: 501, allowInventory: true });
+    runInventoryButtonScenario(makeInventoryBattle(inventoryUnit), true);
+
+    const noInventoryUnit = makeBattleStateUnit({ id: 502, allowInventory: false });
+    const noInventoryBattle = makeInventoryBattle(noInventoryUnit);
+    {
+      const game = window.openxcomGame;
+      const originalSave = game.getSavedGame();
+      const originalPushState = game.pushState;
+      const pushedStates = [];
+      game.setSavedGame({ getSavedBattle: () => noInventoryBattle, isIronman: () => false });
+      game.pushState = state => { pushedStates.push(state); };
+      try {
+        const state = new BattlescapeState(noInventoryBattle);
+        state.btnInventoryClick();
+        assert(pushedStates.length === 0, "Non-debug inventory button should not open inventory for units without inventory");
+      } finally {
+        game.pushState = originalPushState;
+        game.setSavedGame(originalSave);
+      }
+    }
+
+    const debugNoInventory = makeBattleStateUnit({ id: 503, allowInventory: false });
+    const debugSameSide = makeBattleStateUnit({ id: 504, allowInventory: true });
+    const debugOtherSide = makeBattleStateUnit({ id: 505, faction: UnitFaction.FACTION_HOSTILE, allowInventory: true });
+    let preparedSameSide = 0;
+    let preparedSelected = 0;
+    let preparedOtherSide = 0;
+    debugNoInventory.prepareNewTurn = () => { preparedSelected++; };
+    debugSameSide.prepareNewTurn = () => { preparedSameSide++; };
+    debugOtherSide.prepareNewTurn = () => { preparedOtherSide++; };
+    const debugBattle = makeInventoryBattle(debugNoInventory, [debugSameSide, debugOtherSide]);
+    debugBattle.setDebugMode();
+    runInventoryButtonScenario(debugBattle, false);
+    assert(preparedSelected === 1 && preparedSameSide === 1, "Debug inventory should prepare current-side units before opening inventory");
+    assert(preparedOtherSide === 0, "Debug inventory should not prepare units from other sides");
+
+    const withBattleState = (battle, callback) => {
+      const game = window.openxcomGame;
+      const originalSave = game.getSavedGame();
+      const originalPushState = game.pushState;
+      const pushedStates = [];
+      game.setSavedGame({
+        getSavedBattle: () => battle,
+        isIronman: () => false
+      });
+      game.pushState = state => { pushedStates.push(state); };
+      try {
+        const state = new BattlescapeState(battle);
+        callback(state, pushedStates);
+      } finally {
+        game.pushState = originalPushState;
+        game.setSavedGame(originalSave);
+      }
+    };
+
+    withBattleState(makeInventoryBattle(makeBattleStateUnit({ id: 506 })), (state, pushedStates) => {
+      let requestEndTurnCalls = 0;
+      state._battleGame.requestEndTurn = () => { requestEndTurnCalls++; };
+      state._txtTooltip.setText("STR_BUSY");
+      state.allowButtons = () => false;
+      state.btnEndTurnClick();
+      assert(requestEndTurnCalls === 0, "End-turn button should not request end turn when buttons are blocked");
+      assert(state._txtTooltip.getText() === "STR_BUSY", "Blocked end-turn should not clear tooltip");
+      state.allowButtons = () => true;
+      state.btnEndTurnClick();
+      assert(requestEndTurnCalls === 1, "End-turn button should request end turn when buttons are allowed");
+      assert(state._txtTooltip.getText() === "", "Allowed end-turn should clear tooltip");
+
+      const allowSavingArgs = [];
+      state.allowButtons = allowSaving => {
+        allowSavingArgs.push(Boolean(allowSaving));
+        return false;
+      };
+      state.btnHelpClick();
+      assert(pushedStates.length === 0, "Blocked help/options button should not push PauseState");
+      state.allowButtons = allowSaving => {
+        allowSavingArgs.push(Boolean(allowSaving));
+        return true;
+      };
+      state.btnHelpClick();
+      assert(allowSavingArgs.includes(true), "Help/options button should call allowButtons(true)");
+      assert(pushedStates.length === 1 && pushedStates[0] instanceof PauseState, "Help/options button should push PauseState");
+      assert(pushedStates[0]._origin === OPT_BATTLESCAPE, "Help/options PauseState should use OPT_BATTLESCAPE origin");
+    });
 
     class FakeMapData {
       constructor({ gravLift = false, loft = 0 } = {}) {

@@ -742,6 +742,32 @@
     ]
   },
   {
+    "name": "Battlescape tactical controls",
+    "area": "Battlescape",
+    "status": "integrated-verified",
+    "slicePercent": 100,
+    "nextAction": "Continue remaining battlescape playability gaps: launch/psi button visibility, stricter allowButtons gating, and full finishBattle stage/debrief flow.",
+    "sourceFiles": [
+      "src/Battlescape/BattlescapeState.cpp",
+      "src/Battlescape/BattlescapeState.h",
+      "src/Menu/PauseState.cpp",
+      "src/Menu/OptionsBaseState.h"
+    ],
+    "targetFiles": [
+      "web/src/Battlescape/BattlescapeState.ts",
+      "web/src/Menu/PauseState.ts",
+      "web/src/Menu/OptionsBaseState.ts",
+      "web/src/Menu/OptionsOrigin.ts",
+      "web/scripts/verify-battle-runtime.mjs"
+    ],
+    "verification": "npm run verify:battle-runtime passed for build/typecheck/browser proof that BattlescapeState::btnInventoryClick opens InventoryState(!debugMode, this), cancels actions, blocks no-inventory units outside debug, prepares current-side units in debug mode before opening inventory without TU mode, btnEndTurnClick respects allowButtons() and clears tooltip before requestEndTurn(), and btnHelpClick calls allowButtons(true) then pushes PauseState(OPT_BATTLESCAPE). The verifier also caught and now protects against the browser startup import cycle by using the lightweight OptionsOrigin module plus PauseState lazy child-state imports.",
+    "boundaries": [
+      "showLaunchButton/showPsiButton visibility wiring remains pending",
+      "allowButtons() still needs the fuller C++ player-side/panic/projectile/save gating",
+      "finishBattle() stage/cutscene/debriefing flow remains a larger battlescape runtime boundary"
+    ]
+  },
+  {
     "name": "Whole source path parity sweep",
     "area": "All",
     "status": "integrated-verified",
