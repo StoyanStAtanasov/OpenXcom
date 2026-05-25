@@ -719,7 +719,7 @@ export class Pathfinding {
 
   private bresenhamPath(_origin: PositionLike, _target: PositionLike, targetUnit: BattleUnit | null, sneak = false, maxTUCost = 1000): boolean {
     if (!this._unit) {
-      this.notTranslated("Pathfinding::bresenhamPath without unit");
+      throw new Error("Pathfinding::bresenhamPath requires a current unit");
     }
     const origin = Position.from(_origin);
     const target = Position.from(_target);
@@ -819,7 +819,7 @@ export class Pathfinding {
 
   private aStarPath(_origin: PositionLike, _target: PositionLike, missileTarget: BattleUnit | null, sneak = false, maxTUCost = 1000): boolean {
     if (!this._unit) {
-      this.notTranslated("Pathfinding::aStarPath without unit");
+      throw new Error("Pathfinding::aStarPath requires a current unit");
     }
     const startPosition = Position.from(_origin);
     const endPosition = Position.from(_target);
@@ -1014,7 +1014,4 @@ export class Pathfinding {
     return false;
   }
 
-  private notTranslated(method: string): never {
-    throw new Error(`${method} is not translated yet`);
-  }
 }

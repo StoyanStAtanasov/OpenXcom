@@ -38,7 +38,7 @@ type PromotionInfo = {
   totalSergeants: number;
 };
 
-type SavedGameBaseNode = {
+export type SavedGameBaseNode = {
   lon?: number;
   lat?: number;
   name?: string;
@@ -1169,6 +1169,14 @@ export class SavedGame {
       this._battleGame = null;
       this._battleGameNode = null;
     }
+  }
+
+  saveBase(base: Base): SavedGameBaseNode {
+    return this.saveBaseNode(base);
+  }
+
+  loadBase(node: SavedGameBaseNode, mod: Mod | null): Base {
+    return this.loadBaseNode(node, mod);
   }
 
   private saveBaseNode(base: Base): SavedGameBaseNode {

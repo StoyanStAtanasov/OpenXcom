@@ -3,6 +3,7 @@ import { BattlescapeGenerator } from "../Battlescape/BattlescapeGenerator.ts";
 import { Position } from "../Battlescape/Position.ts";
 import { CraftInfoState } from "../Basescape/CraftInfoState.ts";
 import { Options } from "../Engine/Options.ts";
+import { RNG } from "../Engine/RNG.ts";
 import { State } from "../Engine/State.ts";
 import type { Action } from "../Engine/Action.ts";
 import { ComboBox } from "../Interface/ComboBox.ts";
@@ -13,10 +14,12 @@ import { TextButton } from "../Interface/TextButton.ts";
 import { Window, POPUP_BOTH } from "../Interface/Window.ts";
 import { Armor } from "../Mod/Armor.ts";
 import { MapData, TilePart } from "../Mod/MapData.ts";
+import { BattleType } from "../Mod/RuleItem.ts";
 import { Unit } from "../Mod/Unit.ts";
+import { Base } from "../Savegame/Base.ts";
 import { BattleUnit, UnitFaction } from "../Savegame/BattleUnit.ts";
-import type { Craft } from "../Savegame/Craft.ts";
-import { GameDifficulty, SavedGame } from "../Savegame/SavedGame.ts";
+import { Craft } from "../Savegame/Craft.ts";
+import { GameDifficulty, SavedGame, type SavedGameBaseNode } from "../Savegame/SavedGame.ts";
 import { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
 import { Node } from "../Savegame/Node.ts";
 
@@ -29,6 +32,7 @@ type NewBattleSettings = {
   difficulty?: number;
   alienTech?: number;
   depth?: number;
+  base?: SavedGameBaseNode;
 };
 
 /**
@@ -210,8 +214,25 @@ export class NewBattleState extends State {
     this._cbxAlienRace.setSelected(Math.min(settings.alienRace ?? 0, Math.max(0, this._alienRaces.length - 1)));
     this._cbxDifficulty.setSelected(Math.min(settings.difficulty ?? 0, 4));
     this._slrAlienTech.setValue(settings.alienTech ?? 0);
-    this._slrDepth.setValue(settings.depth ?? 1);
-    this.initSave();
+    const mod = this.game().getMod();
+    if (!settings.base || !mod) {
+      this.initSave();
+      return;
+    }
+
+    const save = new SavedGame();
+    save.getBases().length = 0;
+    const base = save.loadBase(settings.base, mod);
+    save.getBases().push(base);
+    this.addAllResearch(save);
+    this.seedRecoverableItems(save, base, false);
+    if (base.getCrafts().length === 0) {
+      this._craft = this.createSelectedCraft(save, base, save.getId(this.getSelectedCraftType()));
+    } else {
+      this._craft = base.getCrafts()[0] || null;
+      this.pruneInvalidCraftItems(this._craft);
+    }
+    this.game().setSavedGame(save);
   }
 
   save(filename = "battle"): void {
@@ -223,7 +244,9 @@ export class NewBattleState extends State {
       alienRace: this._cbxAlienRace.getSelected(),
       difficulty: this._cbxDifficulty.getSelected(),
       alienTech: this._slrAlienTech.getValue(),
-      depth: this._slrDepth.getValue()
+      base: this.game().getSavedGame()?.getBases()[0]
+        ? this.game().getSavedGame()!.saveBase(this.game().getSavedGame()!.getBases()[0])
+        : undefined
     };
     try {
       window.localStorage?.setItem(`openxcom.${filename}.cfg`, JSON.stringify(settings));
@@ -234,10 +257,22 @@ export class NewBattleState extends State {
 
   initSave(): void {
     const mod = this.game().getMod();
-    const save = mod?.newSave?.() || new SavedGame();
-    save.setSavedBattle(null);
+    const save = new SavedGame();
+    save.getBases().length = 0;
+    const starter = mod?.newSave?.();
+    const base = starter?.getBases()[0] || new Base(mod || null);
+    base.setMod(mod || null);
+    base.getSoldiers().length = 0;
+    base.getCrafts().length = 0;
+    base.getStorageItems().getContents().clear();
+    save.getBases().push(base);
+
+    this._craft = this.createSelectedCraft(save, base, 1);
+    this.generateSandboxSoldiers(save, base);
+    this.seedRecoverableItems(save, base, true);
+    this.addAllResearch(save);
     this.game().setSavedGame(save);
-    this._craft = save.getBases()[0]?.getCrafts()[this._cbxCraft.getSelected()] || null;
+    this.cbxMissionChange(null);
   }
 
   async btnOkClick(_action: Action | null): Promise<void> {
@@ -297,8 +332,25 @@ export class NewBattleState extends State {
   }
 
   cbxCraftChange(_action: Action | null): void {
-    const save = this.game().getSavedGame();
-    this._craft = save?.getBases()[0]?.getCrafts()[this._cbxCraft.getSelected()] || null;
+    const mod = this.game().getMod();
+    const rule = mod?.getCraft(this.getSelectedCraftType()) || null;
+    if (!this._craft || !rule) {
+      return;
+    }
+    this._craft.changeRules(rule);
+    let current = this._craft.getNumSoldiers();
+    const max = this._craft.getRules().getSoldiers();
+    const base = this._craft.getBase();
+    if (!base || current <= max) {
+      return;
+    }
+    for (let i = base.getSoldiers().length - 1; i >= 0 && current > max; --i) {
+      const soldier = base.getSoldiers()[i];
+      if (soldier.getCraft() === this._craft) {
+        soldier.setCraft(null);
+        current--;
+      }
+    }
   }
 
   cbxTerrainChange(_action: Action | null): void {
@@ -349,6 +401,93 @@ export class NewBattleState extends State {
       this._alienRaces = ["STR_SECTOID"];
     }
     this._cbxAlienRace.setOptions(this._alienRaces, true);
+  }
+
+  private getSelectedCraftType(): string {
+    return this._crafts[this._cbxCraft.getSelected()] || this._crafts[0] || "STR_SKYRANGER";
+  }
+
+  private createSelectedCraft(save: SavedGame, base: Base, id: number): Craft | null {
+    const rule = this.game().getMod()?.getCraft(this.getSelectedCraftType()) || null;
+    if (!rule) {
+      return null;
+    }
+    const craft = new Craft(rule, base, id);
+    base.getCrafts().push(craft);
+    return craft;
+  }
+
+  private generateSandboxSoldiers(save: SavedGame, base: Base): void {
+    const mod = this.game().getMod();
+    const soldiers = mod?.getSoldiersList() || [];
+    for (let i = 0; i < 30; ++i) {
+      const soldierType = soldiers.length > 0 ? soldiers[RNG.generate(0, soldiers.length - 1)] : "";
+      const soldier = mod?.genSoldier(save, soldierType) || null;
+      if (!soldier) {
+        continue;
+      }
+      for (let n = 0; n < 5; ++n) {
+        if (RNG.percent(70)) {
+          continue;
+        }
+        soldier.promoteRank();
+        const stats = soldier.getCurrentStats();
+        stats.tu += RNG.generate(0, 5);
+        stats.stamina += RNG.generate(0, 5);
+        stats.health += RNG.generate(0, 5);
+        stats.bravery += RNG.generate(0, 5);
+        stats.reactions += RNG.generate(0, 5);
+        stats.firing += RNG.generate(0, 5);
+        stats.throwing += RNG.generate(0, 5);
+        stats.strength += RNG.generate(0, 5);
+        stats.psiStrength += RNG.generate(0, 5);
+        stats.melee += RNG.generate(0, 5);
+        stats.psiSkill += RNG.generate(0, 20);
+      }
+      const stats = soldier.getCurrentStats();
+      stats.bravery = Math.ceil(stats.bravery / 10) * 10;
+      base.getSoldiers().push(soldier);
+      if (this._craft && i < this._craft.getRules().getSoldiers()) {
+        soldier.setCraft(this._craft);
+      }
+    }
+  }
+
+  private seedRecoverableItems(_save: SavedGame, base: Base, includeCraftItems: boolean): void {
+    const mod = this.game().getMod();
+    base.getStorageItems().getContents().clear();
+    for (const itemType of mod?.getItemsList() || []) {
+      const rule = mod?.getItem(itemType) || null;
+      if (!rule || rule.getBattleType() === BattleType.BT_CORPSE || !rule.isRecoverable()) {
+        continue;
+      }
+      base.getStorageItems().addItem(itemType, 1);
+      if (includeCraftItems && this._craft && rule.getBattleType() !== BattleType.BT_NONE && !rule.isFixed() && rule.getBigSprite() > -1) {
+        this._craft.getItems().addItem(itemType, 1);
+      }
+    }
+  }
+
+  private addAllResearch(save: SavedGame): void {
+    const mod = this.game().getMod();
+    for (const researchType of mod?.getResearchList() || []) {
+      const research = mod?.getResearch(researchType) || null;
+      if (research) {
+        save.addFinishedResearchSimple(research);
+      }
+    }
+  }
+
+  private pruneInvalidCraftItems(craft: Craft | null): void {
+    if (!craft) {
+      return;
+    }
+    const mod = this.game().getMod();
+    for (const [itemType] of craft.getItems().getContents()) {
+      if (!mod?.getItem(itemType)) {
+        craft.getItems().getContents().set(itemType, 0);
+      }
+    }
   }
 
   private async createBattle(save: SavedGame): Promise<SavedBattleGame> {

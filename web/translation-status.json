@@ -1,14 +1,14 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T17:29:09.126Z",
+    "generatedAt": "2026-05-25T17:39:22.974Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
     "sourceCodeFiles": 646,
     "targetTsFiles": 340,
     "webOnlyTsFiles": 4,
-    "integratedVerifiedSlices": 16,
-    "trackedSlices": 17,
+    "integratedVerifiedSlices": 17,
+    "trackedSlices": 18,
     "slicePathWarnings": 0
   },
   "areas": [
@@ -113,7 +113,7 @@
     }
   ],
   "statusRollups": {
-    "integrated-verified": 16,
+    "integrated-verified": 17,
     "partial-integrated-verified": 1
   },
   "nextQueue": [
@@ -492,8 +492,37 @@
       ],
       "verification": "npm run verify:menu-geoscape-routes passed for five C++ source route checks and a 70-file Menu/Geoscape marker scan; npm run typecheck passed after TargetInfoState was moved onto the shared Savegame TargetLike contract; npm run build passed; npm run verify:geoscape-confirmations passed.",
       "boundaries": [
-        "NewBattleState full sandbox base/inventory/equipment generation remains broader NewBattle runtime parity, not a missing child-state route.",
+        "NewBattleState sandbox setup is now covered by the dedicated NewBattle sandbox slice; the remaining NewBattle divergence is the OK mission target and BriefingState pipeline.",
         "Broader globe visual fidelity, dogfight polish, debriefing/recovery, and battlescape runtime parity remain outside this call-edge slice."
+      ]
+    },
+    {
+      "name": "NewBattle sandbox setup and persistence",
+      "area": "Menu/Battlescape",
+      "status": "integrated-verified",
+      "slicePercent": 92,
+      "nextAction": "Translate NewBattleState::btnOkClick mission target pipeline into the C++ BattlescapeGenerator/BriefingState route.",
+      "sourceFiles": [
+        "src/Menu/NewBattleState.cpp",
+        "src/Menu/NewBattleState.h",
+        "src/Savegame/SavedGame.cpp",
+        "src/Savegame/Base.cpp",
+        "src/Savegame/Craft.cpp",
+        "src/Savegame/Soldier.cpp",
+        "src/Savegame/ItemContainer.cpp"
+      ],
+      "targetFiles": [
+        "web/src/Menu/NewBattleState.ts",
+        "web/src/Savegame/SavedGame.ts",
+        "web/src/Battlescape/ActionMenuState.ts",
+        "web/src/Battlescape/Pathfinding.ts",
+        "web/scripts/verify-new-battle-sandbox.mjs",
+        "web/package.json"
+      ],
+      "verification": "npm run verify:new-battle-sandbox passed for browser-loaded ruleset proof of NewBattleState::initSave sandbox shape: one selected craft, 30 generated soldiers, first-craft-capacity assignment, recoverable non-corpse base items, battle-usable craft cargo, all research unlocked, base snapshot save/load, no source-divergent depth persistence, and cbxCraftChange mutating the existing craft while trimming overflow soldiers. npm run build and npm run typecheck passed. npm run verify:battle-runtime passed after removing stale ActionMenuState and Pathfinding marker noise.",
+      "boundaries": [
+        "NewBattleState::btnOkClick still needs the C++ target-object branches for base defense, alien base, UFO, and mission site plus the BriefingState handoff.",
+        "The browser storage adapter remains JSON/localStorage instead of YAML files, but the persisted settings/base shape now follows the C++ node content."
       ]
     },
     {
@@ -888,14 +917,14 @@
     "targetByArea": {
       "apple": 68,
       "Basescape": 9114,
-      "Battlescape": 19554,
+      "Battlescape": 19546,
       "(root)": 335,
       "Engine": 7942,
       "Geoscape": 8501,
       "Interface": 2785,
-      "Menu": 4743,
+      "Menu": 4882,
       "Mod": 12724,
-      "Savegame": 14205,
+      "Savegame": 14213,
       "Ufopaedia": 1902
     }
   }

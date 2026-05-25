@@ -236,9 +236,4 @@ export class ActionMenuState extends State {
     return null;
   }
 
-  private markMissingChildState(stateName: string): void {
-    this._action.type = BattleActionType.BA_NONE;
-    this._action.result = `${stateName} is not translated yet`;
-    this.game().popState();
-  }
 }
