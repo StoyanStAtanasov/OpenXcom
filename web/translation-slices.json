@@ -366,7 +366,7 @@
     ],
     "verification": "npm run verify:menu-geoscape-routes passed for five C++ source route checks and a 70-file Menu/Geoscape marker scan; npm run typecheck passed after TargetInfoState was moved onto the shared Savegame TargetLike contract; npm run build passed; npm run verify:geoscape-confirmations passed.",
     "boundaries": [
-      "NewBattleState sandbox setup is now covered by the dedicated NewBattle sandbox slice; the remaining NewBattle divergence is the OK mission target and BriefingState pipeline.",
+      "NewBattleState sandbox setup and OK mission target routing are now covered by the dedicated NewBattle sandbox slice.",
       "Broader globe visual fidelity, dogfight polish, debriefing/recovery, and battlescape runtime parity remain outside this call-edge slice."
     ]
   },
@@ -374,8 +374,8 @@
     "name": "NewBattle sandbox setup and persistence",
     "area": "Menu/Battlescape",
     "status": "integrated-verified",
-    "slicePercent": 92,
-    "nextAction": "Translate NewBattleState::btnOkClick mission target pipeline into the C++ BattlescapeGenerator/BriefingState route.",
+    "slicePercent": 100,
+    "nextAction": "Continue downstream battlescape runtime parity from the generator/runtime slices; no NewBattleState-specific source branch remains in this slice.",
     "sourceFiles": [
       "src/Menu/NewBattleState.cpp",
       "src/Menu/NewBattleState.h",
@@ -387,16 +387,21 @@
     ],
     "targetFiles": [
       "web/src/Menu/NewBattleState.ts",
+      "web/src/Battlescape/BattlescapeGenerator.ts",
+      "web/src/Battlescape/BriefingState.ts",
+      "web/src/Savegame/AlienBase.ts",
+      "web/src/Savegame/MissionSite.ts",
+      "web/src/Savegame/Ufo.ts",
       "web/src/Savegame/SavedGame.ts",
       "web/src/Battlescape/ActionMenuState.ts",
       "web/src/Battlescape/Pathfinding.ts",
       "web/scripts/verify-new-battle-sandbox.mjs",
       "web/package.json"
     ],
-    "verification": "npm run verify:new-battle-sandbox passed for browser-loaded ruleset proof of NewBattleState::initSave sandbox shape: one selected craft, 30 generated soldiers, first-craft-capacity assignment, recoverable non-corpse base items, battle-usable craft cargo, all research unlocked, base snapshot save/load, no source-divergent depth persistence, and cbxCraftChange mutating the existing craft while trimming overflow soldiers. npm run build and npm run typecheck passed. npm run verify:battle-runtime passed after removing stale ActionMenuState and Pathfinding marker noise.",
+    "verification": "npm run verify:new-battle-sandbox passed for browser-loaded ruleset proof of NewBattleState::initSave sandbox shape: one selected craft, 30 generated soldiers, first-craft-capacity assignment, recoverable non-corpse base items, battle-usable craft cargo, all research unlocked, base snapshot save/load, no source-divergent depth persistence, and cbxCraftChange mutating the existing craft while trimming overflow soldiers. The same verifier now monkey-patches BattlescapeGenerator.run for fast compiled-browser coverage of NewBattleState::btnOkClick source branches: base defense passes null craft plus base into BriefingState, alien base creates and saves AlienBase, UFO assault creates and saves Ufo with landed/crashed mission remap, mission-site creates and saves MissionSite, all non-base routes attach the craft destination, pass craft/world shade/difficulty/race/item-level/depth to the generator, pop twice, and push BriefingState. npm run build and npm run typecheck passed inside the verifier.",
     "boundaries": [
-      "NewBattleState::btnOkClick still needs the C++ target-object branches for base defense, alien base, UFO, and mission site plus the BriefingState handoff.",
-      "The browser storage adapter remains JSON/localStorage instead of YAML files, but the persisted settings/base shape now follows the C++ node content."
+      "The browser storage adapter remains JSON/localStorage instead of YAML files, but the persisted settings/base shape now follows the C++ node content.",
+      "Full tactical play fidelity after BriefingState is owned by the broader battlescape generator/runtime slices, not this NewBattleState translation slice."
     ]
   },
   {

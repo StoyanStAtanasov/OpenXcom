@@ -1,6 +1,5 @@
-import { BattlescapeState } from "../Battlescape/BattlescapeState.ts";
 import { BattlescapeGenerator } from "../Battlescape/BattlescapeGenerator.ts";
-import { Position } from "../Battlescape/Position.ts";
+import { BriefingState } from "../Battlescape/BriefingState.ts";
 import { CraftInfoState } from "../Basescape/CraftInfoState.ts";
 import { Options } from "../Engine/Options.ts";
 import { RNG } from "../Engine/RNG.ts";
@@ -12,16 +11,14 @@ import { Slider } from "../Interface/Slider.ts";
 import { Text, ALIGN_CENTER } from "../Interface/Text.ts";
 import { TextButton } from "../Interface/TextButton.ts";
 import { Window, POPUP_BOTH } from "../Interface/Window.ts";
-import { Armor } from "../Mod/Armor.ts";
-import { MapData, TilePart } from "../Mod/MapData.ts";
 import { BattleType } from "../Mod/RuleItem.ts";
-import { Unit } from "../Mod/Unit.ts";
+import { AlienBase } from "../Savegame/AlienBase.ts";
 import { Base } from "../Savegame/Base.ts";
-import { BattleUnit, UnitFaction } from "../Savegame/BattleUnit.ts";
 import { Craft } from "../Savegame/Craft.ts";
+import { MissionSite } from "../Savegame/MissionSite.ts";
 import { GameDifficulty, SavedGame, type SavedGameBaseNode } from "../Savegame/SavedGame.ts";
 import { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
-import { Node } from "../Savegame/Node.ts";
+import { Ufo, UfoStatus } from "../Savegame/Ufo.ts";
 
 type NewBattleSettings = {
   mission?: number;
@@ -279,14 +276,83 @@ export class NewBattleState extends State {
     this.save();
     const save = this.game().getSavedGame() || new SavedGame();
     this.game().setSavedGame(save);
-    save.setDifficulty(this._cbxDifficulty.getSelected() as GameDifficulty);
-
-    const battle = await this.createBattle(save);
-    save.setSavedBattle(battle);
-    if (this.game().isState(this)) {
-      this.game().popState();
+    const mission = this._missionTypes[this._cbxMission.getSelected()] || "";
+    if (mission !== "STR_BASE_DEFENSE" && (!this._craft || (this._craft.getNumSoldiers() === 0 && this._craft.getNumVehicles() === 0))) {
+      return;
     }
-    this.game().pushState(new BattlescapeState(battle));
+
+    const battle = new SavedBattleGame();
+    save.setSavedBattle(battle);
+    battle.setMissionType(mission);
+    const mod = this.game().getMod();
+    const generator = new BattlescapeGenerator(battle, mod);
+    let base: Base | null = null;
+
+    generator.setTerrain(mod?.getTerrain(this._terrainTypes[this._cbxTerrain.getSelected()] || "") || null);
+    if (mission === "STR_BASE_DEFENSE") {
+      base = this._craft?.getBase() || save.getBases()[0] || null;
+      generator.setBase(base);
+      this._craft = null;
+    } else if (mod?.getDeployment(mission)?.isAlienBase()) {
+      const deployment = mod.getDeployment(mission);
+      if (!deployment || !this._craft) {
+        throw new Error(`Cannot start alien base mission ${mission}`);
+      }
+      const alienBase = new AlienBase(deployment);
+      alienBase.setId(1);
+      alienBase.setAlienRace(this._alienRaces[this._cbxAlienRace.getSelected()] || "");
+      this._craft.setDestination(alienBase);
+      generator.setAlienBase(alienBase);
+      save.getAlienBases().push(alienBase);
+    } else {
+      const ufoRule = mod?.getUfo(mission) || null;
+      if (this._craft && ufoRule) {
+        const ufo = new Ufo(ufoRule);
+        ufo.setId(1);
+        this._craft.setDestination(ufo);
+        generator.setUfo(ufo);
+        if (RNG.generate(0, 1) === 1) {
+          ufo.setStatus(UfoStatus.LANDED);
+          battle.setMissionType("STR_UFO_GROUND_ASSAULT");
+        } else {
+          ufo.setStatus(UfoStatus.CRASHED);
+          battle.setMissionType("STR_UFO_CRASH_RECOVERY");
+        }
+        save.getUfos().push(ufo);
+      } else {
+        const deployment = mod?.getDeployment(battle.getMissionType()) || null;
+        const alienMissionType = mod?.getAlienMissionList()[0] || "";
+        const alienMission = mod?.getAlienMission(alienMissionType) || null;
+        if (!deployment || !alienMission || !this._craft) {
+          throw new Error(`Cannot start mission site ${battle.getMissionType()}`);
+        }
+        const missionSite = new MissionSite(alienMission, deployment);
+        missionSite.setId(1);
+        missionSite.setAlienRace(this._alienRaces[this._cbxAlienRace.getSelected()] || "");
+        this._craft.setDestination(missionSite);
+        generator.setMissionSite(missionSite);
+        save.getMissionSites().push(missionSite);
+      }
+    }
+
+    if (this._craft) {
+      this._craft.setSpeed(0);
+      generator.setCraft(this._craft);
+    }
+    save.setDifficulty(this._cbxDifficulty.getSelected() as GameDifficulty);
+    generator.setDifficulty(save.getDifficulty());
+    generator.setWorldShade(this._slrDarkness.getValue());
+    generator.setAlienRace(this._alienRaces[this._cbxAlienRace.getSelected()] || "");
+    generator.setAlienItemlevel(this._slrAlienTech.getValue());
+    battle.setDepth(this._slrDepth.getValue());
+
+    await generator.run();
+
+    const craft = this._craft;
+    this.game().popState();
+    this.game().popState();
+    this.game().pushState(new BriefingState(craft, base));
+    this._craft = null;
   }
 
   btnCancelClick(_action: Action | null): void {
@@ -488,225 +554,6 @@ export class NewBattleState extends State {
         craft.getItems().getContents().set(itemType, 0);
       }
     }
-  }
-
-  private async createBattle(save: SavedGame): Promise<SavedBattleGame> {
-    const battle = new SavedBattleGame();
-    const mission = this._missionTypes[this._cbxMission.getSelected()] || "STR_NEW_BATTLE";
-    battle.setMissionType(mission);
-    battle.setGlobalShade(this._slrDarkness.getValue());
-    battle.setDepth(this._slrDepth.getValue());
-    let generated = await this.generateBattleMap(battle, mission);
-    if (!generated) {
-      this.fillDeterministicBattleMap(battle);
-    }
-
-    const unit = this.createPlayerBattleUnit(save, battle.getDepth());
-    unit.setDirection(2);
-    unit.setVisible(true);
-    unit.setTimeUnits(Math.max(60, unit.getTimeUnits()));
-    battle.getUnits().push(unit);
-    const start = this.findPlayerStart(battle, unit);
-    if (!start) {
-      battle.getUnits().pop();
-      this.fillDeterministicBattleMap(battle);
-      generated = false;
-      battle.getUnits().push(unit);
-      battle.setUnitPosition(unit, new Position(1, 1, 0));
-    } else {
-      battle.setUnitPosition(unit, start);
-    }
-    battle.setSelectedUnit(unit);
-    if (generated) {
-      this.deployGeneratedUnits(battle, mission, save);
-      this.recalculateGeneratedLighting(battle);
-    }
-    battle.resetUnitTiles();
-    battle.getTileEngine()?.recalculateFOV();
-    return battle;
-  }
-
-  private async generateBattleMap(battle: SavedBattleGame, mission: string): Promise<boolean> {
-    const mod = this.game().getMod();
-    const deployment = mod?.getDeployment(mission) || null;
-    if (!mod || !deployment) {
-      return false;
-    }
-
-    const terrainName = this._terrainTypes[this._cbxTerrain.getSelected()] ||
-      deployment.getTerrains()[0] ||
-      mod.getTerrainList()[0] ||
-      "";
-    const terrain = mod.getTerrain(terrainName) || null;
-    if (!terrain) {
-      return false;
-    }
-
-    const deploymentScriptName = deployment.getScript();
-    const terrainScriptName = terrain.getScript();
-    const script = (deploymentScriptName ? mod.getMapScript(deploymentScriptName) : null) ||
-      mod.getMapScript(terrainScriptName);
-    if (!script) {
-      return false;
-    }
-
-    try {
-      const [width, length, height] = deployment.getDimensions();
-      battle.setTurnLimit(deployment.getTurnLimit());
-      battle.setChronoTrigger(deployment.getChronoTrigger());
-      battle.setCheatTurn(deployment.getCheatTurn());
-      battle.setObjectiveType(deployment.getObjectiveType());
-      if (deployment.getObjectivesRequired() > 0) {
-        battle.setObjectiveCount(deployment.getObjectivesRequired());
-      }
-      if (deployment.getShade() !== -1) {
-        battle.setGlobalShade(deployment.getShade());
-      }
-      if (deployment.getMusic().length > 0) {
-        battle.setMusic(deployment.getMusic()[0]);
-      } else if (terrain.getMusic().length > 0) {
-        battle.setMusic(terrain.getMusic()[0]);
-      }
-      const generator = new BattlescapeGenerator(battle, mod);
-      generator.setTerrain(terrain);
-      generator.setCraft(this._craft);
-      await generator.generateMap(script, terrain, width, length, height);
-      battle.initUtilities(mod);
-      return battle.getTiles().some(tile => !tile.isVoid());
-    } catch (e) {
-      console.warn("BattlescapeGenerator failed; falling back to deterministic translated battle map.", e);
-      return false;
-    }
-  }
-
-  private deployGeneratedUnits(battle: SavedBattleGame, mission: string, save: SavedGame): number {
-    const mod = this.game().getMod();
-    const deployment = mod?.getDeployment(mission) || null;
-    if (!mod || !deployment) {
-      return 0;
-    }
-
-    try {
-      const terrainName = this._terrainTypes[this._cbxTerrain.getSelected()] ||
-        deployment.getTerrains()[0] ||
-        mod.getTerrainList()[0] ||
-        "";
-      const terrain = mod.getTerrain(terrainName) || null;
-      const generator = new BattlescapeGenerator(battle, mod);
-      generator.setTerrain(terrain);
-      generator.setAlienRace(this._alienRaces[this._cbxAlienRace.getSelected()] || deployment.getRace());
-      generator.setAlienItemlevel(this._slrAlienTech.getValue());
-      generator.setDifficulty(save.getDifficulty());
-      return generator.deployAliens(deployment) + generator.deployCivilians(deployment.getCivilians());
-    } catch (e) {
-      console.warn("BattlescapeGenerator failed to deploy units.", e);
-      return 0;
-    }
-  }
-
-  private recalculateGeneratedLighting(battle: SavedBattleGame): void {
-    const tileEngine = battle.getTileEngine();
-    if (!tileEngine) {
-      return;
-    }
-    tileEngine.calculateSunShading();
-    tileEngine.calculateTerrainLighting();
-    tileEngine.calculateUnitLighting();
-  }
-
-  private fillDeterministicBattleMap(battle: SavedBattleGame): void {
-    battle.initMap(10, 10, 1);
-    const floor = new MapData();
-    floor.setObjectType(TilePart.O_FLOOR);
-    floor.setTUCosts(4, 4, 4);
-    floor.setTerrainLevel(0);
-    floor.setNoFloor(false);
-    floor.setFootstepSound(0);
-    floor.setBlockValue(0, 0, 0, 0, 0, 0);
-
-    for (const tile of battle.getTiles()) {
-      tile.setMapData(floor, 0, 0, TilePart.O_FLOOR);
-      tile.setDiscovered(true, TilePart.O_FLOOR);
-      tile.addLight(15, 0);
-    }
-    battle.initUtilities(this.game().getMod() || undefined);
-  }
-
-  private findPlayerStart(battle: SavedBattleGame, unit: BattleUnit): Position | null {
-    const routePositions = battle.getNodes()
-      .filter(node => !node.isDummy() && node.getSegment() === Node.CRAFTSEGMENT)
-      .sort((a, b) => a.getID() - b.getID())
-      .map(node => node.getPosition());
-
-    for (const pos of routePositions) {
-      if (battle.setUnitPosition(unit, pos, true)) {
-        return pos.clone();
-      }
-    }
-
-    for (let z = 0; z < battle.getMapSizeZ(); ++z) {
-      for (let y = 0; y < battle.getMapSizeY(); ++y) {
-        for (let x = 0; x < battle.getMapSizeX(); ++x) {
-          const pos = new Position(x, y, z);
-          if (battle.setUnitPosition(unit, pos, true)) {
-            return pos;
-          }
-        }
-      }
-    }
-    return null;
-  }
-
-  private createPlayerBattleUnit(save: SavedGame, depth: number): BattleUnit {
-    const soldier = save.getBases()[0]?.getSoldiers().find(candidate => candidate.getCraft()) ||
-      save.getBases()[0]?.getSoldiers()[0] ||
-      null;
-    if (soldier?.getArmor()) {
-      return new BattleUnit(soldier, depth);
-    }
-
-    const armor = new Armor("STR_PERSONAL_ARMOR");
-    armor.load({
-      type: "STR_PERSONAL_ARMOR",
-      corpseBattle: [],
-      damageModifier: [],
-      loftempsSet: [],
-      spriteFaceColor: [],
-      spriteHairColor: [],
-      spriteUtileColor: [],
-      spriteRankColor: [],
-      units: [],
-      frontArmor: 10,
-      sideArmor: 8,
-      rearArmor: 6,
-      underArmor: 4
-    });
-    const unit = new Unit("SOLDIER");
-    unit.load({
-      type: "SOLDIER",
-      rank: "STR_ROOKIE",
-      armor: armor.getType(),
-      stats: {
-        tu: 60,
-        stamina: 60,
-        health: 40,
-        bravery: 50,
-        reactions: 50,
-        firing: 50,
-        throwing: 50,
-        strength: 30,
-        psiStrength: 40,
-        psiSkill: 0,
-        melee: 30
-      },
-      standHeight: 22,
-      kneelHeight: 16,
-      floatHeight: 0,
-      value: 20
-    });
-    const battleUnit = new BattleUnit(unit, UnitFaction.FACTION_PLAYER, save.getId("STR_SOLDIER"), armor, null, depth);
-    battleUnit.setTimeUnits(60);
-    return battleUnit;
   }
 
   private loadSettings(filename: string): NewBattleSettings | null {
