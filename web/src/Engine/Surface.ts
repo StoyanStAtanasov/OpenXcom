@@ -147,15 +147,15 @@ export class Surface {
 
   private static exactFontPaletteIndex(value: number): number {
     switch (value) {
-      case 63:
+      case 255:
         return 1;
-      case 111:
+      case 207:
         return 2;
       case 159:
         return 3;
-      case 207:
+      case 111:
         return 4;
-      case 255:
+      case 63:
         return 5;
       default:
         return 0;

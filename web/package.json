@@ -29,6 +29,7 @@
     "verify:menu-geoscape-routes": "node scripts/verify-menu-geoscape-routes.mjs",
     "verify:active-mod-runtime": "node scripts/verify-active-mod-runtime.mjs",
     "verify:mod-selection": "node scripts/verify-mod-selection.mjs",
+    "verify:font-source-parity": "node scripts/verify-font-source-parity.mjs",
     "verify:startup-browser": "node scripts/verify-startup-browser.mjs",
     "verify:new-battle-sandbox": "node scripts/verify-new-battle-sandbox.mjs",
     "verify:saveconverter-metadata": "node scripts/verify-saveconverter-metadata.mjs"
