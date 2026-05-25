@@ -1,5 +1,7 @@
 import { Game } from "./Engine/Game.ts";
 import { Logger, LOG_DEBUG, LOG_INFO, LOG_VERBOSE } from "./Engine/Logger.ts";
+import { TimidityMidiBackend } from "./Engine/TimidityMidiBackend.ts";
+import { Music } from "./Engine/Music.ts";
 import { Options } from "./Engine/Options.ts";
 import { State } from "./Engine/State.ts";
 import { StartState } from "./Menu/StartState.ts";
@@ -21,6 +23,7 @@ if (Options.verboseLogging) {
 }
 Options.baseXResolution = Options.displayWidth;
 Options.baseYResolution = Options.displayHeight;
+Music.setMidiBackend(new TimidityMidiBackend());
 
 const game = new Game(title, canvas);
 State.setGamePtr(game);

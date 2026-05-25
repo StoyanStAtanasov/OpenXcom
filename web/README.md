@@ -19,7 +19,7 @@ Open:
 http://127.0.0.1:4173/web/index.html
 ```
 
-If a server is already running, just open the URL. The current verified playable path is XCOM1: startup, base/geoscape, new battle, battlescape runtime, debriefing, and browser save/load. Startup verification covers the native browser cursor, source `DosFont.h` terminal glyphs, source-priority music loading, and source `GMSTORY` interface music after the first user gesture.
+If a server is already running, just open the URL. The current verified playable path is XCOM1: startup, base/geoscape, new battle, battlescape runtime, debriefing, and browser save/load. Startup verification covers the native browser cursor, source `DosFont.h` terminal glyphs, source-priority music loading, and source `GMSTORY` interface music after the first user gesture. Digital music streams use native browser audio when present; MID/GM.CAT-only installs use the bundled libtimidity/FreePats backend.
 
 TFD/TFTD data is detected by the build manifest and `Options.updateMods()` creates the `xcom2` master entry when data is present. The active `xcom2` runtime can now load TFTD rules, language, starting-base craft, terrain data, map blocks, and the New Battle Triton/terrain generator route; broader TFTD gameplay parity still needs focused playthrough verification.
 

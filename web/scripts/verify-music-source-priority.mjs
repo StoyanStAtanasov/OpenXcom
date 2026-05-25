@@ -23,13 +23,15 @@ const verifier = String.raw`async page => {
       { RuleMusic },
       optionsModule,
       { GMCatFile },
-      { Music }
+      { Music },
+      { TimidityMidiBackend }
     ] = await Promise.all([
       import("/web/dist/Mod/Mod.js"),
       import("/web/dist/Mod/RuleMusic.js"),
       import("/web/dist/Engine/Options.js"),
       import("/web/dist/Engine/GMCat.js"),
-      import("/web/dist/Engine/Music.js")
+      import("/web/dist/Engine/Music.js"),
+      import("/web/dist/Engine/TimidityMidiBackend.js")
     ]);
     const { Options, MUSIC_AUTO, MUSIC_GM, MUSIC_MIDI } = optionsModule;
     const oldPreferred = Options.preferredMusic;
@@ -133,12 +135,33 @@ const verifier = String.raw`async page => {
         throw new Error("MIDI backend handle did not receive source bytes/loop/volume/stop semantics");
       }
 
+      Music.stop();
+      Music.setMidiBackend(new TimidityMidiBackend("/web/vendor/timidity/"));
+      const libTimidityMidi = cat.loadMIDI(12);
+      if (!libTimidityMidi.play(0)) {
+        throw new Error("libtimidity MIDI backend did not accept GM.CAT MIDI data");
+      }
+      let timidityState = null;
+      for (let i = 0; i < 150; ++i) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        timidityState = Music._currentMidiPlayback?.getState?.() || null;
+        if (timidityState?.ready || timidityState?.lastError) {
+          break;
+        }
+      }
+      Music.stop();
+      Music.setMidiBackend(null);
+      if (!timidityState || timidityState.source !== "libtimidity" || !timidityState.ready || timidityState.lastError) {
+        throw new Error("libtimidity backend did not become ready for GM.CAT MIDI: " + JSON.stringify(timidityState));
+      }
+
       return {
         selectedKind: music.getSourceKind(),
         selectedMime: music.getMimeType(),
         gmCatTrackInit: expected,
         midiFallback: gmStory.getLastError(),
-        backendLength
+        backendLength,
+        timidityState
       };
     } finally {
       Options.preferredMusic = oldPreferred;

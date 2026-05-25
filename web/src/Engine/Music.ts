@@ -108,10 +108,10 @@ export class Music {
       return true;
     }
     if (mime === "audio/midi") {
-      if (this.playNativeAudio(mime, loop)) {
+      if (this.playMidiBackend(loop)) {
         return true;
       }
-      if (this.playMidiBackend(loop)) {
+      if (this.playNativeAudio(mime, loop)) {
         return true;
       }
       if (Music._experimentalOscillatorMidi && this.playMidiSynth(loop)) {

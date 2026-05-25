@@ -1,12 +1,12 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T21:52:03.967Z",
+    "generatedAt": "2026-05-25T22:12:09.444Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
     "sourceCodeFiles": 646,
-    "targetTsFiles": 341,
-    "webOnlyTsFiles": 5,
+    "targetTsFiles": 342,
+    "webOnlyTsFiles": 6,
     "integratedVerifiedSlices": 26,
     "trackedSlices": 26,
     "slicePathWarnings": 0
@@ -945,7 +945,7 @@
       "area": "Engine",
       "status": "integrated-verified",
       "slicePercent": 100,
-      "nextAction": "Use native digital streaming when available; if no OGG/MP3/WAV-style track is present, integrate a real SoundFont/DLS MIDI renderer such as SpessaSynth/lib through the explicit Music MIDI backend hook instead of tuning the crude oscillator fallback.",
+      "nextAction": "Keep native digital streaming first when available, use the bundled libtimidity/FreePats MIDI backend for MID/GM.CAT-only installs, and move remaining audio work to Adlib/YM3812/FLC/native-mixer parity.",
       "sourceFiles": [
         "src/Engine/CatFile.cpp",
         "src/Engine/CatFile.h",
@@ -966,16 +966,19 @@
         "web/src/Engine/GMCat.ts",
         "web/src/Engine/Music.ts",
         "web/src/Engine/Options.ts",
+        "web/src/Engine/TimidityMidiBackend.ts",
+        "web/src/main.ts",
         "web/src/Mod/Mod.ts",
         "web/src/Mod/RuleMusic.ts",
         "web/scripts/verify-music-source-priority.mjs",
-        "web/package.json"
+        "web/package.json",
+        "web/vendor/timidity"
       ],
-      "verification": "npm run build passed; npm run typecheck passed; npm run verify:music-source-priority passed for compiled-browser proof that Options.preferredMusic uses the source MUSIC_AUTO default, Mod.loadMusicResources follows Mod::loadMusic() digital priority by streaming browser-playable OGG before MID/GM fallback when both are present, explicit browser GM/MIDI preferences still stream an available OGG before non-digital fallback, unsupported browser digital formats are skipped so later formats/fallbacks can load, CatFile.load preserves source object-size semantics after skipping embedded CAT names, GM.CAT conversion emits the source controller reset bytes without the extra 00 B0 corruption, the crude oscillator MIDI synth is disabled by default, and an explicitly installed browser MIDI backend receives the GM.CAT bytes, loop flag, volume, and stop lifecycle. npm run verify:startup-browser passed afterward for source GMSTORY request playback after user gesture through the backend hook without creating the oscillator synth.",
+      "verification": "npm run build passed; npm run typecheck passed; npm run verify:music-source-priority passed for compiled-browser proof that Options.preferredMusic uses the source MUSIC_AUTO default, Mod.loadMusicResources follows Mod::loadMusic() digital priority by streaming browser-playable OGG before MID/GM fallback when both are present, explicit browser GM/MIDI preferences still stream an available OGG before non-digital fallback, unsupported browser digital formats are skipped so later formats/fallbacks can load, CatFile.load preserves source object-size semantics after skipping embedded CAT names, GM.CAT conversion emits the source controller reset bytes without the extra 00 B0 corruption, the crude oscillator MIDI synth is disabled by default, an explicitly installed browser MIDI backend receives the GM.CAT bytes, loop flag, volume, and stop lifecycle, and the bundled TimidityMidiBackend/libtimidity/FreePats path becomes ready for real GM.CAT MIDI bytes in the browser. npm run verify:startup-browser passed afterward for source GMSTORY request playback after user gesture through the default MIDI backend hook without creating the oscillator synth.",
       "boundaries": [
         "Browser codec support decides which digital formats can stream natively; unsupported digital formats are skipped so the loader can continue to later streamable formats or MID/GM.CAT fallback.",
-        "Original MID/GM.CAT playback now requires native browser MIDI support or an explicitly installed browser MIDI backend; the old oscillator MIDI synth is disabled unless a developer opts into it.",
-        "Adlib/YM3812 playback and real SoundFont/DLS MIDI rendering remain separate browser adapter boundaries."
+        "Original MID/GM.CAT playback uses the bundled browser libtimidity/FreePats backend by default when no streamable digital track exists; tone is a General MIDI software-synth adapter rather than SDL_mixer/OS-native MIDI output.",
+        "Adlib/YM3812 playback remains a separate source translation boundary."
       ]
     },
     {
@@ -1172,6 +1175,7 @@
   "slicePathWarnings": [],
   "webOnlyFiles": [
     "web/src/Battlescape/BattleAction.ts",
+    "web/src/Engine/TimidityMidiBackend.ts",
     "web/src/Menu/OptionsOrigin.ts",
     "web/src/Mod/ModStatics.ts",
     "web/src/Savegame/SavedBattleGameRegistry.ts",
@@ -1196,8 +1200,8 @@
       "apple": 68,
       "Basescape": 9114,
       "Battlescape": 19948,
-      "(root)": 335,
-      "Engine": 8995,
+      "(root)": 338,
+      "Engine": 9346,
       "Geoscape": 8639,
       "Interface": 2796,
       "Menu": 4767,
