@@ -1,4 +1,5 @@
 import { Palette } from "./Palette.ts";
+import { GraphSubset } from "./GraphSubset.ts";
 import type { PaletteColor, Rect } from "../types.ts";
 
 export class Surface {
@@ -293,7 +294,11 @@ export class Surface {
     }
   }
 
-  blitNShade(surface: Surface, x: number, y: number, shade: number, half = false, newBaseColor = 0): void {
+  blitNShade(surface: Surface, x: number, y: number, shade: number, half?: boolean, newBaseColor?: number): void;
+  blitNShade(surface: Surface, x: number, y: number, shade: number, range: GraphSubset): void;
+  blitNShade(surface: Surface, x: number, y: number, shade: number, halfOrRange: boolean | GraphSubset = false, newBaseColor = 0): void {
+    const range = halfOrRange instanceof GraphSubset ? halfOrRange : null;
+    const half = typeof halfOrRange === "boolean" ? halfOrRange : false;
     const startX = half ? Math.trunc(this.getWidth() / 2) : 0;
     const destBaseX = x - surface.getX();
     const destBaseY = y - surface.getY();
@@ -301,6 +306,11 @@ export class Surface {
 
     for (let sy = 0; sy < this.getHeight(); ++sy) {
       for (let sx = startX; sx < this.getWidth(); ++sx) {
+        const absoluteDestX = x + sx;
+        const absoluteDestY = y + sy;
+        if (range && (absoluteDestX < range.beg_x || absoluteDestX >= range.end_x || absoluteDestY < range.beg_y || absoluteDestY >= range.end_y)) {
+          continue;
+        }
         const src = this.getPixel(sx, sy);
         if (!src) {
           continue;

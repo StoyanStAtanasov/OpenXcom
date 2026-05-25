@@ -38,6 +38,7 @@ const verifier = String.raw`async page => {
       { Camera },
       { Map: BattleMap, CursorType },
       { Action },
+      { GraphSubset },
       { Surface },
       { SurfaceSet },
       { Position },
@@ -60,6 +61,7 @@ const verifier = String.raw`async page => {
       import("/web/dist/Battlescape/Camera.js"),
       import("/web/dist/Battlescape/Map.js"),
       import("/web/dist/Engine/Action.js"),
+      import("/web/dist/Engine/GraphSubset.js"),
       import("/web/dist/Engine/Surface.js"),
       import("/web/dist/Engine/SurfaceSet.js"),
       import("/web/dist/Battlescape/Position.js"),
@@ -877,6 +879,12 @@ const verifier = String.raw`async page => {
     spriteMap.draw();
     assert(spriteMap.getPixel(20, 20) !== 0, "Map.drawTerrain did not blit the Tile.getSprite floor frame");
 
+    const rangeSource = new Surface(4, 4);
+    const rangeDest = new Surface(8, 8);
+    rangeSource.drawRect(0, 0, 4, 4, 91);
+    rangeSource.blitNShade(rangeDest, 1, 1, 0, new GraphSubset([2, 4], [2, 4]));
+    assert(rangeDest.getPixel(1, 1) === 0 && rangeDest.getPixel(2, 2) !== 0, "Surface.blitNShade GraphSubset range did not clip like the C++ overload");
+
     const unitSet = new SurfaceSet(32, 40);
     const unitFrame = unitSet.addFrame(0);
     unitFrame.setPixel(0, 0, 82);
@@ -907,6 +915,75 @@ const verifier = String.raw`async page => {
     }, 64, 64, 0, 0, 64);
     cacheMap.cacheUnit(cacheUnit);
     assert(unitCaches[0] && unitCaches[0].getPixel(16, 0) !== 0 && unitCacheInvalid === false, "Map.cacheUnit did not populate indexed unit cache pixels");
+
+    const maskCache = new Surface(64, 40);
+    maskCache.drawRect(0, 0, 64, 40, 92);
+    const maskedUnit = {
+      getVisible: () => true,
+      getPosition: () => new Position(0, 0, 0),
+      getCache: part => part === 0 ? maskCache : null,
+      isCacheInvalid: () => false,
+      getStatus: () => UnitStatus.STATUS_STANDING,
+      getDirection: () => 0,
+      getDestination: () => new Position(0, 0, 0),
+      getLastPosition: () => new Position(0, 0, 0),
+      getWalkingPhase: () => 0,
+      getDiagonalWalkingPhase: () => 0,
+      getVerticalDirection: () => 0,
+      getArmor: () => ({ getSize: () => 1 }),
+      getFire: () => 0,
+      getBreathFrame: () => 0,
+      getHeight: () => 22,
+      getFaction: () => UnitFaction.FACTION_PLAYER,
+      setFloorAbove: () => {}
+    };
+    const unitTile = {
+      getUnit: () => maskedUnit,
+      getPosition: () => new Position(0, 0, 0),
+      hasNoFloor: () => false,
+      isDiscovered: () => true,
+      getShade: () => 0,
+      getObstacle: () => false
+    };
+    const topTile = { hasNoFloor: () => true };
+    const unitMaskSave = {
+      getMapSizeX: () => 1,
+      getMapSizeY: () => 1,
+      getMapSizeZ: () => 2,
+      getTiles: () => [unitTile],
+      getTile: posLike => {
+        const pos = Position.from(posLike);
+        if (pos.x === 0 && pos.y === 0 && pos.z === 0) return unitTile;
+        if (pos.x === 0 && pos.y === 0 && pos.z === 1) return topTile;
+        return null;
+      },
+      getUnits: () => [maskedUnit],
+      getSelectedUnit: () => maskedUnit,
+      getDepth: () => 0,
+      getDebugMode: () => false
+    };
+    const unitMaskMap = new BattleMap({ getSavedGame: () => ({ getSavedBattle: () => unitMaskSave }), getMod: () => ({ getSurfaceSet: () => null }) }, 96, 96, 0, 0, 96);
+    unitMaskMap.getCamera().setMapOffset(new Position(40, 50, 0));
+    unitMaskMap._redraw = false;
+    unitMaskMap.drawUnit(unitTile, unitTile, new Position(40, 50, 0), 0, 0, false);
+    assert(unitMaskMap.getPixel(24, 50) === 0 && unitMaskMap.getPixel(24, 58) !== 0, "Map.drawUnit did not apply the source top-floor GraphSubset mask");
+
+    const projectileFrame = new SurfaceSet(3, 3);
+    projectileFrame.addFrame(0).drawRect(0, 0, 3, 3, 93);
+    const projectileMap = new BattleMap({
+      getSavedGame: () => ({ getSavedBattle: () => spriteSave }),
+      getMod: () => ({ getSurfaceSet: name => name === "Projectiles" ? projectileFrame : null })
+    }, 96, 96, 0, 0, 96);
+    projectileMap.getCamera().setMapOffset(new Position(20, 20, 0));
+    projectileMap._projectile = {
+      getItem: () => null,
+      getParticle: () => 0,
+      isReversed: () => false,
+      getPosition: () => new Position(8, 8, 12)
+    };
+    projectileMap._projectileInFOV = true;
+    projectileMap.drawProjectileOnTile(0, 0, 0, { lowX: 0, lowY: 0, lowZ: 0, highX: 0, highY: 0, highZ: 0 });
+    assert(projectileMap.getPixel(35, 35) !== 0, "Map.drawProjectileOnTile did not blit the projectile sprite in tile order");
     Options.battleEdgeScroll = previousEdgeScroll;
     Options.battleScrollSpeed = previousScrollSpeed;
     Options.battleDragScrollButton = previousDragButton;

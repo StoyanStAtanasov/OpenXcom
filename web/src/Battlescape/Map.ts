@@ -1,4 +1,5 @@
 import { InteractiveSurface } from "../Engine/InteractiveSurface.ts";
+import { GraphSubset } from "../Engine/GraphSubset.ts";
 import { Options } from "../Engine/Options.ts";
 import { Palette } from "../Engine/Palette.ts";
 import { Surface } from "../Engine/Surface.ts";
@@ -63,6 +64,8 @@ export class Map extends InteractiveSurface {
   private _visibleMapHeight: number;
   private _waypoints: Position[] = [];
   private _unitDying = false;
+  private _projectileInFOV = false;
+  private _explosionInFOV = false;
   private _flashScreen = false;
   private _launch = false;
   private _smoothingEngaged = false;
@@ -108,6 +111,7 @@ export class Map extends InteractiveSurface {
     }
     this._redraw = false;
     this.clear(Palette.blockOffset(0) + 15);
+    this.updateProjectileVisibility();
     this.drawTerrain();
   }
 
@@ -341,6 +345,7 @@ export class Map extends InteractiveSurface {
     const offset = this._camera.getMapOffset();
     const viewLevel = this._camera.getViewLevel();
     const endZ = this._camera.getShowAllLayers() ? this._save.getMapSizeZ() - 1 : viewLevel;
+    const projectileBounds = this.calculateProjectileBounds();
     this.lock();
     for (let z = 0; z <= endZ; ++z) {
       const topLayer = z === endZ;
@@ -399,6 +404,7 @@ export class Map extends InteractiveSurface {
             this.drawGroundItem(tile, sx, sy, tileShade);
           }
 
+          this.drawProjectileOnTile(x, y, z, projectileBounds);
           this.drawUnit(tile, tile, new Position(sx, sy, 0), tileShade, obstacleShade, topLayer);
 
           for (const delta of [new Position(-1, 1, 0), new Position(0, 1, 0), new Position(1, 1, 0), new Position(1, 0, 0), new Position(1, -1, 0)]) {
@@ -423,7 +429,6 @@ export class Map extends InteractiveSurface {
         }
       }
     }
-    this.drawProjectile();
     this.unlock();
     if (this._flashScreen) {
       this.applyBlastFlash();
@@ -524,7 +529,33 @@ export class Map extends InteractiveSurface {
     }
 
     const moving = unit.getStatus?.() === UnitStatus.STATUS_WALKING || unit.getStatus?.() === UnitStatus.STATUS_FLYING;
+    const tileFloorWidth = 32;
+    const tileFloorHeight = 16;
+    const tileHeight = 40;
+    const bonusWidth = moving ? 0 : tileFloorWidth;
+    let topMargin = 0;
+    let bottomMargin = 0;
+
+    if (unitFromBelow) {
+      bottomMargin = -Math.trunc(tileFloorHeight / 2);
+      topMargin = tileFloorHeight;
+    } else if (topLayer) {
+      topMargin = 2 * tileFloorHeight;
+    } else {
+      const top = this._save.getTile(unitTile.getPosition().add(new Position(0, 0, 1)));
+      if (top && top.hasNoFloor?.(unitTile)) {
+        topMargin = -Math.trunc(tileFloorHeight / 2);
+      } else {
+        topMargin = tileFloorHeight;
+      }
+    }
+
+    let mask = new GraphSubset(tileFloorWidth + bonusWidth, tileHeight + topMargin + bottomMargin)
+      .offset(currTileScreenPosition.x - Math.trunc(bonusWidth / 2), currTileScreenPosition.y - topMargin);
+
     if (moving) {
+      const leftMask = mask.offset(-Math.trunc(tileFloorWidth / 2), 0);
+      const rightMask = mask.offset(Math.trunc(tileFloorWidth / 2), 0);
       const direction = unit.getDirection();
       const partCurr = currTile.getPosition();
       const partDest = unit.getDestination().add(unitOffset);
@@ -536,12 +567,30 @@ export class Map extends InteractiveSurface {
           return;
         }
       } else if (isTileDestPos) {
-        if (direction === 7) {
-          return;
+        switch (direction) {
+          case 0:
+          case 1:
+            mask = GraphSubset.intersection(mask, rightMask);
+            break;
+          case 5:
+          case 6:
+            mask = GraphSubset.intersection(mask, leftMask);
+            break;
+          case 7:
+            return;
         }
       } else if (isTileLastPos) {
-        if (direction === 3) {
-          return;
+        switch (direction) {
+          case 1:
+          case 2:
+            mask = GraphSubset.intersection(mask, leftMask);
+            break;
+          case 3:
+            return;
+          case 4:
+          case 5:
+            mask = GraphSubset.intersection(mask, rightMask);
+            break;
         }
       } else {
         const leftPos = partCurr.add(new Position(-1, 0, 0));
@@ -553,6 +602,7 @@ export class Map extends InteractiveSurface {
           (direction === 5 && (partDest.equals(leftPos) || partLast.equals(rightPos))))) {
           return;
         }
+        mask = new GraphSubset(tileFloorWidth, tileHeight + 2 * tileFloorHeight).offset(currTileScreenPosition.x, currTileScreenPosition.y - 2 * tileFloorHeight);
       }
     } else if (unitTile !== currTile) {
       return;
@@ -572,7 +622,8 @@ export class Map extends InteractiveSurface {
         this,
         unitScreenPosition.x + mapOffset.x + walking.offset.x - Math.trunc(this._spriteWidth / 2),
         unitScreenPosition.y + mapOffset.y + walking.offset.y,
-        unitShade
+        unitShade,
+        mask
       );
     } else if (unitTile === currTile) {
       this.drawUnitMarker(currTileScreenPosition.x, currTileScreenPosition.y, unit.getFaction(), unit === this._save.getSelectedUnit?.());
@@ -584,7 +635,8 @@ export class Map extends InteractiveSurface {
         this,
         unitScreenPosition.x + mapOffset.x + walking.offset.x,
         unitScreenPosition.y + mapOffset.y + walking.offset.y,
-        0
+        0,
+        mask
       );
     }
 
@@ -595,7 +647,8 @@ export class Map extends InteractiveSurface {
         this,
         unitScreenPosition.x + mapOffset.x + walking.offset.x,
         unitScreenPosition.y + mapOffset.y + walking.offset.y + (22 - (unit.getHeight?.() || 22)) - 30,
-        tileShade
+        tileShade,
+        mask
       );
     }
   }
@@ -748,6 +801,133 @@ export class Map extends InteractiveSurface {
     const next = this._camera.convertVoxelToScreen(this._projectile.getPosition(1));
     this.drawLine(prev.x, prev.y, next.x, next.y, color);
     this.drawRect(screen.x - 1, screen.y - 1, 3, 3, color);
+  }
+
+  private updateProjectileVisibility(): void {
+    this._projectileInFOV = this._save.getDebugMode?.() ?? false;
+    if (this._projectile) {
+      const voxel = this._projectile.getPosition(0);
+      const tile = this._save.getTile(new Position(Math.trunc(voxel.x / 16), Math.trunc(voxel.y / 16), Math.trunc(voxel.z / 24)));
+      if (this._save.getSide?.() === UnitFaction.FACTION_PLAYER || (tile && (tile.getVisible?.() || 0) !== 0)) {
+        this._projectileInFOV = true;
+      }
+    }
+
+    this._explosionInFOV = this._save.getDebugMode?.() ?? false;
+    for (const explosion of this._explosions) {
+      const voxel = explosion.getPosition();
+      const tile = this._save.getTile(new Position(Math.trunc(voxel.x / 16), Math.trunc(voxel.y / 16), Math.trunc(voxel.z / 24)));
+      if (tile && (explosion.isBig() || (tile.getVisible?.() || 0) !== 0)) {
+        this._explosionInFOV = true;
+        break;
+      }
+    }
+  }
+
+  private calculateProjectileBounds(): { lowX: number; lowY: number; lowZ: number; highX: number; highY: number; highZ: number } | null {
+    if (!this._projectile || this._explosions.length !== 0) {
+      return null;
+    }
+    const part = this._projectile.getItem() ? 0 : Map.BULLET_SPRITES - 1;
+    let lowX = 16000;
+    let lowY = 16000;
+    let lowZ = 16000;
+    let highX = 0;
+    let highY = 0;
+    let highZ = 0;
+    for (let i = 0; i <= part; ++i) {
+      const pos = this._projectile.getPosition(1 - i);
+      if (pos.x < lowX) lowX = pos.x;
+      if (pos.y < lowY) lowY = pos.y;
+      if (pos.z < lowZ) lowZ = pos.z;
+      if (pos.x > highX) highX = pos.x;
+      if (pos.y > highY) highY = pos.y;
+      if (pos.z > highZ) highZ = pos.z;
+    }
+    return {
+      lowX: Math.trunc(lowX / 16),
+      lowY: Math.trunc(lowY / 16),
+      lowZ: Math.trunc(lowZ / 24),
+      highX: Math.trunc(highX / 16),
+      highY: Math.trunc(highY / 16),
+      highZ: Math.trunc(highZ / 24)
+    };
+  }
+
+  private drawProjectileOnTile(itX: number, itY: number, itZ: number, bounds: { lowX: number; lowY: number; lowZ: number; highX: number; highY: number; highZ: number } | null): void {
+    if (!this._projectile || !this._projectileInFOV) {
+      return;
+    }
+
+    if (this._projectile.getItem()) {
+      const sprite = this._projectile.getSprite();
+      if (!sprite) {
+        return;
+      }
+      let voxelPos = this._projectile.getPosition();
+      voxelPos = new Position(voxelPos.x, voxelPos.y, this._save.getTileEngine?.()?.castedShade?.(voxelPos) ?? voxelPos.z);
+      if (this.projectileVoxelBelongsToTile(voxelPos, itX, itY, itZ, true) && this.isVoxelVisible(voxelPos)) {
+        const screen = this._camera.convertVoxelToScreen(voxelPos);
+        sprite.blitNShade(this, screen.x - 16, screen.y - 26, 16);
+      }
+
+      voxelPos = this._projectile.getPosition();
+      if (this.projectileVoxelBelongsToTile(voxelPos, itX, itY, itZ, true) && this.isVoxelVisible(voxelPos)) {
+        const screen = this._camera.convertVoxelToScreen(voxelPos);
+        sprite.blitNShade(this, screen.x - 16, screen.y - 26, 0);
+      }
+      return;
+    }
+
+    if (!bounds || itX < bounds.lowX || itX > bounds.highX || itY < bounds.lowY || itY > bounds.highY) {
+      return;
+    }
+
+    const projectileSet = this.getProjectileSet();
+    let begin = 0;
+    let end = Map.BULLET_SPRITES;
+    let direction = 1;
+    if (this._projectile.isReversed()) {
+      begin = Map.BULLET_SPRITES - 1;
+      end = -1;
+      direction = -1;
+    }
+    for (let i = begin; i !== end; i += direction) {
+      const sprite = projectileSet?.getFrame(this._projectile.getParticle(i)) || null;
+      if (!sprite) {
+        continue;
+      }
+      let voxelPos = this._projectile.getPosition(1 - i);
+      voxelPos = new Position(voxelPos.x, voxelPos.y, this._save.getTileEngine?.()?.castedShade?.(voxelPos) ?? voxelPos.z);
+      if (this.projectileVoxelBelongsToTile(voxelPos, itX, itY, itZ, false) && this.isVoxelVisible(voxelPos)) {
+        const screen = this._camera.convertVoxelToScreen(voxelPos);
+        sprite.blitNShade(this, screen.x - Math.trunc(sprite.getWidth() / 2), screen.y - Math.trunc(sprite.getHeight() / 2), 16);
+      }
+
+      voxelPos = this._projectile.getPosition(1 - i);
+      if (this.projectileVoxelBelongsToTile(voxelPos, itX, itY, itZ, false) && this.isVoxelVisible(voxelPos)) {
+        const screen = this._camera.convertVoxelToScreen(voxelPos);
+        sprite.blitNShade(this, screen.x - Math.trunc(sprite.getWidth() / 2), screen.y - Math.trunc(sprite.getHeight() / 2), 0);
+      }
+    }
+  }
+
+  private getProjectileSet() {
+    return this._mod?.getSurfaceSet((this._save.getDepth?.() || 0) > 0 ? "UnderwaterProjectiles" : "Projectiles") || null;
+  }
+
+  private projectileVoxelBelongsToTile(voxelPos: Position, itX: number, itY: number, itZ: number, inclusiveXY: boolean): boolean {
+    const vx = Math.trunc(voxelPos.x / 16);
+    const vy = Math.trunc(voxelPos.y / 16);
+    const vz = Math.trunc(voxelPos.z / 24);
+    if (inclusiveXY) {
+      return vx >= itX && vy >= itY && vx <= itX + 1 && vy <= itY + 1 && vz === itZ;
+    }
+    return vx === itX && vy === itY && vz === itZ;
+  }
+
+  private isVoxelVisible(voxelPos: Position): boolean {
+    return this._save.getTileEngine?.()?.isVoxelVisible?.(voxelPos) ?? true;
   }
 
   private drawExplosions(): void {
