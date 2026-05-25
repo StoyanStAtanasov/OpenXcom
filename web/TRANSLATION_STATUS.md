@@ -78,4 +78,3 @@ Path parity is a progress signal, not proof of behavioral parity. Slice status a
 - `npm run build` is the fast runtime build gate.
 - `npx --yes --package typescript tsc --noEmit` is the stricter type gate; it currently passes with no known unrelated boundary.
 - Browser verifiers should be recorded by `VERIFY_*` marker and added to tracked slices after passing.
-

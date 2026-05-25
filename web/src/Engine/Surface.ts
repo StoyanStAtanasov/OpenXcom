@@ -321,6 +321,37 @@ export class Surface {
     }
   }
 
+  drawTexturedPolygon(x: number[], y: number[], n: number, texture: Surface | null, dx = 0, dy = 0): void {
+    if (!texture || n < 3) {
+      return;
+    }
+    const minY = Math.max(0, Math.min(...y.slice(0, n)));
+    const maxY = Math.min(this.getHeight() - 1, Math.max(...y.slice(0, n)));
+    const textureWidth = texture.getWidth();
+    const textureHeight = texture.getHeight();
+    if (textureWidth <= 0 || textureHeight <= 0) {
+      return;
+    }
+    for (let py = minY; py <= maxY; ++py) {
+      const nodes: number[] = [];
+      for (let i = 0, j = n - 1; i < n; j = i++) {
+        if ((y[i] < py && y[j] >= py) || (y[j] < py && y[i] >= py)) {
+          nodes.push(Math.trunc(x[i] + ((py - y[i]) / (y[j] - y[i])) * (x[j] - x[i])));
+        }
+      }
+      nodes.sort((a, b) => a - b);
+      for (let i = 0; i + 1 < nodes.length; i += 2) {
+        const startX = Math.max(0, nodes[i]);
+        const endX = Math.min(this.getWidth(), nodes[i + 1]);
+        for (let px = startX; px < endX; ++px) {
+          const tx = positiveModulo(px - dx, textureWidth);
+          const ty = positiveModulo(py - dy, textureHeight);
+          this.setPixel(px, py, texture.getPixel(tx, ty));
+        }
+      }
+    }
+  }
+
   blitNShade(surface: Surface, x: number, y: number, shade: number, half?: boolean, newBaseColor?: number): void;
   blitNShade(surface: Surface, x: number, y: number, shade: number, range: GraphSubset): void;
   blitNShade(surface: Surface, x: number, y: number, shade: number, halfOrRange: boolean | GraphSubset = false, newBaseColor = 0): void {
@@ -543,4 +574,8 @@ export class Surface {
   protected invalidatePixels(): void {
     this._pixelsDirty = true;
   }
+}
+
+function positiveModulo(value: number, divisor: number): number {
+  return ((value % divisor) + divisor) % divisor;
 }

@@ -1,4 +1,6 @@
+import { Palette } from "../Engine/Palette.ts";
 import { Polygon } from "./Polygon.ts";
+import { Polyline } from "./Polyline.ts";
 import { Texture, type TextureDefinition, type TerrainCriteriaDefinition } from "./Texture.ts";
 
 function int16le(bytes: Uint8Array, offset: number): number {
@@ -12,10 +14,43 @@ export function xcom2Rad(deg: number): number {
 
 export class RuleGlobe {
   private _polygons: Polygon[] = [];
+  private _polylines: Polyline[] = [];
   private _textures = new Map<number, Texture>();
   private _textureColors = new Map<number, number>();
+  private _oceanColor = Palette.blockOffset(12);
+  private _oceanShading = true;
+  private _countryLabelColor = 239;
+  private _cityLabelColor = 138;
+  private _baseLabelColor = 133;
+  private _lineColor = 162;
 
   load(source: string): void {
+    const parsed = parseGlobeRule(source);
+    if (parsed.polygons) {
+      this._polygons = parsed.polygons;
+    }
+    if (parsed.polylines) {
+      this._polylines = parsed.polylines;
+    }
+    if (parsed.countryColor != null) {
+      this._countryLabelColor = parsed.countryColor;
+    }
+    if (parsed.cityColor != null) {
+      this._cityLabelColor = parsed.cityColor;
+    }
+    if (parsed.baseColor != null) {
+      this._baseLabelColor = parsed.baseColor;
+    }
+    if (parsed.lineColor != null) {
+      this._lineColor = parsed.lineColor;
+    }
+    if (parsed.oceanPalette != null) {
+      this._oceanColor = Palette.blockOffset(parsed.oceanPalette);
+    }
+    if (parsed.oceanShading != null) {
+      this._oceanShading = parsed.oceanShading;
+    }
+
     for (const definition of parseGlobeTextures(source)) {
       if (definition.delete != null) {
         this._textures.delete(definition.delete);
@@ -56,6 +91,10 @@ export class RuleGlobe {
     return this._polygons;
   }
 
+  getPolylines(): Polyline[] {
+    return this._polylines;
+  }
+
   loadTextureDat(buffer: ArrayBuffer | Uint8Array, width = 32, height = 32): void {
     const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
     const frameSize = width * height;
@@ -86,6 +125,30 @@ export class RuleGlobe {
     return this._textureColors.get(texture) || this._textureColors.get(0) || 21;
   }
 
+  getOceanColor(): number {
+    return this._oceanColor;
+  }
+
+  getOceanShading(): boolean {
+    return this._oceanShading;
+  }
+
+  getCountryLabelColor(): number {
+    return this._countryLabelColor;
+  }
+
+  getCityLabelColor(): number {
+    return this._cityLabelColor;
+  }
+
+  getBaseLabelColor(): number {
+    return this._baseLabelColor;
+  }
+
+  getLineColor(): number {
+    return this._lineColor;
+  }
+
   getTexture(id: number): Texture | null {
     return this._textures.get(id) || null;
   }
@@ -106,6 +169,17 @@ export class RuleGlobe {
     return terrains;
   }
 }
+
+type ParsedGlobeRule = {
+  polygons?: Polygon[];
+  polylines?: Polyline[];
+  countryColor?: number;
+  cityColor?: number;
+  baseColor?: number;
+  lineColor?: number;
+  oceanPalette?: number;
+  oceanShading?: boolean;
+};
 
 type GlobeTextureDefinition = TextureDefinition & {
   delete?: number;
@@ -207,6 +281,84 @@ function parseGlobeTextures(source: string): GlobeTextureDefinition[] {
   }
 
   return definitions;
+}
+
+function parseGlobeRule(source: string): ParsedGlobeRule {
+  const parsed: ParsedGlobeRule = {};
+  let section = "";
+  const polygons: Polygon[] = [];
+  const polylines: Polyline[] = [];
+  let sawPolygons = false;
+  let sawPolylines = false;
+
+  for (const raw of source.split(/\r?\n/)) {
+    const line = stripComment(raw);
+    if (!line.trim()) {
+      continue;
+    }
+    const indent = line.search(/\S|$/);
+    const trimmed = line.trim();
+    if (indent === 2) {
+      const scalar = /^([A-Za-z0-9_]+):\s*(.+?)\s*$/.exec(trimmed);
+      if (scalar) {
+        if (scalar[1] === "countryColor") parsed.countryColor = Number(scalar[2]);
+        else if (scalar[1] === "cityColor") parsed.cityColor = Number(scalar[2]);
+        else if (scalar[1] === "baseColor") parsed.baseColor = Number(scalar[2]);
+        else if (scalar[1] === "lineColor") parsed.lineColor = Number(scalar[2]);
+        else if (scalar[1] === "oceanPalette") parsed.oceanPalette = Number(scalar[2]);
+        else if (scalar[1] === "oceanShading") parsed.oceanShading = parseYamlBool(scalar[2]);
+      }
+      const sectionHeader = /^([A-Za-z0-9_]+):\s*$/.exec(trimmed);
+      section = sectionHeader ? sectionHeader[1] : "";
+      if (section === "polygons") {
+        sawPolygons = true;
+      } else if (section === "polylines") {
+        sawPolylines = true;
+      }
+      continue;
+    }
+
+    if (indent === 4 && (section === "polygons" || section === "polylines")) {
+      const list = /^-\s*(\[.*\])\s*$/.exec(trimmed);
+      if (!list) {
+        continue;
+      }
+      const numbers = parseNumberList(list[1]);
+      if (section === "polygons") {
+        const polygon = new Polygon(3);
+        polygon.load(numbers);
+        polygons.push(polygon);
+      } else {
+        const polyline = new Polyline(3);
+        polyline.load(numbers);
+        polylines.push(polyline);
+      }
+    }
+  }
+
+  for (const key of ["countryColor", "cityColor", "baseColor", "lineColor", "oceanPalette"] as const) {
+    if (parsed[key] != null && !Number.isFinite(parsed[key])) {
+      delete parsed[key];
+    }
+  }
+  if (sawPolygons) {
+    parsed.polygons = polygons;
+  }
+  if (sawPolylines) {
+    parsed.polylines = polylines;
+  }
+  return parsed;
+}
+
+function parseYamlBool(value: string): boolean | undefined {
+  const normalized = value.trim().toLowerCase();
+  if (["true", "yes", "on", "1"].includes(normalized)) {
+    return true;
+  }
+  if (["false", "no", "off", "0"].includes(normalized)) {
+    return false;
+  }
+  return undefined;
 }
 
 function stripComment(line: string): string {

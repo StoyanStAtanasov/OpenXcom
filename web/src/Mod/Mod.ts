@@ -1986,6 +1986,9 @@ export class Mod {
     }
     const textureDat = await this.fetchOptionalBinary(this.activeManifestPath("ufoTextureDat", "tftdTextureDat"));
     if (textureDat) {
+      const textures = new SurfaceSet(32, 32);
+      textures.loadDat(textureDat);
+      this.surfaceSets.set("TEXTURE.DAT", textures);
       this.globe.loadTextureDat(textureDat);
     } else {
       Logger.log(LOG_WARNING, "Original GEOGRAPH/TEXTURE.DAT not found; using fallback globe texture colors.");

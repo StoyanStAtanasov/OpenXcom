@@ -3,8 +3,9 @@ import type { Action } from "../Engine/Action.ts";
 import type { Game } from "../Engine/Game.ts";
 import { Options } from "../Engine/Options.ts";
 import type { State } from "../Engine/State.ts";
-import type { Polygon } from "../Mod/Polygon.ts";
+import { Polygon } from "../Mod/Polygon.ts";
 import type { RuleGlobe } from "../Mod/RuleGlobe.ts";
+import type { SurfaceSet } from "../Engine/SurfaceSet.ts";
 import type { Base } from "../Savegame/Base.ts";
 import type { Craft } from "../Savegame/Craft.ts";
 import type { Ufo } from "../Savegame/Ufo.ts";
@@ -21,7 +22,10 @@ type CraftTarget = Craft & {
 };
 
 const NEAR_RADIUS = 25;
-const DOGFIGHT_ZOOM_SCALE = 1.2;
+const DOGFIGHT_ZOOM = 3;
+const RANDOM_SURF_SIZE = 60;
+const COLOR_GROUP = 15 << 4;
+const COLOR_SHADE = 15;
 
 export class Globe extends InteractiveSurface {
   private _newBaseHover = false;
@@ -29,10 +33,17 @@ export class Globe extends InteractiveSurface {
   private _hoverLat = Number.NaN;
   private _rotationLon = 0;
   private _rotationLat = 0;
-  private _zoom = 1;
-  private _zoomOld = 1;
+  private _zoom = 0;
+  private _zoomOld = 0;
+  private _zoomTexture = 0;
+  private _radius = 0;
+  private _radiusStep = 0;
+  private _zoomRadius: number[] = [];
   private _polygons: Polygon[] = [];
+  private _cacheLand: Polygon[] = [];
   private _rules: RuleGlobe | null = null;
+  private _texture: SurfaceSet | null = null;
+  private _randomNoiseData = new Int16Array(RANDOM_SURF_SIZE * RANDOM_SURF_SIZE);
 
   constructor(
     private _game: Game,
@@ -45,19 +56,32 @@ export class Globe extends InteractiveSurface {
   ) {
     super(width, height, x, y);
     this._rules = this._game.getMod()?.getGlobe() || null;
+    this._texture = this._game.getMod()?.getSurfaceSet("TEXTURE.DAT") || null;
     this._polygons = this._rules?.getPolygons() || [];
     const save = this._game.getSavedGame();
     if (save) {
       this._rotationLon = save.getGlobeLongitude();
       this._rotationLat = save.getGlobeLatitude();
+      this._zoom = save.getGlobeZoom();
+      this._zoomOld = this._zoom;
     }
+    this.setupRadii(width, height);
+    for (let i = 0; i < this._randomNoiseData.length; ++i) {
+      this._randomNoiseData[i] = ((i * 1103515245 + 12345) >>> 16) & 3;
+    }
+    this.setZoom(this._zoom);
+    this.cachePolygons();
   }
 
   override draw(): void {
+    if (this._redraw) {
+      this.cachePolygons();
+    }
     super.draw();
     this.drawOcean();
     this.drawLand();
-    this.drawMeridians();
+    this.drawShadow();
+    this.drawDetail();
     if (this._newBaseHover && Number.isFinite(this._hoverLon) && Number.isFinite(this._hoverLat)) {
       const p = this.polarToCart(this._hoverLon, this._hoverLat);
       this.drawLine(p.x - 4, p.y, p.x + 4, p.y, 138);
@@ -96,23 +120,23 @@ export class Globe extends InteractiveSurface {
   }
 
   zoomIn(): void {
-    this._zoom = Math.min(1.4, this._zoom + 0.1);
-    this.invalidate();
+    if (this._zoom < this._zoomRadius.length - 1) {
+      this.setZoom(this._zoom + 1);
+    }
   }
 
   zoomOut(): void {
-    this._zoom = Math.max(0.7, this._zoom - 0.1);
-    this.invalidate();
+    if (this._zoom > 0) {
+      this.setZoom(this._zoom - 1);
+    }
   }
 
   zoomMax(): void {
-    this._zoom = 1.4;
-    this.invalidate();
+    this.setZoom(this._zoomRadius.length - 1);
   }
 
   zoomMin(): void {
-    this._zoom = 0.7;
-    this.invalidate();
+    this.setZoom(0);
   }
 
   saveZoomDogfight(): void {
@@ -120,9 +144,19 @@ export class Globe extends InteractiveSurface {
   }
 
   zoomDogfightIn(): boolean {
-    if (this.getZoom() < 3) {
-      this._zoom = Math.min(1.4, Math.max(DOGFIGHT_ZOOM_SCALE, this._zoom + 0.1));
-      this.invalidate();
+    if (this._zoom < DOGFIGHT_ZOOM) {
+      const radiusNow = this._radius;
+      if (radiusNow + this._radiusStep >= this._zoomRadius[DOGFIGHT_ZOOM]) {
+        this.setZoom(DOGFIGHT_ZOOM);
+      } else {
+        if (radiusNow + this._radiusStep >= this._zoomRadius[this._zoom + 1]) {
+          this._zoom++;
+        }
+        this.setZoom(this._zoom);
+        this._radius = radiusNow + this._radiusStep;
+        this.cachePolygons();
+        this.invalidate();
+      }
       return false;
     }
     return true;
@@ -130,21 +164,35 @@ export class Globe extends InteractiveSurface {
 
   zoomDogfightOut(): boolean {
     if (this._zoom > this._zoomOld) {
-      this._zoom = Math.max(this._zoomOld, this._zoom - 0.1);
-      this.invalidate();
+      const radiusNow = this._radius;
+      if (radiusNow - this._radiusStep <= this._zoomRadius[this._zoomOld]) {
+        this.setZoom(this._zoomOld);
+      } else {
+        if (radiusNow - this._radiusStep <= this._zoomRadius[this._zoom - 1]) {
+          this._zoom--;
+        }
+        this.setZoom(this._zoom);
+        this._radius = radiusNow - this._radiusStep;
+        this.cachePolygons();
+        this.invalidate();
+      }
       return false;
     }
     return true;
   }
 
   getZoom(): number {
-    if (this._zoom >= DOGFIGHT_ZOOM_SCALE) {
-      return 3;
-    }
-    if (this._zoom <= 0.7) {
-      return 0;
-    }
-    return this._zoom < 1 ? 1 : 2;
+    return this._zoom;
+  }
+
+  setZoom(zoom: number): void {
+    const maxZoom = Math.max(0, this._zoomRadius.length - 1);
+    this._zoom = Math.max(0, Math.min(maxZoom, Math.trunc(zoom)));
+    const totalFrames = this._texture?.getTotalFrames() || 0;
+    this._zoomTexture = totalFrames > 0 ? (2 - Math.floor(this._zoom / 2.0)) * Math.trunc(totalFrames / 3) : 0;
+    this._radius = this._zoomRadius[this._zoom] || 0;
+    this._game.getSavedGame()?.setGlobeZoom(this._zoom);
+    this.invalidate();
   }
 
   center(lon: number, lat: number): void {
@@ -283,8 +331,8 @@ export class Globe extends InteractiveSurface {
     const r = this.radius();
     const deltaLon = lon - this._rotationLon;
     return {
-      x: Math.trunc(this._centerX + r * Math.cos(lat) * Math.sin(deltaLon)),
-      y: Math.trunc(this._centerY + r * (Math.cos(this._rotationLat) * Math.sin(lat) - Math.sin(this._rotationLat) * Math.cos(lat) * Math.cos(deltaLon)))
+      x: this._centerX + Math.floor(r * Math.cos(lat) * Math.sin(deltaLon)),
+      y: this._centerY + Math.floor(r * (Math.cos(this._rotationLat) * Math.sin(lat) - Math.sin(this._rotationLat) * Math.cos(lat) * Math.cos(deltaLon)))
     };
   }
 
@@ -304,28 +352,54 @@ export class Globe extends InteractiveSurface {
   }
 
   private radius(): number {
-    return Math.max(20, Math.trunc(Math.min(this.getWidth(), this.getHeight()) * 0.42 * this._zoom));
+    return this._radius;
   }
 
   private drawOcean(): void {
-    const r = this.radius();
-    for (let y = -r; y <= r; ++y) {
-      for (let x = -r; x <= r; ++x) {
-        const d = x * x + y * y;
-        if (d <= r * r) {
-          const shade = Math.min(31, Math.trunc((Math.sqrt(d) / r) * 18));
-          this.setPixel(this._centerX + x, this._centerY + y, 192 + shade);
-        }
+    this.drawCircle(this._centerX + 1, this._centerY, Math.trunc(this.radius() + 20), this._rules?.getOceanColor() ?? 192);
+  }
+
+  private drawLand(): void {
+    for (const polygon of this._cacheLand) {
+      const xs: number[] = [];
+      const ys: number[] = [];
+      for (let i = 0; i < polygon.getPoints(); ++i) {
+        xs.push(polygon.getX(i));
+        ys.push(polygon.getY(i));
+      }
+      if (xs.length < 3) {
+        continue;
+      }
+      const texture = this._texture?.getFrame(polygon.getTexture() + this._zoomTexture) || null;
+      if (texture) {
+        this.drawTexturedPolygon(xs, ys, xs.length, texture, 0, 0);
+      } else {
+        this.drawPolygon(xs, ys, xs.length, this.textureColor(polygon.getTexture()));
       }
     }
   }
 
-  private drawLand(): void {
+  private setupRadii(width: number, height: number): void {
+    this._zoomRadius = [
+      0.45 * height,
+      0.60 * height,
+      0.90 * height,
+      1.40 * height,
+      2.25 * height,
+      3.60 * height
+    ];
+    this._radius = this._zoomRadius[this._zoom] || this._zoomRadius[0] || Math.min(width, height) * 0.45;
+    this._radiusStep = (this._zoomRadius[DOGFIGHT_ZOOM] - this._zoomRadius[0]) / 10.0;
+  }
+
+  private cachePolygons(): void {
+    this._cacheLand = [];
     for (const polygon of this._polygons) {
-      let closest = 0;
-      let furthest = 0;
-      for (let i = 0; i < polygon.getPoints(); ++i) {
-        const z = Math.cos(this._rotationLat) * Math.cos(polygon.getLatitude(i)) * Math.cos(polygon.getLongitude(i) - this._rotationLon) + Math.sin(this._rotationLat) * Math.sin(polygon.getLatitude(i));
+      let closest = 0.0;
+      let furthest = 0.0;
+      for (let j = 0; j < polygon.getPoints(); ++j) {
+        const z = Math.cos(this._rotationLat) * Math.cos(polygon.getLatitude(j)) * Math.cos(polygon.getLongitude(j) - this._rotationLon) +
+          Math.sin(this._rotationLat) * Math.sin(polygon.getLatitude(j));
         if (z > closest) {
           closest = z;
         } else if (z < furthest) {
@@ -336,30 +410,90 @@ export class Globe extends InteractiveSurface {
         continue;
       }
 
-      const xs: number[] = [];
-      const ys: number[] = [];
-      for (let i = 0; i < polygon.getPoints(); ++i) {
-        const p = this.polarToCart(polygon.getLongitude(i), polygon.getLatitude(i));
-        xs.push(p.x);
-        ys.push(p.y);
+      const cached = polygon.clone();
+      for (let j = 0; j < cached.getPoints(); ++j) {
+        const p = this.polarToCart(cached.getLongitude(j), cached.getLatitude(j));
+        cached.setX(j, p.x);
+        cached.setY(j, p.y);
       }
-      if (xs.length < 3) {
-        continue;
-      }
-      this.drawPolygon(xs, ys, xs.length, this.textureColor(polygon.getTexture()));
+      this._cacheLand.push(cached);
     }
   }
 
-  private drawMeridians(): void {
-    const r = this.radius();
-    for (let i = -2; i <= 2; ++i) {
-      const yy = this._centerY + Math.trunc(i * r / 5 + this._rotationLat * 10);
-      this.drawLine(this._centerX - r, yy, this._centerX + r, yy, 239);
+  private drawShadow(): void {
+    const sun = this.getSunDirection(this._rotationLon, this._rotationLat);
+    for (let y = 0; y < this.getHeight(); ++y) {
+      for (let x = 0; x < this.getWidth(); ++x) {
+        const dest = this.getPixel(x, y);
+        const earth = this.circleNorm(this._centerX, this._centerY, this.radius(), x + 0.5, y + 0.5);
+        const noise = this._randomNoiseData[positiveModulo(y, RANDOM_SURF_SIZE) * RANDOM_SURF_SIZE + positiveModulo(x, RANDOM_SURF_SIZE)];
+        if (dest && earth.z) {
+          const shadow = this.getShadowValue(earth, sun, noise);
+          if (this.isOcean(dest)) {
+            this.setPixel(x, y, this.getOceanShadow(shadow));
+          } else {
+            this.setPixel(x, y, this.getLandShadow(dest, shadow));
+          }
+        } else {
+          this.setPixel(x, y, 0);
+        }
+      }
     }
-    for (let i = -2; i <= 2; ++i) {
-      const xx = this._centerX + Math.trunc(i * r / 5);
-      this.drawLine(xx, this._centerY - r, xx, this._centerY + r, 239);
+  }
+
+  private drawDetail(): void {
+    if (!Options.globeDetail || this._zoom < 1) {
+      return;
     }
+    for (const polyline of this._rules?.getPolylines() || []) {
+      for (let j = 0; j < polyline.getPoints() - 1; ++j) {
+        if (this.pointBack(polyline.getLongitude(j), polyline.getLatitude(j)) ||
+          this.pointBack(polyline.getLongitude(j + 1), polyline.getLatitude(j + 1))) {
+          continue;
+        }
+        const start = this.polarToCart(polyline.getLongitude(j), polyline.getLatitude(j));
+        const end = this.polarToCart(polyline.getLongitude(j + 1), polyline.getLatitude(j + 1));
+        this.drawLine(start.x, start.y, end.x, end.y, this._rules?.getLineColor() ?? 162);
+      }
+    }
+  }
+
+  private circleNorm(ox: number, oy: number, r: number, x: number, y: number): { x: number; y: number; z: number } {
+    const limit = r * r;
+    const norm = 1.0 / r;
+    const retX = x - ox;
+    const retY = y - oy;
+    const temp = retX * retX + retY * retY;
+    if (limit > temp) {
+      return {
+        x: retX * norm,
+        y: retY * norm,
+        z: Math.sqrt(limit - temp) * norm
+      };
+    }
+    return { x: 0, y: 0, z: 0 };
+  }
+
+  private isOcean(dest: number): boolean {
+    const ocean = this._rules?.getOceanColor() ?? 192;
+    return Boolean(this._rules?.getOceanShading() ?? true) && dest >= ocean && dest < ocean + 32;
+  }
+
+  private getOceanShadow(shadow: number): number {
+    return (this._rules?.getOceanColor() ?? 192) + shadow;
+  }
+
+  private getLandShadow(dest: number, shadow: number): number {
+    if (shadow === 0) {
+      return dest;
+    }
+    const shaded = Math.trunc(shadow / 3);
+    const candidate = dest + shaded;
+    const group = dest & COLOR_GROUP;
+    if (candidate > group + COLOR_SHADE) {
+      return group + COLOR_SHADE;
+    }
+    return candidate;
   }
 
   private textureColor(texture: number): number {
@@ -495,4 +629,8 @@ export class Globe extends InteractiveSurface {
     else if (j > 8) j = 9;
     return j + 16;
   }
+}
+
+function positiveModulo(value: number, divisor: number): number {
+  return ((value % divisor) + divisor) % divisor;
 }
