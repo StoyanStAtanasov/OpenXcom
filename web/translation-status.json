@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T21:44:55.168Z",
+    "generatedAt": "2026-05-25T21:52:03.967Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
@@ -282,7 +282,7 @@
       "name": "Starting-base custom facility placement",
       "area": "Basescape",
       "status": "integrated-verified",
-      "slicePercent": 98,
+      "slicePercent": 100,
       "sourceFiles": [
         "src/Geoscape/BaseNameState.cpp",
         "src/Basescape/SelectStartFacilityState.cpp",
@@ -299,9 +299,9 @@
         "web/src/Mod/Mod.ts",
         "web/src/Savegame/SavedGame.ts"
       ],
-      "verification": "npm run build passed; Playwright VERIFY_BASE_NAME_PLACE_LIFT passed for BaseName hook, lift placement, selected-base update, and custom facility list",
+      "verification": "npm run build passed; Playwright VERIFY_BASE_NAME_PLACE_LIFT passed for BaseName hook, lift placement, selected-base update, and custom facility list; npm run verify:geoscape-confirmations now verifies selectedBase is source-faithful runtime-only state: setSelectedBase updates the current base in memory, SavedGame.save omits the selectedBase key, and SavedGame.load defaults selection back to the first base like C++",
       "boundaries": [
-        "Full save/load persistence of selected base index pending"
+        "No selected-base save/load persistence is pending; C++ keeps the selected-base index runtime-only."
       ]
     },
     {
@@ -1202,7 +1202,7 @@
       "Interface": 2796,
       "Menu": 4767,
       "Mod": 13149,
-      "Savegame": 14227,
+      "Savegame": 14224,
       "Ufopaedia": 1902
     }
   }

@@ -51,6 +51,7 @@ const baseDefenseVerifier = String.raw`async page => {
       { ResearchCompleteState },
       { Mod },
       { Options },
+      { getBrowserFile },
       { TextButton },
       { Window },
       { CommendationState },
@@ -94,6 +95,7 @@ const baseDefenseVerifier = String.raw`async page => {
       import("/web/dist/Geoscape/ResearchCompleteState.js"),
       import("/web/dist/Mod/Mod.js"),
       import("/web/dist/Engine/Options.js"),
+      import("/web/dist/Engine/CrossPlatform.js"),
       import("/web/dist/Interface/TextButton.js"),
       import("/web/dist/Interface/Window.js"),
       import("/web/dist/Battlescape/CommendationState.js"),
@@ -462,6 +464,7 @@ const baseDefenseVerifier = String.raw`async page => {
       }
 
       states.splice(0, states.length, ...originalStates);
+      localStorage.setItem(Options.getMasterUserFolder() + "GAME_1/SAVEINFO.DAT", btoa(String.fromCharCode(...new Uint8Array(0x28))));
       const converter = new SaveConverter(1, realMod);
       assertArrayEquals(converter.graphVector([10], 3, false), [10, 0, 0], "SaveConverter graphVector should source-resize with zero padding");
       assertArrayEquals(converter.graphVector([5, 6, 7, 8], 2, false), [5, 6], "SaveConverter graphVector should truncate to current month before first year");
@@ -717,6 +720,13 @@ const baseDefenseVerifier = String.raw`async page => {
       transferSoldier.setSoldier(transferSoldierPayload);
       targetBase.getTransfers().push(transferSoldier);
       targetSave.getBases().push(targetBase);
+      const alternateBase = new Base(realMod);
+      alternateBase.setName("ROUNDTRIP_SECOND_BASE");
+      alternateBase.setLongitude(6.2);
+      alternateBase.setLatitude(0.85);
+      targetSave.getBases().push(alternateBase);
+      targetSave.setSelectedBase(1);
+      assert(targetSave.getSelectedBase() === alternateBase, "SavedGame setSelectedBase did not update runtime selected base");
       const targetDeadSoldier = new Soldier(soldierRule, soldierArmor);
       targetDeadSoldier.setName("ROUNDTRIP DEAD SOLDIER");
       targetDeadSoldier.getInitStats().health = 31;
@@ -741,6 +751,10 @@ const baseDefenseVerifier = String.raw`async page => {
       targetSave.getMissionStatistics().push(targetMissionStats);
 
       targetSave.save("geoscape-target-roundtrip.sav");
+      const rawRoundtripSave = getBrowserFile(Options.getMasterUserFolder() + "geoscape-target-roundtrip.sav");
+      assert(rawRoundtripSave, "SavedGame round-trip fixture was not written to browser storage");
+      const savedRoundtripDoc = JSON.parse(rawRoundtripSave)[1];
+      assert(!Object.prototype.hasOwnProperty.call(savedRoundtripDoc, "selectedBase"), "SavedGame.save should not serialize selectedBase; C++ keeps it runtime-only");
       const targetLoaded = new SavedGame();
       targetLoaded.load("geoscape-target-roundtrip.sav", realMod);
       assert(targetLoaded.getWaypoints().length === 1, "SavedGame waypoints did not round-trip");
@@ -779,9 +793,12 @@ const baseDefenseVerifier = String.raw`async page => {
       const loadedSite = targetLoaded.getMissionSites()[0];
       assert(loadedSite.getId() === 71 && loadedSite.getTexture() === 3 && loadedSite.getSecondsRemaining() === 1440, "MissionSite fields did not round-trip");
       assert(loadedSite.getDetected() && loadedSite.isInBattlescape(), "MissionSite flags did not round-trip");
-      assert(targetLoaded.getBases().length === 1, "SavedGame base list did not round-trip");
+      assert(targetLoaded.getBases().length === 2, "SavedGame base list did not round-trip");
       const loadedBase = targetLoaded.getBases()[0];
       assert(loadedBase.getName() === "ROUNDTRIP_XCOM_BASE" && loadedBase.getStorageItems().getItem("STR_ALIEN_ALLOYS") === 6, "Base core fields did not round-trip");
+      const loadedAlternateBase = targetLoaded.getBases()[1];
+      assert(loadedAlternateBase.getName() === "ROUNDTRIP_SECOND_BASE", "Second base did not round-trip");
+      assert(targetLoaded.getSelectedBase() === loadedBase, "SavedGame.load should leave selectedBase at the default first base like C++");
       assert(loadedBase.getFacilities().length === 1, "Base facilities did not round-trip");
       const loadedFacility = loadedBase.getFacilities()[0];
       assert(loadedFacility.getRules().getType() === fakeFacilityRule.getType() && loadedFacility.getX() === 2 && loadedFacility.getY() === 3 && loadedFacility.getBuildTime() === 6, "BaseFacility type/position/buildTime did not round-trip");

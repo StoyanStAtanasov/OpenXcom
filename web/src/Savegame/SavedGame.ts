@@ -92,7 +92,6 @@ type SavedGameNode = {
   ufos?: UfoSaveNode[];
   discovered?: string[];
   poppedResearch?: string[];
-  selectedBase?: number;
   lastSelectedArmor?: string;
   alienStrategy?: AlienStrategySave;
   deadSoldiers?: SoldierSaveNode[];
@@ -1027,7 +1026,6 @@ export class SavedGame {
       bases: this._bases.map(base => this.saveBaseNode(base)),
       discovered: this._discovered.map(research => research.getName()),
       poppedResearch: this._poppedResearch.map(research => research.getName()),
-      selectedBase: this._selectedBase,
       lastSelectedArmor: this._lastSelectedArmor,
       alienStrategy: this._alienStrategy.save(),
       deadSoldiers: this._deadSoldiers.map(soldier => soldier.save()),
@@ -1053,7 +1051,6 @@ export class SavedGame {
     this._globeLon = numberValue(doc.globeLon, this._globeLon);
     this._globeLat = numberValue(doc.globeLat, this._globeLat);
     this._globeZoom = intValue(doc.globeZoom, this._globeZoom);
-    this._selectedBase = intValue(doc.selectedBase, this._selectedBase);
     this._lastSelectedArmor = stringValue(doc.lastSelectedArmor, this._lastSelectedArmor);
     this._ids = new Map(Object.entries(doc.ids || {}).map(([key, value]) => [key, intValue(value, 0)]));
 
