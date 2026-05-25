@@ -360,6 +360,7 @@ export class ProjectileFlyBState extends BattleState {
       this._projectileImpact = projectile.calculateThrow(this._unit.getFiringAccuracy(this._action.type, this._action.weapon) / accuracyDivider);
       if (this._projectileImpact !== VoxelType.V_EMPTY && this._projectileImpact !== VoxelType.V_OUTOFBOUNDS) {
         this.startShotAnimation(projectile, true);
+        this.recordFiredShot();
         return true;
       }
       this.failShot(projectile);
@@ -375,9 +376,7 @@ export class ProjectileFlyBState extends BattleState {
     if (!samePosition(this._targetVoxel, new Position(-16, -16, -24)) &&
       (this._projectileImpact !== VoxelType.V_EMPTY || this._action.type === BattleActionType.BA_LAUNCH)) {
       this.startShotAnimation(projectile);
-      if (this._action.type !== BattleActionType.BA_LAUNCH) {
-        this._unit.getStatistics().shotsFiredCounter++;
-      }
+      this.recordFiredShot();
       return true;
     }
 
@@ -403,6 +402,12 @@ export class ProjectileFlyBState extends BattleState {
     if (!this._parent.getSave().getDebugMode() && this._action.type !== BattleActionType.BA_LAUNCH && !this._ammo.spendBullet()) {
       this._parent.getSave().removeItem(this._ammo);
       this._action.weapon.setAmmoItem(null);
+    }
+  }
+
+  private recordFiredShot(): void {
+    if (this._unit && this._action.type !== BattleActionType.BA_THROW && this._action.type !== BattleActionType.BA_LAUNCH) {
+      this._unit.getStatistics().shotsFiredCounter++;
     }
   }
 

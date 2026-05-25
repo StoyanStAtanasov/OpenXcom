@@ -675,6 +675,111 @@ const verifier = String.raw`async page => {
     assert(cacheValues.length === 1 && cacheValues[0] === 0 && cachedUnits[0] === firingUnit, "ProjectileFlyBState shot lift-off did not clear and recache the unit");
     assert(shotSounds.length === 1 && shotSounds[0].sound === 77, "ProjectileFlyBState shot lift-off did not prefer ammo fire sound");
 
+    const arcingCalls = [];
+    const arcingStats = { shotsFiredCounter: 0 };
+    const arcingTargetUnit = {
+      getVisible: () => true,
+      getFloatHeight: () => 0,
+      getHeight: () => 20
+    };
+    const arcingTile = {
+      getTerrainLevel: () => 0,
+      getUnit: () => arcingTargetUnit,
+      hasNoFloor: () => false,
+      getMapData: () => null
+    };
+    const arcingEngine = {
+      getOriginVoxel: () => new Position(8, 8, 12),
+      validateThrow: (_action, _origin, _target, curveRef, testRef) => {
+        curveRef.value = 0;
+        testRef.value = VoxelType.V_UNIT;
+        return true;
+      },
+      calculateParabola: (_origin, target, _store, trajectory) => {
+        trajectory.push(target.clone());
+        return VoxelType.V_UNIT;
+      }
+    };
+    const arcingAmmoRule = {
+      getBulletSprite: () => -1,
+      getVaporColor: () => -1,
+      getVaporDensity: () => -1,
+      getVaporProbability: () => 5,
+      getBulletSpeed: () => 0,
+      getFireSound: () => -1
+    };
+    const arcingWeaponRule = {
+      getArcingShot: () => true,
+      getFireSound: () => 55,
+      getBulletSprite: () => -1,
+      getVaporColor: () => -1,
+      getVaporDensity: () => -1,
+      getVaporProbability: () => 5,
+      getBulletSpeed: () => 0,
+      getAimRange: () => 100,
+      getMinRange: () => 0,
+      getSnapRange: () => 100,
+      getAutoRange: () => 100,
+      getDropoff: () => 0
+    };
+    const arcingUnit = {
+      getFaction: () => UnitFaction.FACTION_PLAYER,
+      getFiringAccuracy: () => 120,
+      getPosition: () => new Position(1, 1, 0),
+      aim: value => arcingCalls.push("aim:" + value),
+      setCache: value => arcingCalls.push("cache:" + value),
+      getStatistics: () => arcingStats
+    };
+    const arcingWeapon = {
+      getRules: () => arcingWeaponRule,
+      getAmmoItem: () => arcingAmmo,
+      setAmmoItem: item => { arcingWeapon.cleared = item; }
+    };
+    const arcingAmmo = {
+      getRules: () => arcingAmmoRule,
+      getAmmoQuantity: () => 1,
+      spendBullet: () => true
+    };
+    arcingWeapon.getAmmoItem = () => arcingAmmo;
+    const arcingState = Object.create(ProjectileFlyBState.prototype);
+    arcingState._unit = arcingUnit;
+    arcingState._ammo = arcingAmmo;
+    arcingState._origin = new Position(1, 1, 0);
+    arcingState._originVoxel = new Position(-1, -1, -1);
+    arcingState._targetVoxel = new Position(2 * 16 + 8, 2 * 16 + 8, 12);
+    arcingState._action = {
+      type: BattleActionType.BA_SNAPSHOT,
+      actor: arcingUnit,
+      weapon: arcingWeapon,
+      target: new Position(2, 2, 0),
+      waypoints: [],
+      cameraPosition: new Position(-1, -1, -1),
+      autoShotCounter: 0,
+      result: ""
+    };
+    arcingState._parent = {
+      getMod: () => null,
+      getSave: () => ({
+        getTileEngine: () => arcingEngine,
+        getTile: () => arcingTile,
+        getSide: () => UnitFaction.FACTION_PLAYER,
+        getBattleGame: () => ({ getPanicHandled: () => true }),
+        getDebugMode: () => false,
+        removeItem: () => {}
+      }),
+      getMap: () => ({
+        setProjectile: projectile => { arcingState.projectile = projectile; },
+        cacheUnit: unit => arcingCalls.push(unit === arcingUnit ? "cacheUnit" : "wrongCacheUnit"),
+        getSoundAngle: pos => pos.x + pos.y
+      }),
+      getPanicHandled: () => true,
+      getDepth: () => 0,
+      setStateInterval: interval => arcingCalls.push("interval:" + interval),
+      popState: () => arcingCalls.push("popState")
+    };
+    assert(arcingState.createNewProjectile() === true, "ProjectileFlyBState arcing shot did not create a projectile");
+    assert(arcingStats.shotsFiredCounter === 1, "ProjectileFlyBState arcing shot did not increment shotsFiredCounter");
+
     const shotgunExplosions = [];
     const shotgunHitCalls = [];
     const shotgunStates = [];

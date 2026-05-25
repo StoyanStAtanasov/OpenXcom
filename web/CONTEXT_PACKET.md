@@ -1,6 +1,6 @@
 # OpenXcom TS Port Context Packet
 
-Generated: 2026-05-25T15:27:16.077Z
+Generated: 2026-05-25T15:32:29.874Z
 Role: resume
 
 This is the compact handoff surface for resumed turns and subagents. Regenerate it with `npm run context` instead of rereading long narrative docs.
@@ -13,20 +13,20 @@ This is the compact handoff surface for resumed turns and subagents. Regenerate 
 - Integrated verified slices: 15
 - Slice path warnings: 0
 - Status rollup: integrated-verified=15, partial-integrated-verified=1
-- Local Codex status: gpt-5.5 (xhigh); context 20.8% left (204585/258400 latest input tokens); credits not reported locally
+- Local Codex status: gpt-5.5 (xhigh); context 12.7% left (225600/258400 latest input tokens); credits not reported locally
 
 ## Active Slice
 
 - Name: Original save conversion folder ingestion data
 - Area: Savegame
 - Status: partial-integrated-verified
-- Slice percent: 99.97%
-- Next action: Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting/casualty/hit/projectile-drop/shotgun/reaction-cleanup/explosion-audio baseline: next source-backed target is any remaining complete projectile handoff edge, then widen to the next explicit battlescape runtime gap from PORTING.md.
+- Slice percent: 99.98%
+- Next action: Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting/casualty/hit/projectile-drop/shotgun/reaction-cleanup/explosion-audio/arcing-accounting baseline: widen to the next explicit battlescape runtime gap from PORTING.md.
 - Verification markers: none
 
 Boundaries:
 - SaveConverter DAT reader parity now includes the TFTD SITE.DAT artifact-site counter branch; original tactical GAME_# slots still show the source-matching unsupported-battlescape-save error rather than inventing tactical DAT conversion.
-- SavedGame now persists and restores battleGame payloads when SavedBattleGame is registered; ListLoadOriginalState mirrors the C++ post-load saved-battle resume branch; SavedBattleGame binary tile/moduleMap/loadMapResources/prepareNewTurn/randomizeItemLocations/resetTiles/setDebugMode paths, ammo link rule-skip behavior, Tile/BattleUnit tileBelow placement transitions, UnitWalkBState/UnitFallBState movement occupancy tileBelow handoffs, Pathfinding Bresenham/A* and vertical movement, TileEngine::calculateLine, TileEngine::canTargetUnit potential-unit targeting, AIModule::getSpottingUnits source parity, BattlescapeGame::checkForCasualties kill/death accounting, TileEngine::hit fatal-wound/morale/explode-on-death aftermath, TileEngine::explode fatal-wound killedBy credit, ExplosionBState chained terrain explosion ordering plus audio/cosmetic camera parity, ProjectileFlyBState lift-off/drop sounds/cache/bullet side effects, hostile grenade danger-zone marking, shotgun secondary pellet cascades, terminal out-of-bounds weapon-lowering/cache side effects, and post-projectile reaction-fire/abortTurn cleanup are covered by browser verification or scoped source audit. Remaining battle restoration is deeper projectile runtime behavior, especially any complete projectile handoff edge still named by source review, not core saved-battle/original-save ingestion.
+- SavedGame now persists and restores battleGame payloads when SavedBattleGame is registered; ListLoadOriginalState mirrors the C++ post-load saved-battle resume branch; SavedBattleGame binary tile/moduleMap/loadMapResources/prepareNewTurn/randomizeItemLocations/resetTiles/setDebugMode paths, ammo link rule-skip behavior, Tile/BattleUnit tileBelow placement transitions, UnitWalkBState/UnitFallBState movement occupancy tileBelow handoffs, Pathfinding Bresenham/A* and vertical movement, TileEngine::calculateLine, TileEngine::canTargetUnit potential-unit targeting, AIModule::getSpottingUnits source parity, BattlescapeGame::checkForCasualties kill/death accounting, TileEngine::hit fatal-wound/morale/explode-on-death aftermath, TileEngine::explode fatal-wound killedBy credit, ExplosionBState chained terrain explosion ordering plus audio/cosmetic camera parity, ProjectileFlyBState lift-off/drop sounds/cache/bullet side effects, hostile grenade danger-zone marking, shotgun secondary pellet cascades, terminal out-of-bounds weapon-lowering/cache side effects, post-projectile reaction-fire/abortTurn cleanup, and arcing projectile fired-shot accounting are covered by browser verification or scoped source audit. Remaining battle restoration is the next explicit battlescape runtime gap from PORTING.md, not core saved-battle/original-save ingestion.
 - Browser original-save ingestion now imports selected GAME_# folder files into localStorage, rejects no-op selections, missing SAVEINFO.DAT, and invalid SAVEINFO.DAT with explicit errors, and displays corrupt-slot errors in ListLoadOriginalState. Remaining UX polish is drag/drop/detail presentation rather than core ingestion diagnostics.
 
 Source files (41): src/Mod/RuleConverter.cpp; src/Mod/RuleConverter.h; src/Mod/Mod.cpp; src/Mod/Mod.h; src/Savegame/SaveConverter.cpp; src/Savegame/SaveConverter.h; src/Savegame/Base.cpp; src/Savegame/BaseFacility.cpp; src/Savegame/ItemContainer.cpp; src/Savegame/Ufo.cpp; src/Savegame/Craft.cpp; src/Savegame/AlienBase.cpp; src/Savegame/Waypoint.cpp; src/Savegame/MissionSite.cpp; ... (27 more in web/context-packet.json)
@@ -37,7 +37,7 @@ Target files (39): web/src/Mod/RuleConverter.ts; web/src/Mod/Mod.ts; web/src/Sav
 
 | Slice | Area | Status | % | Next action |
 | --- | --- | --- | ---: | --- |
-| Original save conversion folder ingestion data | Savegame | partial-integrated-verified | 99.97% | Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting/casualty/hit/projectile-drop/shotgun/reaction-cleanup/explosion-audio baseline: next source-backed target is any remaining complete projectile handoff edge, then widen to the next explicit battlescape runtime gap from PORTING.md. |
+| Original save conversion folder ingestion data | Savegame | partial-integrated-verified | 99.98% | Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting/casualty/hit/projectile-drop/shotgun/reaction-cleanup/explosion-audio/arcing-accounting baseline: widen to the next explicit battlescape runtime gap from PORTING.md. |
 
 ## Subagent Packet
 
@@ -61,11 +61,11 @@ Worker final format:
 Prompt skeletons:
 
 ```text
-Read-only sidecar for OpenXcom TS port slice "Original save conversion folder ingestion data" (99.97%).
+Read-only sidecar for OpenXcom TS port slice "Original save conversion folder ingestion data" (99.98%).
 Do not edit files.
 Inspect only the exact file list provided by the main agent plus this context packet.
-Next action: Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting/casualty/hit/projectile-drop/shotgun/reaction-cleanup/explosion-audio baseline: next source-backed target is any remaining complete projectile handoff edge, then widen to the next explicit battlescape runtime gap from PORTING.md..
-Boundaries: SaveConverter DAT reader parity now includes the TFTD SITE.DAT artifact-site counter branch; original tactical GAME_# slots still show the source-matching unsupported-battlescape-save error rather than inventing tactical DAT conversion.; SavedGame now persists and restores battleGame payloads when SavedBattleGame is registered; ListLoadOriginalState mirrors the C++ post-load saved-battle resume branch; SavedBattleGame binary tile/moduleMap/loadMapResources/prepareNewTurn/randomizeItemLocations/resetTiles/setDebugMode paths, ammo link rule-skip behavior, Tile/BattleUnit tileBelow placement transitions, UnitWalkBState/UnitFallBState movement occupancy tileBelow handoffs, Pathfinding Bresenham/A* and vertical movement, TileEngine::calculateLine, TileEngine::canTargetUnit potential-unit targeting, AIModule::getSpottingUnits source parity, BattlescapeGame::checkForCasualties kill/death accounting, TileEngine::hit fatal-wound/morale/explode-on-death aftermath, TileEngine::explode fatal-wound killedBy credit, ExplosionBState chained terrain explosion ordering plus audio/cosmetic camera parity, ProjectileFlyBState lift-off/drop sounds/cache/bullet side effects, hostile grenade danger-zone marking, shotgun secondary pellet cascades, terminal out-of-bounds weapon-lowering/cache side effects, and post-projectile reaction-fire/abortTurn cleanup are covered by browser verification or scoped source audit. Remaining battle restoration is deeper projectile runtime behavior, especially any complete projectile handoff edge still named by source review, not core saved-battle/original-save ingestion.; Browser original-save ingestion now imports selected GAME_# folder files into localStorage, rejects no-op selections, missing SAVEINFO.DAT, and invalid SAVEINFO.DAT with explicit errors, and displays corrupt-slot errors in ListLoadOriginalState. Remaining UX polish is drag/drop/detail presentation rather than core ingestion diagnostics..
+Next action: Continue tactical battle runtime restoration beyond the verified saved-battle/path/line/spotting/casualty/hit/projectile-drop/shotgun/reaction-cleanup/explosion-audio/arcing-accounting baseline: widen to the next explicit battlescape runtime gap from PORTING.md..
+Boundaries: SaveConverter DAT reader parity now includes the TFTD SITE.DAT artifact-site counter branch; original tactical GAME_# slots still show the source-matching unsupported-battlescape-save error rather than inventing tactical DAT conversion.; SavedGame now persists and restores battleGame payloads when SavedBattleGame is registered; ListLoadOriginalState mirrors the C++ post-load saved-battle resume branch; SavedBattleGame binary tile/moduleMap/loadMapResources/prepareNewTurn/randomizeItemLocations/resetTiles/setDebugMode paths, ammo link rule-skip behavior, Tile/BattleUnit tileBelow placement transitions, UnitWalkBState/UnitFallBState movement occupancy tileBelow handoffs, Pathfinding Bresenham/A* and vertical movement, TileEngine::calculateLine, TileEngine::canTargetUnit potential-unit targeting, AIModule::getSpottingUnits source parity, BattlescapeGame::checkForCasualties kill/death accounting, TileEngine::hit fatal-wound/morale/explode-on-death aftermath, TileEngine::explode fatal-wound killedBy credit, ExplosionBState chained terrain explosion ordering plus audio/cosmetic camera parity, ProjectileFlyBState lift-off/drop sounds/cache/bullet side effects, hostile grenade danger-zone marking, shotgun secondary pellet cascades, terminal out-of-bounds weapon-lowering/cache side effects, post-projectile reaction-fire/abortTurn cleanup, and arcing projectile fired-shot accounting are covered by browser verification or scoped source audit. Remaining battle restoration is the next explicit battlescape runtime gap from PORTING.md, not core saved-battle/original-save ingestion.; Browser original-save ingestion now imports selected GAME_# folder files into localStorage, rejects no-op selections, missing SAVEINFO.DAT, and invalid SAVEINFO.DAT with explicit errors, and displays corrupt-slot errors in ListLoadOriginalState. Remaining UX polish is drag/drop/detail presentation rather than core ingestion diagnostics..
 Return summary-first: files inspected, source facts, risks, recommended integration/verifier checks.
 ```
 
