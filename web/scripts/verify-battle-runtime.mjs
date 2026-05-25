@@ -756,6 +756,7 @@ const verifier = String.raw`async page => {
     const previousScrollSpeed = Options.battleScrollSpeed;
     const previousDragButton = Options.battleDragScrollButton;
     const previousSmoothCamera = Options.battleSmoothCamera;
+    const previousAccuracyText = Options.battleUFOExtenderAccuracy;
     const previousPreviewPath = Options.battleNewPreviewPath;
     const previousTraceAI = Options.traceAI;
     const cameraInvalidations = [];
@@ -989,10 +990,32 @@ const verifier = String.raw`async page => {
     projectileMap.drawProjectileOnTile(0, 0, 0, { lowX: 0, lowY: 0, lowZ: 0, highX: 0, highY: 0, highZ: 0 });
     assert(projectileMap.getPixel(35, 35) !== 0, "Map.drawProjectileOnTile did not blit the projectile sprite in tile order");
 
+    const trackedProjectile = {
+      getItem: () => null,
+      getPosition: () => new Position(30 * 16 + 8, 8, 24)
+    };
+    battleMap.getCamera().setMapOffset(new Position(0, 0, 0));
+    battleMap._projectile = trackedProjectile;
+    battleMap._projectileInFOV = true;
+    Options.battleSmoothCamera = false;
+    battleMap.updateProjectileCamera({ lowX: 30, lowY: 0, lowZ: 1, highX: 30, highY: 0, highZ: 1 });
+    assert(battleMap.getCamera().getMapOffset().z === 1 && battleMap.getCamera().getMapOffset().x < 0, "Map.updateProjectileCamera did not source-wrap non-smooth projectile viewport tracking");
+    const smoothCenters = [];
+    battleMap.getCamera().setMapOffset(new Position(0, 0, 0));
+    battleMap.getCamera().centerOnPosition = (pos, redraw) => smoothCenters.push({ pos: pos.clone(), redraw });
+    battleMap._projectile = trackedProjectile;
+    battleMap._projectileInFOV = true;
+    battleMap._launch = true;
+    battleMap._smoothingEngaged = false;
+    Options.battleSmoothCamera = true;
+    battleMap.updateProjectileCamera({ lowX: 30, lowY: 0, lowZ: 1, highX: 30, highY: 0, highZ: 1 });
+    assert(battleMap._launch === false && smoothCenters.length === 1 && smoothCenters[0].pos.equals(new Position(30, 0, 1)) && smoothCenters[0].redraw === false, "Map.updateProjectileCamera did not source-center smooth projectile launch");
+
     const pathfindingSet = new SurfaceSet(32, 40);
     pathfindingSet.addFrame(10).setPixel(1, 1, 2);
     pathfindingSet.addFrame(22).setPixel(2, 2, 3);
     const cursorSet = new SurfaceSet(32, 40);
+    cursorSet.addFrame(6);
     cursorSet.addFrame(7).setPixel(10, 10, 97);
     const transparentFloorSet = new SurfaceSet(32, 40);
     transparentFloorSet.addFrame(0);
@@ -1076,10 +1099,58 @@ const verifier = String.raw`async page => {
       }
     }
     assert(tuMarkerPixel, "Map.drawTerrain did not draw source pathfinding TU NumberText overlay");
+
+    const accuracyRules = {
+      getMinRange: () => 2,
+      getAimRange: () => 5,
+      getSnapRange: () => 7,
+      getAutoRange: () => 9,
+      getDropoff: () => 10,
+      getMaxRangeSq: () => 100,
+      getMaxRange: () => 10
+    };
+    const accuracyAction = {
+      type: BattleActionType.BA_AIMEDSHOT,
+      actor: { getFiringAccuracy: () => 80 },
+      weapon: { getRules: () => accuracyRules }
+    };
+    const accuracySave = {
+      getMapSizeX: () => 1,
+      getMapSizeY: () => 1,
+      getMapSizeZ: () => 1,
+      getTiles: () => [pathTile],
+      getTile: () => pathTile,
+      getUnits: () => [],
+      getSelectedUnit: () => null,
+      getDepth: () => 0,
+      getDebugMode: () => false,
+      getSide: () => UnitFaction.FACTION_PLAYER,
+      getBattleState: () => ({ getMouseOverIcons: () => false }),
+      getBattleGame: () => ({ getCurrentAction: () => accuracyAction }),
+      getTileEngine: () => ({ distanceUnitToPositionSq: () => 49 })
+    };
+    const accuracyMap = new BattleMap({
+      getSavedGame: () => ({ getSavedBattle: () => accuracySave }),
+      getMod: () => ({ getSurfaceSet: name => name === "CURSOR.PCK" ? cursorSet : null })
+    }, 80, 80, 0, 0, 80);
+    accuracyMap._selectorX = 0;
+    accuracyMap._selectorY = 0;
+    accuracyMap.setCursorType(CursorType.CT_AIM, 3);
+    Options.battleUFOExtenderAccuracy = true;
+    accuracyMap.drawCursor({ getUnit: () => null }, 0, 0, 0, 10, 10, true);
+    assert(accuracyMap._cursorSize === 1 && accuracyMap._txtAccuracy.getText() === "60%" && accuracyMap._txtAccuracy.getColor() === ((Pathfinding.yellow - 1) * 16 - 1), "Map.drawCursor did not source-calculate UFO Extender amber accuracy text");
+    accuracySave.getTileEngine = () => ({ distanceUnitToPositionSq: () => 4 });
+    accuracyMap.drawCursor({ getUnit: () => null }, 0, 0, 0, 10, 10, true);
+    assert(accuracyMap._txtAccuracy.getText() === "80%" && accuracyMap._txtAccuracy.getColor() === ((Pathfinding.green - 1) * 16 - 1), "Map.drawCursor did not source-color in-range UFO Extender accuracy text");
+    accuracyRules.getMaxRangeSq = () => 1;
+    accuracySave.getTileEngine = () => ({ distanceUnitToPositionSq: () => 25 });
+    accuracyMap.drawCursor({ getUnit: () => null }, 0, 0, 0, 10, 10, true);
+    assert(accuracyMap._txtAccuracy.getText() === "0%" && accuracyMap._txtAccuracy.getColor() === ((Pathfinding.red - 1) * 16 - 1), "Map.drawCursor did not source-zero out-of-range UFO Extender accuracy text");
     Options.battleEdgeScroll = previousEdgeScroll;
     Options.battleScrollSpeed = previousScrollSpeed;
     Options.battleDragScrollButton = previousDragButton;
     Options.battleSmoothCamera = previousSmoothCamera;
+    Options.battleUFOExtenderAccuracy = previousAccuracyText;
     Options.battleNewPreviewPath = previousPreviewPath;
     Options.traceAI = previousTraceAI;
 

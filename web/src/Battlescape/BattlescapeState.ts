@@ -61,7 +61,8 @@ export class BattlescapeState extends State {
     this._icons = new Surface(iconsWidth, iconsHeight, x, y);
     this._map = new Map({
       getSavedGame: () => ({ getSavedBattle: () => this._save }),
-      getMod: () => this.game().getMod()
+      getMod: () => this.game().getMod(),
+      getLanguage: () => this.game().getLanguage()
     }, screenWidth, screenHeight, 0, 0, visibleMapHeight);
     this._txtDebug = new Text(300, 10, 20, 0);
     this._txtTooltip = new Text(300, 10, x + 2, y - 10);

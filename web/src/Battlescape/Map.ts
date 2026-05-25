@@ -4,8 +4,11 @@ import { Options, PATH_ARROWS, PATH_FULL, PATH_TU_COST } from "../Engine/Options
 import { Palette } from "../Engine/Palette.ts";
 import { Surface } from "../Engine/Surface.ts";
 import { Timer } from "../Engine/Timer.ts";
+import { formatPercentage } from "../Engine/Unicode.ts";
 import { NumberText } from "../Interface/NumberText.ts";
+import { Text } from "../Interface/Text.ts";
 import type { Action } from "../Engine/Action.ts";
+import type { Language } from "../Engine/Language.ts";
 import type { State } from "../Engine/State.ts";
 import { Mod } from "../Mod/Mod.ts";
 import { TilePart } from "../Mod/MapData.ts";
@@ -15,6 +18,7 @@ import type { Tile } from "../Savegame/Tile.ts";
 import { Camera } from "./Camera.ts";
 import { BattleActionType } from "./BattleAction.ts";
 import { Explosion } from "./Explosion.ts";
+import { Pathfinding } from "./Pathfinding.ts";
 import { Position } from "./Position.ts";
 import type { Projectile } from "./Projectile.ts";
 import { UnitSprite } from "./UnitSprite.ts";
@@ -31,6 +35,7 @@ export enum CursorType {
 export type MapGameLike = {
   getSavedGame?: () => { getSavedBattle?: () => SavedBattleGame | null } | null;
   getMod?: () => Mod | null;
+  getLanguage?: () => Language | null;
 };
 
 function resolveSave(source: SavedBattleGame | MapGameLike): SavedBattleGame {
@@ -65,6 +70,7 @@ export class Map extends InteractiveSurface {
   private _camera: Camera;
   private _visibleMapHeight: number;
   private _arrow: Surface;
+  private _txtAccuracy = new Text(24, 9, 0, 0);
   private _waypoints: Position[] = [];
   private _unitDying = false;
   private _projectileInFOV = false;
@@ -98,6 +104,14 @@ export class Map extends InteractiveSurface {
     this._messageColor = battlescapeInterface?.getElement("messageWindows")?.color ?? this._messageColor;
     this._previewSetting = Options.traceAI ? PATH_FULL : Options.battleNewPreviewPath;
     this._transparencies = this._mod?.getLUTs?.()?.[this._save.getDepth?.() || 0] || null;
+    this._txtAccuracy.setSmall();
+    this._txtAccuracy.setPalette(this.getPalette());
+    this._txtAccuracy.setHighContrast(true);
+    this._txtAccuracy.initText(
+      this._mod?.getFont?.("FONT_BIG") || null,
+      this._mod?.getFont?.("FONT_SMALL") || null,
+      gameOrSave instanceof SavedBattleGame ? null : gameOrSave.getLanguage?.() || null
+    );
     this._camera = new Camera(this._spriteWidth, this._spriteHeight, this._save.getMapSizeX(), this._save.getMapSizeY(), this._save.getMapSizeZ(), this, visibleMapHeight);
     this._scrollMouseTimer.onSurfaceTimer(this.scrollMouse.bind(this));
     this._scrollKeyTimer.onSurfaceTimer(this.scrollKey.bind(this));
@@ -106,6 +120,12 @@ export class Map extends InteractiveSurface {
     this._obstacleTimer.onSurfaceTimer(this.disableObstacles.bind(this));
     this._camera.centerOnPosition(new Position(Math.trunc(this._save.getMapSizeX() / 2), Math.trunc(this._save.getMapSizeY() / 2), 0), false);
     this.invalidate();
+  }
+
+  override initText(big?: unknown, small?: unknown, lang?: unknown): void {
+    super.initText(big, small, lang);
+    this._txtAccuracy.setPalette(this.getPalette());
+    this._txtAccuracy.initText(big, small, lang);
   }
 
   init(): void {
@@ -190,7 +210,7 @@ export class Map extends InteractiveSurface {
 
   setCursorType(type: CursorType, size = 1): void {
     this._cursorType = type;
-    this._cursorSize = size;
+    this._cursorSize = type === CursorType.CT_NORMAL ? size : 1;
     this.invalidate();
   }
 
@@ -355,10 +375,11 @@ export class Map extends InteractiveSurface {
   }
 
   private drawTerrain(): void {
-    const offset = this._camera.getMapOffset();
     const viewLevel = this._camera.getViewLevel();
     const endZ = this._camera.getShowAllLayers() ? this._save.getMapSizeZ() - 1 : viewLevel;
     const projectileBounds = this.calculateProjectileBounds();
+    this.updateProjectileCamera(projectileBounds);
+    const offset = this._camera.getMapOffset();
     const pathfinderTurnedOn = this._save.getPathfinding?.()?.isPathPreviewed?.() ?? false;
     const numWaypid = (!this._waypoints.length && !(pathfinderTurnedOn && (this._previewSetting & PATH_TU_COST)))
       ? null
@@ -688,12 +709,75 @@ export class Map extends InteractiveSurface {
       } else {
         frameNumber = visibleUnit ? 7 + Math.trunc(this._animFrame / 2) : 6;
       }
-    } else if (!front && this._camera.getViewLevel() > itZ) {
-      frameNumber = 2;
+    } else if (this._camera.getViewLevel() > itZ) {
+      frameNumber = front ? 5 : 2;
     }
     if (frameNumber >= 0) {
       this._mod?.getSurfaceSet("CURSOR.PCK")?.getFrame(frameNumber)?.blitNShade(this, sx, sy, 0);
     }
+    if (front && this._cursorType === CursorType.CT_AIM && Options.battleUFOExtenderAccuracy && this._camera.getViewLevel() === itZ) {
+      this.drawAccuracyText(itX, itY, itZ, sx, sy);
+    }
+    if (front && this._cursorType > CursorType.CT_AIM && this._camera.getViewLevel() === itZ) {
+      const frames = [0, 0, 0, 11, 13, 15];
+      this._mod?.getSurfaceSet("CURSOR.PCK")?.getFrame((frames[this._cursorType] || 0) + Math.trunc(this._animFrame / 4))?.blitNShade(this, sx, sy, 0);
+    }
+  }
+
+  private drawAccuracyText(itX: number, itY: number, itZ: number, sx: number, sy: number): void {
+    const action = this._save.getBattleGame?.()?.getCurrentAction?.() || null;
+    const actor = action?.actor || null;
+    const weapon = action?.weapon || null;
+    const rules = weapon?.getRules?.() || null;
+    if (!action || !actor || !weapon || !rules) {
+      return;
+    }
+
+    let accuracy = Math.trunc(actor.getFiringAccuracy?.(action.type, weapon) ?? 0);
+    const distanceSq = Math.trunc(this._save.getTileEngine?.()?.distanceUnitToPositionSq?.(actor, new Position(itX, itY, itZ), false) ?? 0);
+    const distance = Math.ceil(Math.sqrt(distanceSq));
+    let upperLimit = 200;
+    const lowerLimit = Math.trunc(rules.getMinRange?.() ?? 0);
+    switch (action.type) {
+      case BattleActionType.BA_AIMEDSHOT:
+        upperLimit = Math.trunc(rules.getAimRange?.() ?? upperLimit);
+        break;
+      case BattleActionType.BA_SNAPSHOT:
+        upperLimit = Math.trunc(rules.getSnapRange?.() ?? upperLimit);
+        break;
+      case BattleActionType.BA_AUTOSHOT:
+        upperLimit = Math.trunc(rules.getAutoRange?.() ?? upperLimit);
+        break;
+      default:
+        break;
+    }
+
+    this._txtAccuracy.setColor(Palette.blockOffset(Pathfinding.yellow - 1) - 1);
+    const dropoff = Math.trunc(rules.getDropoff?.() ?? 0);
+    if (distance > upperLimit) {
+      accuracy -= (distance - upperLimit) * dropoff;
+    } else if (distance < lowerLimit) {
+      accuracy -= (lowerLimit - distance) * dropoff;
+    } else {
+      this._txtAccuracy.setColor(Palette.blockOffset(Pathfinding.green - 1) - 1);
+    }
+
+    let outOfRange = distanceSq > Math.trunc(rules.getMaxRangeSq?.() ?? Number.MAX_SAFE_INTEGER);
+    if (outOfRange) {
+      const maxRange = Math.trunc(rules.getMaxRange?.() ?? 0);
+      if (maxRange === 1 && distanceSq <= 3) {
+        outOfRange = false;
+      } else if (maxRange === 2 && distanceSq <= 6) {
+        outOfRange = false;
+      }
+    }
+    if (accuracy <= 0 || outOfRange) {
+      accuracy = 0;
+      this._txtAccuracy.setColor(Palette.blockOffset(Pathfinding.red - 1) - 1);
+    }
+    this._txtAccuracy.setText(formatPercentage(accuracy));
+    this._txtAccuracy.draw();
+    this._txtAccuracy.blitNShade(this, sx, sy, 0);
   }
 
   private drawUnit(unitTile: Tile | null, currTile: Tile, currTileScreenPosition: Position, shade: number, obstacleShade: number, topLayer: boolean): void {
@@ -1051,6 +1135,58 @@ export class Map extends InteractiveSurface {
       highY: Math.trunc(highY / 16),
       highZ: Math.trunc(highZ / 24)
     };
+  }
+
+  private updateProjectileCamera(bounds: { lowX: number; lowY: number; lowZ: number; highX: number; highY: number; highZ: number } | null): void {
+    if (!this._projectile || !bounds || !this._projectileInFOV) {
+      return;
+    }
+
+    let bulletPositionScreen = this._camera.convertVoxelToScreen(this._projectile.getPosition());
+    const newCam = this._camera.getMapOffset();
+    if (newCam.z !== bounds.highZ) {
+      newCam.z = bounds.highZ;
+      this._camera.setMapOffset(newCam);
+      bulletPositionScreen = this._camera.convertVoxelToScreen(this._projectile.getPosition());
+    }
+
+    if (Options.battleSmoothCamera) {
+      if (this._launch) {
+        this._launch = false;
+        if (bulletPositionScreen.x < 1 || bulletPositionScreen.x > this.getWidth() - 1 ||
+          bulletPositionScreen.y < 1 || bulletPositionScreen.y > this._visibleMapHeight - 1) {
+          this._camera.centerOnPosition(new Position(bounds.lowX, bounds.lowY, bounds.highZ), false);
+          bulletPositionScreen = this._camera.convertVoxelToScreen(this._projectile.getPosition());
+        }
+      }
+      if (!this._smoothingEngaged) {
+        if (bulletPositionScreen.x < 1 || bulletPositionScreen.x > this.getWidth() - 1 ||
+          bulletPositionScreen.y < 1 || bulletPositionScreen.y > this._visibleMapHeight - 1) {
+          this._smoothingEngaged = true;
+        }
+      } else {
+        this._camera.jumpXY(Math.trunc(this.getWidth() / 2) - bulletPositionScreen.x, Math.trunc(this._visibleMapHeight / 2) - bulletPositionScreen.y);
+      }
+    } else {
+      let enough = false;
+      while (!enough) {
+        enough = true;
+        if (bulletPositionScreen.x < 0) {
+          this._camera.jumpXY(this.getWidth(), 0);
+          enough = false;
+        } else if (bulletPositionScreen.x > this.getWidth()) {
+          this._camera.jumpXY(-this.getWidth(), 0);
+          enough = false;
+        } else if (bulletPositionScreen.y < 0) {
+          this._camera.jumpXY(0, this._visibleMapHeight);
+          enough = false;
+        } else if (bulletPositionScreen.y > this._visibleMapHeight) {
+          this._camera.jumpXY(0, -this._visibleMapHeight);
+          enough = false;
+        }
+        bulletPositionScreen = this._camera.convertVoxelToScreen(this._projectile.getPosition());
+      }
+    }
   }
 
   private drawProjectileOnTile(itX: number, itY: number, itZ: number, bounds: { lowX: number; lowY: number; lowZ: number; highX: number; highY: number; highZ: number } | null): void {
