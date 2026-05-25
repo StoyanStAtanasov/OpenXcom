@@ -746,7 +746,7 @@
     "area": "Battlescape",
     "status": "integrated-verified",
     "slicePercent": 100,
-    "nextAction": "Continue remaining battlescape playability gaps: launch/psi button visibility, stricter allowButtons gating, and full finishBattle stage/debrief flow.",
+    "nextAction": "Continue remaining battlescape playability gaps: translate BattlescapeGenerator::nextStage() and broaden full mission-end playthrough coverage.",
     "sourceFiles": [
       "src/Battlescape/BattlescapeState.cpp",
       "src/Battlescape/BattlescapeState.h",
@@ -760,11 +760,10 @@
       "web/src/Menu/OptionsOrigin.ts",
       "web/scripts/verify-battle-runtime.mjs"
     ],
-    "verification": "npm run verify:battle-runtime passed for build/typecheck/browser proof that BattlescapeState::btnInventoryClick opens InventoryState(!debugMode, this), cancels actions, blocks no-inventory units outside debug, prepares current-side units in debug mode before opening inventory without TU mode, btnEndTurnClick respects allowButtons() and clears tooltip before requestEndTurn(), and btnHelpClick calls allowButtons(true) then pushes PauseState(OPT_BATTLESCAPE). The verifier also caught and now protects against the browser startup import cycle by using the lightweight OptionsOrigin module plus PauseState lazy child-state imports.",
+    "verification": "npm run build passed; npm run typecheck passed; npm run verify:battle-runtime passed for browser proof that BattlescapeState::btnInventoryClick opens InventoryState(!debugMode, this), cancels actions, blocks no-inventory units outside debug, prepares current-side units in debug mode before opening inventory without TU mode, btnEndTurnClick respects allowButtons() and clears tooltip before requestEndTurn(), btnHelpClick calls allowButtons(true) then pushes PauseState(OPT_BATTLESCAPE), allowButtons() preserves the C++ player/debug, panic-handled, busy/save, and active-projectile gates, showLaunchButton()/showPsiButton() toggle real button visibility, and finishBattle() clears popups, unwinds stack overlays, restores cursor visibility, stops ambient battle sound, pushes DebriefingState, chooses abort/win/lose cutscenes, and sets final game endings. The verifier also protects against browser import cycles by using the lightweight OptionsOrigin module, PauseState lazy child-state imports, and finishBattle lazy route imports.",
     "boundaries": [
-      "showLaunchButton/showPsiButton visibility wiring remains pending",
-      "allowButtons() still needs the fuller C++ player-side/panic/projectile/save gating",
-      "finishBattle() stage/cutscene/debriefing flow remains a larger battlescape runtime boundary"
+      "BattlescapeGenerator::nextStage() remains an explicit C++ stage-transition boundary before multi-stage missions can claim full parity",
+      "Full end-to-end mission completion still needs a wider playthrough verifier that reaches finishBattle from generated combat rather than direct route fixtures"
     ]
   },
   {

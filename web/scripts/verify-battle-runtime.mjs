@@ -59,6 +59,7 @@ const verifier = String.raw`async page => {
       { ItemDamageType, BattleType },
       { SpecialAbility, Unit },
       { SavedBattleGame },
+      { GameEnding },
       { Mod },
       { Options, SCROLL_AUTO, SCROLL_TRIGGER, PATH_FULL },
       { SDL_BUTTON_LEFT, SDL_BUTTON_MIDDLE, SDL_BUTTON_WHEELUP, SDL_KEYDOWN, SDL_KEYUP, SDL_MOUSEBUTTONDOWN, SDL_MOUSEBUTTONUP, SDL_MOUSEMOTION }
@@ -88,6 +89,7 @@ const verifier = String.raw`async page => {
       import("/web/dist/Mod/RuleItem.js"),
       import("/web/dist/Mod/Unit.js"),
       import("/web/dist/Savegame/SavedBattleGame.js"),
+      import("/web/dist/Savegame/SavedGame.js"),
       import("/web/dist/Mod/Mod.js"),
       import("/web/dist/Engine/Options.js"),
       import("/web/dist/types.js")
@@ -269,6 +271,144 @@ const verifier = String.raw`async page => {
       assert(pushedStates.length === 1 && pushedStates[0] instanceof PauseState, "Help/options button should push PauseState");
       assert(pushedStates[0]._origin === OPT_BATTLESCAPE, "Help/options PauseState should use OPT_BATTLESCAPE origin");
     });
+
+    withBattleState(makeInventoryBattle(makeBattleStateUnit({ id: 507 })), state => {
+      state._firstInit = false;
+      state._save.getSide = () => UnitFaction.FACTION_HOSTILE;
+      state._save.getDebugMode = () => false;
+      state._battleGame.getPanicHandled = () => true;
+      state._battleGame.isBusy = () => false;
+      state._map.setProjectile(null);
+      assert(state.allowButtons() === false, "allowButtons should block non-player side without debug mode");
+
+      state._save.getSide = () => UnitFaction.FACTION_PLAYER;
+      state._battleGame.getPanicHandled = () => false;
+      assert(state.allowButtons() === false, "allowButtons should block while panic handling is not complete");
+
+      state._battleGame.getPanicHandled = () => true;
+      state._battleGame.isBusy = () => true;
+      assert(state.allowButtons() === false, "allowButtons should block busy battlescape actions");
+      assert(state.allowButtons(true) === true, "allowButtons(true) should bypass side/busy gates for the source save/options route");
+
+      state._battleGame.isBusy = () => false;
+      state._map.setProjectile({});
+      assert(state.allowButtons() === false, "allowButtons should block while a projectile is active");
+      state._map.setProjectile(null);
+
+      assert(state._btnLaunch.getVisible() === false && state._btnPsi.getVisible() === false, "Launch/psi buttons should start hidden");
+      state.showLaunchButton(true);
+      state.showPsiButton(true);
+      assert(state._btnLaunch.getVisible() === true, "showLaunchButton(true) should show the launch button");
+      assert(state._btnPsi.getVisible() === true, "showPsiButton(true) should show the psi button");
+      state.showLaunchButton(false);
+      state.showPsiButton(false);
+      assert(state._btnLaunch.getVisible() === false, "showLaunchButton(false) should hide the launch button");
+      assert(state._btnPsi.getVisible() === false, "showPsiButton(false) should hide the psi button");
+    });
+
+    const runFinishBattleRoute = async ({ abort, inExitArea, abortCutscene = "", loseCutscene = "", winCutscene = "" }) => {
+      const game = window.openxcomGame;
+      const battle = makeInventoryBattle(makeBattleStateUnit({ id: 508 }));
+      battle.setMissionType("STR_TEST_DEPLOYMENT");
+      battle.setAmbientSound(7);
+      const state = new BattlescapeState(battle);
+      state._popups = [{ tag: "pending-popup" }];
+
+      const realMod = game.getMod();
+      const fakeMod = Object.create(realMod || {});
+      const stoppedSounds = [];
+      fakeMod.getDeployment = id => id === "STR_TEST_DEPLOYMENT" ? {
+        getNextStage: () => "",
+        getAbortCutscene: () => abortCutscene,
+        getLoseCutscene: () => loseCutscene,
+        getWinCutscene: () => winCutscene
+      } : null;
+      fakeMod.getSoundByDepth = (sound, depth) => ({
+        stopLoop: () => stoppedSounds.push([sound, depth])
+      });
+
+      let ending = GameEnding.END_NONE;
+      const realSaved = game.getSavedGame();
+      const fakeSaved = Object.create(realSaved || {});
+      fakeSaved.getUfos = () => [];
+      fakeSaved.getEnding = () => ending;
+      fakeSaved.setEnding = value => { ending = value; };
+      fakeSaved.isIronman = () => false;
+      fakeSaved.getName = () => "finish-route";
+
+      const original = {
+        getSavedGame: game.getSavedGame,
+        getMod: game.getMod,
+        getCursor: game.getCursor,
+        isState: game.isState,
+        popState: game.popState,
+        pushState: game.pushState,
+        cycle: game.cycle
+      };
+      const states = [state, { overlay: true }];
+      const popped = [];
+      const pushed = [];
+      const cursorVisible = [];
+      const fakeCursor = {
+        setVisible: visible => cursorVisible.push(visible),
+        setPalette: () => {},
+        setColor: () => {},
+        draw: () => {},
+        blit: () => {},
+        handle: () => {}
+      };
+      game.cycle = () => {};
+      game.getSavedGame = () => fakeSaved;
+      game.getMod = () => fakeMod;
+      game.getCursor = () => fakeCursor;
+      game.isState = candidate => states[states.length - 1] === candidate;
+      game.popState = () => { popped.push(states.pop()); };
+      game.pushState = pushedState => {
+        pushed.push(pushedState);
+        states.push(pushedState);
+      };
+      try {
+        await state.finishBattle(abort, inExitArea);
+      } finally {
+        game.getSavedGame = original.getSavedGame;
+        game.getMod = original.getMod;
+        game.getCursor = original.getCursor;
+        game.isState = original.isState;
+        game.popState = original.popState;
+        game.pushState = original.pushState;
+        game.cycle = original.cycle;
+      }
+
+      return {
+        popCount: popped.length,
+        pushedNames: pushed.map(pushedState => pushedState?.constructor?.name || ""),
+        cursorVisible,
+        stoppedSounds,
+        popupCount: state._popups.length,
+        ending
+      };
+    };
+
+    {
+      const route = await runFinishBattleRoute({ abort: false, inExitArea: 3, winCutscene: "" });
+      assert(route.popCount === 2, "finishBattle should pop overlays back to itself, then pop the battlescape state");
+      assert(route.pushedNames[0] === "DebriefingState", "finishBattle should push DebriefingState on normal completion");
+      assert(route.cursorVisible.includes(true), "finishBattle should show the cursor before leaving battlescape");
+      assert(JSON.stringify(route.stoppedSounds) === JSON.stringify([[7, 0]]), "finishBattle should stop ambient battle sound by sound id and depth");
+      assert(route.popupCount === 0, "finishBattle should clear queued battlescape popups");
+    }
+
+    {
+      const route = await runFinishBattleRoute({ abort: false, inExitArea: 0, loseCutscene: "loseGame" });
+      assert(JSON.stringify(route.pushedNames.slice(0, 2)) === JSON.stringify(["DebriefingState", "CutsceneState"]), "finishBattle should queue lose cutscene after DebriefingState");
+      assert(route.ending === GameEnding.END_LOSE, "finishBattle should set END_LOSE for the loseGame cutscene");
+    }
+
+    {
+      const route = await runFinishBattleRoute({ abort: true, inExitArea: 1, abortCutscene: "STR_ABORT_SCENE" });
+      assert(JSON.stringify(route.pushedNames.slice(0, 2)) === JSON.stringify(["DebriefingState", "CutsceneState"]), "finishBattle should choose abort cutscene when abort flag is true");
+      assert(route.ending === GameEnding.END_NONE, "finishBattle should not set game ending for non-final abort cutscenes");
+    }
 
     class FakeMapData {
       constructor({ gravLift = false, loft = 0 } = {}) {

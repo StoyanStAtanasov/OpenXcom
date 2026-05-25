@@ -1,6 +1,6 @@
 # OpenXcom TS Port Context Packet
 
-Generated: 2026-05-25T18:04:00.153Z
+Generated: 2026-05-25T18:17:51.491Z
 Role: resume
 
 This is the compact handoff surface for resumed turns and subagents. Regenerate it with `npm run context` instead of rereading long narrative docs.
@@ -13,26 +13,24 @@ This is the compact handoff surface for resumed turns and subagents. Regenerate 
 - Integrated verified slices: 18
 - Slice path warnings: 0
 - Status rollup: integrated-verified=18, partial-integrated-verified=1
-- Local Codex status: gpt-5.5 (xhigh); context 7% left (240331/258400 latest input tokens); credits not reported locally
+- Local Codex status: gpt-5.5 (xhigh); context 35.2% left (167571/258400 latest input tokens); credits not reported locally
 
 ## Active Slice
 
-- Name: Original save conversion folder ingestion data
-- Area: Savegame
-- Status: partial-integrated-verified
-- Slice percent: 99.9998%
-- Next action: Continue broader playability/debriefing/runtime parity; the latest Menu/Geoscape source-route marker scan is clean and save/load persistence remains verified browser storage behavior.
+- Name: Battlescape tactical controls
+- Area: Battlescape
+- Status: integrated-verified
+- Slice percent: 100%
+- Next action: Continue remaining battlescape playability gaps: translate BattlescapeGenerator::nextStage() and broaden full mission-end playthrough coverage.
 - Verification markers: none
 
 Boundaries:
-- SaveConverter DAT reader parity now includes the TFTD SITE.DAT artifact-site counter branch; original tactical GAME_# slots still show the source-matching unsupported-battlescape-save error rather than inventing tactical DAT conversion.
-- SavedGame now persists and restores battleGame payloads when SavedBattleGame is registered; ListLoadOriginalState mirrors the C++ post-load saved-battle resume branch; SavedBattleGame binary tile/moduleMap/loadMapResources/prepareNewTurn/randomizeItemLocations/resetTiles/setDebugMode paths, ammo link rule-skip behavior, Tile/BattleUnit tileBelow placement transitions, UnitWalkBState/UnitFallBState movement occupancy tileBelow handoffs, Pathfinding Bresenham/A* and vertical movement, TileEngine::calculateLine, TileEngine::canTargetUnit potential-unit targeting, AIModule::getSpottingUnits source parity, BattlescapeGame::checkForCasualties kill/death accounting, TileEngine::hit fatal-wound/morale/explode-on-death aftermath, TileEngine::explode fatal-wound killedBy credit, ExplosionBState chained terrain explosion ordering plus audio/cosmetic camera parity, ProjectileFlyBState lift-off/drop sounds/cache/bullet side effects, hostile grenade danger-zone marking, shotgun secondary pellet cascades, terminal out-of-bounds weapon-lowering/cache side effects, post-projectile reaction-fire/abortTurn cleanup, arcing projectile fired-shot accounting, UnitWalkBState door/footstep/flying movement sound playback, Camera/Map scroll/obstacle/smooth-camera lifecycle controls, Tile.getSprite terrain sprite lookup, first Map.drawTerrain terrain sprite blit, Map.cacheUnit/UnitSprite indexed cache production, Surface.blitNShade GraphSubset clipping, Map.drawUnit source unit masks and source-strict cache-miss no-op, Map.drawProjectileOnTile tile-loop projectile drawing, path/waypoint NumberText overlays, source vapor Particle clouds through transparency LUTs, selected-unit arrow drawing, projectile camera recenter/smooth-camera tracking, UFO Extender accuracy text, special cursor frame overlay, cursor-size semantics, hidden-movement message fallback, Map::setPalette message/mapdata propagation, and animate() unit breathe/constant-animation cache upkeep are covered by browser verification or scoped source audit. Remaining work has moved beyond these Map.cpp display branches into broader playability/debriefing runtime and tactical state parity.
-- Browser original-save ingestion now imports selected GAME_# folder files into localStorage, rejects no-op selections, missing SAVEINFO.DAT, and invalid SAVEINFO.DAT with explicit errors, and displays corrupt-slot errors in ListLoadOriginalState. Remaining UX polish is drag/drop/detail presentation rather than core ingestion diagnostics.
-- Standard JSON/localStorage save/load menu behavior now translates the C++ SavedGame::getList/getSaveInfo and menu file-operation paths; NewBattle CraftInfo and interception/destination popup routes are now covered by the Menu/Geoscape route-marker slice.
+- BattlescapeGenerator::nextStage() remains an explicit C++ stage-transition boundary before multi-stage missions can claim full parity
+- Full end-to-end mission completion still needs a wider playthrough verifier that reaches finishBattle from generated combat rather than direct route fixtures
 
-Source files (66): src/Mod/RuleConverter.cpp; src/Mod/RuleConverter.h; src/Mod/Mod.cpp; src/Mod/Mod.h; src/Savegame/SaveConverter.cpp; src/Savegame/SaveConverter.h; src/Savegame/Base.cpp; src/Savegame/BaseFacility.cpp; src/Savegame/ItemContainer.cpp; src/Savegame/Ufo.cpp; src/Savegame/Craft.cpp; src/Savegame/AlienBase.cpp; src/Savegame/Waypoint.cpp; src/Savegame/MissionSite.cpp; ... (52 more in web/context-packet.json)
+Source files (4): src/Battlescape/BattlescapeState.cpp; src/Battlescape/BattlescapeState.h; src/Menu/PauseState.cpp; src/Menu/OptionsBaseState.h
 
-Target files (58): web/src/Mod/RuleConverter.ts; web/src/Mod/Mod.ts; web/src/Savegame/SaveConverter.ts; web/src/Savegame/Base.ts; web/src/Savegame/BaseFacility.ts; web/src/Savegame/ItemContainer.ts; web/src/Savegame/Ufo.ts; web/src/Savegame/Craft.ts; web/src/Savegame/AlienBase.ts; web/src/Savegame/Waypoint.ts; web/src/Savegame/MissionSite.ts; web/src/Savegame/CraftWeapon.ts; web/src/Savegame/Vehicle.ts; web/src/Savegame/AlienMission.ts; ... (44 more in web/context-packet.json)
+Target files (5): web/src/Battlescape/BattlescapeState.ts; web/src/Menu/PauseState.ts; web/src/Menu/OptionsBaseState.ts; web/src/Menu/OptionsOrigin.ts; web/scripts/verify-battle-runtime.mjs
 
 ## Integration Queue
 
@@ -62,11 +60,11 @@ Worker final format:
 Prompt skeletons:
 
 ```text
-Read-only sidecar for OpenXcom TS port slice "Original save conversion folder ingestion data" (99.9998%).
+Read-only sidecar for OpenXcom TS port slice "Battlescape tactical controls" (100%).
 Do not edit files.
 Inspect only the exact file list provided by the main agent plus this context packet.
-Next action: Continue broader playability/debriefing/runtime parity; the latest Menu/Geoscape source-route marker scan is clean and save/load persistence remains verified browser storage behavior..
-Boundaries: SaveConverter DAT reader parity now includes the TFTD SITE.DAT artifact-site counter branch; original tactical GAME_# slots still show the source-matching unsupported-battlescape-save error rather than inventing tactical DAT conversion.; SavedGame now persists and restores battleGame payloads when SavedBattleGame is registered; ListLoadOriginalState mirrors the C++ post-load saved-battle resume branch; SavedBattleGame binary tile/moduleMap/loadMapResources/prepareNewTurn/randomizeItemLocations/resetTiles/setDebugMode paths, ammo link rule-skip behavior, Tile/BattleUnit tileBelow placement transitions, UnitWalkBState/UnitFallBState movement occupancy tileBelow handoffs, Pathfinding Bresenham/A* and vertical movement, TileEngine::calculateLine, TileEngine::canTargetUnit potential-unit targeting, AIModule::getSpottingUnits source parity, BattlescapeGame::checkForCasualties kill/death accounting, TileEngine::hit fatal-wound/morale/explode-on-death aftermath, TileEngine::explode fatal-wound killedBy credit, ExplosionBState chained terrain explosion ordering plus audio/cosmetic camera parity, ProjectileFlyBState lift-off/drop sounds/cache/bullet side effects, hostile grenade danger-zone marking, shotgun secondary pellet cascades, terminal out-of-bounds weapon-lowering/cache side effects, post-projectile reaction-fire/abortTurn cleanup, arcing projectile fired-shot accounting, UnitWalkBState door/footstep/flying movement sound playback, Camera/Map scroll/obstacle/smooth-camera lifecycle controls, Tile.getSprite terrain sprite lookup, first Map.drawTerrain terrain sprite blit, Map.cacheUnit/UnitSprite indexed cache production, Surface.blitNShade GraphSubset clipping, Map.drawUnit source unit masks and source-strict cache-miss no-op, Map.drawProjectileOnTile tile-loop projectile drawing, path/waypoint NumberText overlays, source vapor Particle clouds through transparency LUTs, selected-unit arrow drawing, projectile camera recenter/smooth-camera tracking, UFO Extender accuracy text, special cursor frame overlay, cursor-size semantics, hidden-movement message fallback, Map::setPalette message/mapdata propagation, and animate() unit breathe/constant-animation cache upkeep are covered by browser verification or scoped source audit. Remaining work has moved beyond these Map.cpp display branches into broader playability/debriefing runtime and tactical state parity.; Browser original-save ingestion now imports selected GAME_# folder files into localStorage, rejects no-op selections, missing SAVEINFO.DAT, and invalid SAVEINFO.DAT with explicit errors, and displays corrupt-slot errors in ListLoadOriginalState. Remaining UX polish is drag/drop/detail presentation rather than core ingestion diagnostics.; Standard JSON/localStorage save/load menu behavior now translates the C++ SavedGame::getList/getSaveInfo and menu file-operation paths; NewBattle CraftInfo and interception/destination popup routes are now covered by the Menu/Geoscape route-marker slice..
+Next action: Continue remaining battlescape playability gaps: translate BattlescapeGenerator::nextStage() and broaden full mission-end playthrough coverage..
+Boundaries: BattlescapeGenerator::nextStage() remains an explicit C++ stage-transition boundary before multi-stage missions can claim full parity; Full end-to-end mission completion still needs a wider playthrough verifier that reaches finishBattle from generated combat rather than direct route fixtures.
 Return summary-first: files inspected, source facts, risks, recommended integration/verifier checks.
 ```
 

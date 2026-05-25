@@ -2,10 +2,12 @@ import { Options } from "../Engine/Options.ts";
 import { State } from "../Engine/State.ts";
 import { Surface } from "../Engine/Surface.ts";
 import type { Action } from "../Engine/Action.ts";
+import { BattlescapeButton } from "../Interface/BattlescapeButton.ts";
 import { Text } from "../Interface/Text.ts";
 import { BattleType } from "../Mod/RuleItem.ts";
 import type { BattleItem } from "../Savegame/BattleItem.ts";
 import { UnitFaction, type BattleUnit } from "../Savegame/BattleUnit.ts";
+import { GameEnding } from "../Savegame/SavedGame.ts";
 import { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
 import { SDL_BUTTON_RIGHT } from "../types.ts";
 import { OPT_BATTLESCAPE } from "../Menu/OptionsOrigin.ts";
@@ -13,6 +15,7 @@ import { PauseState } from "../Menu/PauseState.ts";
 import { AbortMissionState } from "./AbortMissionState.ts";
 import { ActionMenuState } from "./ActionMenuState.ts";
 import { BattlescapeGame } from "./BattlescapeGame.ts";
+import { BattlescapeGenerator } from "./BattlescapeGenerator.ts";
 import { InventoryState } from "./InventoryState.ts";
 import { Map } from "./Map.ts";
 import { MiniMapState } from "./MiniMapState.ts";
@@ -40,6 +43,8 @@ export class BattlescapeState extends State {
   private _currentTooltip = "";
   private _cursorPosition = new Position();
   private _autosave = false;
+  private _btnLaunch: BattlescapeButton;
+  private _btnPsi: BattlescapeButton;
   private _btnVisibleUnit: unknown[] = Array.from({ length: BattlescapeState.VISIBLE_MAX }, () => ({}));
   private _visibleUnit: Array<BattleUnit | null> = Array.from({ length: BattlescapeState.VISIBLE_MAX }, () => null);
 
@@ -69,6 +74,10 @@ export class BattlescapeState extends State {
     }, screenWidth, screenHeight, 0, 0, visibleMapHeight);
     this._txtDebug = new Text(300, 10, 20, 0);
     this._txtTooltip = new Text(300, 10, x + 2, y - 10);
+    this._btnLaunch = new BattlescapeButton(32, 24, screenWidth - 32, 0);
+    this._btnLaunch.setVisible(false);
+    this._btnPsi = new BattlescapeButton(32, 24, screenWidth - 32, 25);
+    this._btnPsi.setVisible(false);
     this._battleGame = new BattlescapeGame(this._save, this);
     this._save.setBattleState(this);
 
@@ -87,11 +96,17 @@ export class BattlescapeState extends State {
     this.add(this._icons);
     this.add(this._txtDebug);
     this.add(this._txtTooltip);
+    this.add(this._btnLaunch);
+    this.game().getMod()?.getSurfaceSet?.("SPICONS.DAT")?.getFrame(0)?.blit(this._btnLaunch);
+    this.add(this._btnPsi);
+    this.game().getMod()?.getSurfaceSet?.("SPICONS.DAT")?.getFrame(1)?.blit(this._btnPsi);
 
     this._map.onMouseOver(this.mapOver.bind(this));
     this._map.onMousePress(this.mapPress.bind(this));
     this._map.onMouseClick(this.mapClick.bind(this), 0);
     this._map.onMouseIn(this.mapIn.bind(this));
+    this._btnLaunch.onMouseClick(this.btnLaunchClick.bind(this));
+    this._btnPsi.onMouseClick(this.btnPsiClick.bind(this));
   }
 
   override init(): void {
@@ -408,13 +423,82 @@ export class BattlescapeState extends State {
     this._popups.push(state);
   }
 
-  finishBattle(abort: boolean, _inExitArea: number): void {
-    this._save.setAborted(abort);
-    this.game().popState();
+  async finishBattle(abort: boolean, inExitArea: number): Promise<void> {
+    const game = this.game();
+    let guard = 0;
+    while (!game.isState(this) && guard++ < 64) {
+      game.popState();
+    }
+    game.getCursor().setVisible(true);
+    const ambientSound = this._save.getAmbientSound();
+    if (ambientSound !== -1) {
+      game.getMod()?.getSoundByDepth(ambientSound, 0, false)?.stopLoop();
+    }
+
+    const mod = game.getMod();
+    let ruleDeploy = mod?.getDeployment(this._save.getMissionType()) || null;
+    if (!ruleDeploy) {
+      for (const ufo of game.getSavedGame()?.getUfos?.() || []) {
+        if (ufo.isInBattlescape()) {
+          ruleDeploy = mod?.getDeployment(ufo.getRules().getType()) || null;
+          break;
+        }
+      }
+    }
+    const nextStage = ruleDeploy?.getNextStage() || "";
+
+    if (nextStage.length > 0 && inExitArea) {
+      this._popups = [];
+      this._save.setMissionType(nextStage);
+      const generator = new BattlescapeGenerator(this._save, mod);
+      const nextStageGenerator = generator as unknown as { nextStage?: () => Promise<void> | void };
+      if (typeof nextStageGenerator.nextStage === "function") {
+        await nextStageGenerator.nextStage();
+      } else {
+        console.warn("BattlescapeGenerator::nextStage boundary not translated yet.");
+      }
+      game.popState();
+      const { BriefingState } = await import("./BriefingState.js");
+      game.pushState(new BriefingState(null, null));
+    } else {
+      this._popups = [];
+      game.popState();
+      const { DebriefingState } = await import("./DebriefingState.js");
+      game.pushState(new DebriefingState());
+      let cutscene = "";
+      if (ruleDeploy) {
+        if (abort) {
+          cutscene = ruleDeploy.getAbortCutscene();
+        } else if (inExitArea === 0) {
+          cutscene = ruleDeploy.getLoseCutscene();
+        } else {
+          cutscene = ruleDeploy.getWinCutscene();
+        }
+      }
+      if (cutscene.length > 0) {
+        const { CutsceneState } = await import("../Menu/CutsceneState.js");
+        game.pushState(new CutsceneState(cutscene));
+        const save = game.getSavedGame();
+        if (cutscene === CutsceneState.WIN_GAME) {
+          save?.setEnding(GameEnding.END_WIN);
+        } else if (cutscene === CutsceneState.LOSE_GAME) {
+          save?.setEnding(GameEnding.END_LOSE);
+        }
+        if (save?.getEnding() !== GameEnding.END_NONE && save?.isIronman()) {
+          const { SaveGameState, SaveType } = await import("../Menu/SaveGameState.js");
+          game.pushState(new SaveGameState(OPT_BATTLESCAPE, SaveType.SAVE_IRONMAN, this._palette));
+        }
+      }
+    }
   }
 
-  showLaunchButton(_show: boolean): void {}
-  showPsiButton(_show: boolean): void {}
+  showLaunchButton(show: boolean): void {
+    this._btnLaunch.setVisible(show);
+  }
+
+  showPsiButton(show: boolean): void {
+    this._btnPsi.setVisible(show);
+  }
   clearMouseScrollingState(): void {}
 
   getBattleGame(): BattlescapeGame {
@@ -437,8 +521,11 @@ export class BattlescapeState extends State {
     return this._mouseOverIcons;
   }
 
-  allowButtons(_allowSaving = false): boolean {
-    return !this._battleGame.isBusy();
+  allowButtons(allowSaving = false): boolean {
+    return (allowSaving || this._save.getSide() === UnitFaction.FACTION_PLAYER || this._save.getDebugMode()) &&
+      (this._battleGame.getPanicHandled() || this._firstInit) &&
+      (allowSaving || !this._battleGame.isBusy() || this._firstInit) &&
+      this._map.getProjectile() === null;
   }
 
   btnReserveKneelClick(_action?: Action): void {
