@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-25T18:17:51.491Z",
+  "generatedAt": "2026-05-25T18:32:42.228Z",
   "role": "resume",
   "objective": "Faithfully translate OpenXcom C++ source into the browser TypeScript port.",
   "sourceOfTruth": {
@@ -14,11 +14,11 @@
     "pathParity": "336/336 (100%)",
     "sourceCodeFiles": 646,
     "targetTsFiles": 341,
-    "trackedSlices": 19,
-    "integratedVerifiedSlices": 18,
+    "trackedSlices": 20,
+    "integratedVerifiedSlices": 19,
     "slicePathWarnings": 0,
     "statusRollups": {
-      "integrated-verified": 18,
+      "integrated-verified": 19,
       "partial-integrated-verified": 1
     }
   },
@@ -28,17 +28,17 @@
       "sessionId": "019e521f-e642-7db1-b68d-3f765878eb44",
       "model": "gpt-5.5",
       "reasoningEffort": "xhigh",
-      "lastEventAt": "2026-05-25T18:17:42.112Z",
-      "latestInputTokens": 167571,
+      "lastEventAt": "2026-05-25T18:32:32.120Z",
+      "latestInputTokens": 239140,
       "contextWindow": 258400,
-      "contextLeftPercent": 35.2,
+      "contextLeftPercent": 7.5,
       "primaryLimit": {
-        "used_percent": 54,
+        "used_percent": 58,
         "window_minutes": 300,
         "resets_at": 1779738487
       },
       "weeklyLimit": {
-        "used_percent": 78,
+        "used_percent": 79,
         "window_minutes": 10080,
         "resets_at": 1780175101
       },
@@ -46,29 +46,31 @@
     }
   },
   "activeSlice": {
-    "name": "Battlescape tactical controls",
+    "name": "Battlescape next-stage transition",
     "area": "Battlescape",
     "status": "integrated-verified",
     "slicePercent": 100,
-    "nextAction": "Continue remaining battlescape playability gaps: translate BattlescapeGenerator::nextStage() and broaden full mission-end playthrough coverage.",
+    "nextAction": "Broaden mission-end verification from direct route fixtures to generated multi-stage mission playthroughs.",
     "sourceFiles": [
-      "src/Battlescape/BattlescapeState.cpp",
-      "src/Battlescape/BattlescapeState.h",
-      "src/Menu/PauseState.cpp",
-      "src/Menu/OptionsBaseState.h"
+      "src/Battlescape/BattlescapeGenerator.cpp",
+      "src/Battlescape/BattlescapeGenerator.h",
+      "src/Savegame/SavedBattleGame.cpp",
+      "src/Savegame/SavedBattleGame.h",
+      "src/Savegame/BattleUnit.cpp",
+      "src/Savegame/BattleUnit.h"
     ],
     "targetFiles": [
+      "web/src/Battlescape/BattlescapeGenerator.ts",
       "web/src/Battlescape/BattlescapeState.ts",
-      "web/src/Menu/PauseState.ts",
-      "web/src/Menu/OptionsBaseState.ts",
-      "web/src/Menu/OptionsOrigin.ts",
+      "web/src/Savegame/SavedBattleGame.ts",
+      "web/src/Savegame/BattleUnit.ts",
       "web/scripts/verify-battle-runtime.mjs"
     ],
-    "verification": "npm run build passed; npm run typecheck passed; npm run verify:battle-runtime passed for browser proof that BattlescapeState::btnInventoryClick opens InventoryState(!debugMode, this), cancels actions, blocks no-inventory units outside debug, prepares current-side units in debug mode before opening inventory without TU mode, btnEndTurnClick respects allowButtons() and clears tooltip before requestEndTurn(), btnHelpClick calls allowButtons(true) then pushes PauseState(OPT_BATTLESCAPE), allowButtons() preserves the C++ player/debug, panic-handled, busy/save, and active-projectile gates, showLaunchButton()/showPsiButton() toggle real button visibility, and finishBattle() clears popups, unwinds stack overlays, restores cursor visibility, stops ambient battle sound, pushes DebriefingState, chooses abort/win/lose cutscenes, and sets final game endings. The verifier also protects against browser import cycles by using the lightweight OptionsOrigin module, PauseState lazy child-state imports, and finishBattle lazy route imports.",
+    "verification": "npm run build passed; npm run typecheck passed; npm run verify:battle-runtime passed for compiled-browser proof of BattlescapeGenerator::nextStage(): carried unit-item drop/carry-forward behavior, timeout and AI cleanup for aborted/non-player units, tile occupancy/fire/tile/position reset, hostile changed-faction inventory drop with fixed-item retention, guaranteed/conditional/next-stage/remove item buckets, linked ammo carry-forward, owner de-equip on removed items, turn counter reset, deployment turn/chrono/cheat/dimension/script selection, setupObjectives map-marker scan and objective-count clamping, surviving X-COM reposition/selection/prepareNewTurn(false), alien unit-sequence seeding, mission-site alien-race fallback, civilian deploy count, aborted reset, next-stage empty music clearing, global shade, lighting refresh, and the no-alien-deployed failure branch.",
     "verificationMarkers": [],
     "boundaries": [
-      "BattlescapeGenerator::nextStage() remains an explicit C++ stage-transition boundary before multi-stage missions can claim full parity",
-      "Full end-to-end mission completion still needs a wider playthrough verifier that reaches finishBattle from generated combat rather than direct route fixtures"
+      "The verifier drives nextStage directly with source-shaped fake fixtures; a later playthrough verifier should reach it through real generated multi-stage mission completion.",
+      "Deeper generated map content fidelity remains owned by the broader BattlescapeGenerator map/script/deployment slices."
     ]
   },
   "integrationQueue": [
@@ -265,7 +267,7 @@
     "Regenerate this packet after changing translation-slices.json or finishing a verified micro-path."
   ],
   "promptSkeletons": {
-    "readonly": "Read-only sidecar for OpenXcom TS port slice \"Battlescape tactical controls\" (100%).\nDo not edit files.\nInspect only the exact file list provided by the main agent plus this context packet.\nNext action: Continue remaining battlescape playability gaps: translate BattlescapeGenerator::nextStage() and broaden full mission-end playthrough coverage..\nBoundaries: BattlescapeGenerator::nextStage() remains an explicit C++ stage-transition boundary before multi-stage missions can claim full parity; Full end-to-end mission completion still needs a wider playthrough verifier that reaches finishBattle from generated combat rather than direct route fixtures.\nReturn summary-first: files inspected, source facts, risks, recommended integration/verifier checks.",
-    "worker": "Worker for OpenXcom TS port slice \"Battlescape tactical controls\" (100%).\nYou are not alone in the codebase; do not revert edits by others.\nSource files: src/Battlescape/BattlescapeState.cpp; src/Battlescape/BattlescapeState.h; src/Menu/PauseState.cpp; src/Menu/OptionsBaseState.h.\nTarget files/write scope: web/src/Battlescape/BattlescapeState.ts; web/src/Menu/PauseState.ts; web/src/Menu/OptionsBaseState.ts; web/src/Menu/OptionsOrigin.ts; web/scripts/verify-battle-runtime.mjs.\nForbidden unless explicitly assigned: AGENTS.md, web/PORTING.md, web/translation-slices.json, hot shared integration files.\nTranslate directly from C++: preserve class names, ids, coordinates, resource names, algorithms, and state-stack behavior.\nNext action: Continue remaining battlescape playability gaps: translate BattlescapeGenerator::nextStage() and broaden full mission-end playthrough coverage..\nBoundaries to keep explicit: BattlescapeGenerator::nextStage() remains an explicit C++ stage-transition boundary before multi-stage missions can claim full parity; Full end-to-end mission completion still needs a wider playthrough verifier that reaches finishBattle from generated combat rather than direct route fixtures.\nFinal format: changed files; build/typecheck/verifier result; pending source boundaries; risks/integration notes."
+    "readonly": "Read-only sidecar for OpenXcom TS port slice \"Battlescape next-stage transition\" (100%).\nDo not edit files.\nInspect only the exact file list provided by the main agent plus this context packet.\nNext action: Broaden mission-end verification from direct route fixtures to generated multi-stage mission playthroughs..\nBoundaries: The verifier drives nextStage directly with source-shaped fake fixtures; a later playthrough verifier should reach it through real generated multi-stage mission completion.; Deeper generated map content fidelity remains owned by the broader BattlescapeGenerator map/script/deployment slices..\nReturn summary-first: files inspected, source facts, risks, recommended integration/verifier checks.",
+    "worker": "Worker for OpenXcom TS port slice \"Battlescape next-stage transition\" (100%).\nYou are not alone in the codebase; do not revert edits by others.\nSource files: src/Battlescape/BattlescapeGenerator.cpp; src/Battlescape/BattlescapeGenerator.h; src/Savegame/SavedBattleGame.cpp; src/Savegame/SavedBattleGame.h; src/Savegame/BattleUnit.cpp; src/Savegame/BattleUnit.h.\nTarget files/write scope: web/src/Battlescape/BattlescapeGenerator.ts; web/src/Battlescape/BattlescapeState.ts; web/src/Savegame/SavedBattleGame.ts; web/src/Savegame/BattleUnit.ts; web/scripts/verify-battle-runtime.mjs.\nForbidden unless explicitly assigned: AGENTS.md, web/PORTING.md, web/translation-slices.json, hot shared integration files.\nTranslate directly from C++: preserve class names, ids, coordinates, resource names, algorithms, and state-stack behavior.\nNext action: Broaden mission-end verification from direct route fixtures to generated multi-stage mission playthroughs..\nBoundaries to keep explicit: The verifier drives nextStage directly with source-shaped fake fixtures; a later playthrough verifier should reach it through real generated multi-stage mission completion.; Deeper generated map content fidelity remains owned by the broader BattlescapeGenerator map/script/deployment slices..\nFinal format: changed files; build/typecheck/verifier result; pending source boundaries; risks/integration notes."
   }
 }

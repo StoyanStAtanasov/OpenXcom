@@ -665,6 +665,13 @@ export class SavedBattleGame {
     return this._turn;
   }
 
+  resetTurnCounter(): void {
+    this._turn = 1;
+    this._cheating = false;
+    this._side = UnitFaction.FACTION_PLAYER;
+    this._beforeGame = true;
+  }
+
   endTurn(): void {
     if (this._side === UnitFaction.FACTION_PLAYER) {
       if (this._selectedUnit && this._selectedUnit.getOriginalFaction() === UnitFaction.FACTION_PLAYER) {

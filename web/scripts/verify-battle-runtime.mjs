@@ -47,6 +47,7 @@ const verifier = String.raw`async page => {
       { SurfaceSet },
       { Particle },
       { BattlescapeState },
+      { BattlescapeGenerator },
       { InventoryState },
       { PauseState },
       { OPT_BATTLESCAPE },
@@ -54,7 +55,7 @@ const verifier = String.raw`async page => {
       { MovementType, Armor },
       { UnitFaction, UnitStatus, UnitSide, UnitBodyPart, BattleUnit },
       { Tile },
-      { MapData, TilePart, VoxelType },
+      { MapData, TilePart, VoxelType, SpecialTileType },
       { BattlescapeGame, BattleActionType },
       { ItemDamageType, BattleType },
       { SpecialAbility, Unit },
@@ -77,6 +78,7 @@ const verifier = String.raw`async page => {
       import("/web/dist/Engine/SurfaceSet.js"),
       import("/web/dist/Battlescape/Particle.js"),
       import("/web/dist/Battlescape/BattlescapeState.js"),
+      import("/web/dist/Battlescape/BattlescapeGenerator.js"),
       import("/web/dist/Battlescape/InventoryState.js"),
       import("/web/dist/Menu/PauseState.js"),
       import("/web/dist/Menu/OptionsOrigin.js"),
@@ -408,6 +410,348 @@ const verifier = String.raw`async page => {
       const route = await runFinishBattleRoute({ abort: true, inExitArea: 1, abortCutscene: "STR_ABORT_SCENE" });
       assert(JSON.stringify(route.pushedNames.slice(0, 2)) === JSON.stringify(["DebriefingState", "CutsceneState"]), "finishBattle should choose abort cutscene when abort flag is true");
       assert(route.ending === GameEnding.END_NONE, "finishBattle should not set game ending for non-final abort cutscenes");
+    }
+
+    {
+      const ground = { id: "STR_GROUND" };
+      const calls = [];
+      const key = pos => pos.x + "," + pos.y + "," + pos.z;
+      const makeSpecial = special => special == null ? null : ({
+        getSpecialType: () => special,
+        getTUCost: () => 4
+      });
+      class NextStageTile {
+        constructor(pos, floorSpecial = null, objectSpecial = null) {
+          this.pos = pos.clone();
+          this.floor = makeSpecial(floorSpecial);
+          this.object = makeSpecial(objectSpecial);
+          this.inventory = [];
+          this.units = [];
+        }
+        getPosition() { return this.pos.clone(); }
+        getMapData(part) {
+          if (part === TilePart.O_FLOOR) return this.floor;
+          if (part === TilePart.O_OBJECT) return this.object;
+          return null;
+        }
+        addItem(item, slot) {
+          this.inventory.push(item);
+          item.setSlot(slot);
+          item.setTile(this);
+        }
+        setUnit(unit) {
+          this.units.push(unit);
+          this.unit = unit;
+          if (unit) {
+            unit.setTile(this);
+          }
+        }
+        getUnit() { return this.unit || null; }
+        getInventory() { return this.inventory; }
+      }
+      const makeRule = (name, options = {}) => ({
+        getType: () => name,
+        isFixed: () => Boolean(options.fixed),
+        isRecoverable: () => options.recoverable !== false,
+        getRequirements: () => options.requirements || []
+      });
+      const makeUnit = options => {
+        const unit = {
+          id: options.id,
+          faction: options.faction,
+          originalFaction: options.originalFaction ?? options.faction,
+          status: options.status ?? UnitStatus.STATUS_STANDING,
+          tile: options.tile || null,
+          pos: (options.tile?.getPosition?.() || new Position()).clone(),
+          inventory: [],
+          ai: options.ai ? { tag: "ai" } : null,
+          armorSize: options.armorSize || 1,
+          geoscapeSoldier: options.geoscapeSoldier || null,
+          clearVisibleUnitsCount: 0,
+          clearVisibleTilesCount: 0,
+          timeOutCount: 0,
+          aiCleared: 0,
+          fireValues: [],
+          positions: [],
+          prepared: 0,
+          cacheValues: [],
+          turnsSinceSpotted: [],
+          visibleValues: [],
+          getId() { return this.id; },
+          getOriginalFaction() { return this.originalFaction; },
+          getFaction() { return this.faction; },
+          getStatus() { return this.status; },
+          isOut() {
+            return this.status === UnitStatus.STATUS_DEAD ||
+              this.status === UnitStatus.STATUS_UNCONSCIOUS ||
+              this.status === UnitStatus.STATUS_IGNORE_ME;
+          },
+          isInExitArea(stt) { return this.tile?.getMapData(TilePart.O_FLOOR)?.getSpecialType() === stt; },
+          liesInExitArea(tile, stt) { return tile?.getMapData(TilePart.O_FLOOR)?.getSpecialType() === stt; },
+          clearVisibleUnits() { this.clearVisibleUnitsCount++; },
+          clearVisibleTiles() { this.clearVisibleTilesCount++; },
+          getVisibleTiles() { return []; },
+          goToTimeOut() { this.timeOutCount++; this.status = UnitStatus.STATUS_IGNORE_ME; },
+          getAIModule() { return this.ai; },
+          setAIModule(ai) { this.ai = ai; if (ai === null) this.aiCleared++; },
+          getTile() { return this.tile; },
+          setTile(tile) { this.tile = tile; },
+          getPosition() { return this.pos.clone(); },
+          setPosition(pos) { this.pos = Position.from(pos); this.positions.push(this.pos.clone()); },
+          setFire(value) { this.fireValues.push(value); },
+          getArmor() { return { getSize: () => this.armorSize }; },
+          getInventory() { return this.inventory; },
+          getGeoscapeSoldier() { return this.geoscapeSoldier; },
+          setTurnsSinceSpotted(value) { this.turnsSinceSpotted.push(value); },
+          setCache(value) { this.cacheValues.push(value); },
+          setVisible(value) { this.visibleValues.push(value); },
+          prepareNewTurn(fullProcess) { this.prepared++; this.preparedFull = fullProcess; }
+        };
+        options.tile?.setUnit(unit);
+        return unit;
+      };
+      const makeItem = (name, ruleOptions = {}) => {
+        const item = {
+          name,
+          rule: makeRule(name, ruleOptions),
+          owner: null,
+          previousOwner: null,
+          tile: ruleOptions.tile || null,
+          unit: ruleOptions.unit || null,
+          ammo: null,
+          isAmmoFlag: Boolean(ruleOptions.ammo),
+          fuseTimer: ruleOptions.fuseTimer ?? -1,
+          slot: null,
+          tileValues: [],
+          getRules() { return this.rule; },
+          isAmmo() { return this.isAmmoFlag; },
+          getUnit() { return this.unit; },
+          setUnit(unit) { this.unit = unit; },
+          getOwner() { return this.owner; },
+          setOwner(owner) { this.owner = owner; },
+          moveToOwner(owner) {
+            if (this.owner) {
+              const inventory = this.owner.getInventory();
+              const index = inventory.indexOf(this);
+              if (index !== -1) inventory.splice(index, 1);
+            }
+            this.previousOwner = this.owner || owner;
+            this.owner = owner;
+            if (owner) owner.getInventory().push(this);
+          },
+          getFuseTimer() { return this.fuseTimer; },
+          getTile() { return this.tile; },
+          setTile(tile) { this.tile = tile; this.tileValues.push(tile); },
+          getAmmoItem() { return this.ammo; },
+          setSlot(slot) { this.slot = slot; },
+          getSlot() { return this.slot; }
+        };
+        if (ruleOptions.owner) {
+          item.owner = ruleOptions.owner;
+          ruleOptions.owner.getInventory().push(item);
+        }
+        if (item.tile) {
+          item.tile.inventory.push(item);
+        }
+        return item;
+      };
+
+      const tiles = [
+        new NextStageTile(new Position(1, 1, 0), SpecialTileType.END_POINT),
+        new NextStageTile(new Position(2, 1, 0), SpecialTileType.TILE),
+        new NextStageTile(new Position(3, 1, 0), SpecialTileType.TILE),
+        new NextStageTile(new Position(4, 1, 0), SpecialTileType.TILE),
+        new NextStageTile(new Position(5, 1, 0), SpecialTileType.START_POINT),
+        new NextStageTile(new Position(6, 1, 0), SpecialTileType.END_POINT),
+        new NextStageTile(new Position(7, 1, 0), SpecialTileType.TILE),
+        new NextStageTile(new Position(8, 1, 0), SpecialTileType.TILE, SpecialTileType.MUST_DESTROY),
+        new NextStageTile(new Position(9, 1, 0), SpecialTileType.TILE, SpecialTileType.MUST_DESTROY),
+        new NextStageTile(new Position(10, 1, 0), SpecialTileType.START_POINT)
+      ];
+      const tileMap = new Map(tiles.map(tile => [key(tile.getPosition()), tile]));
+      const playerExit = makeUnit({ id: 1, faction: UnitFaction.FACTION_PLAYER, tile: tiles[0], geoscapeSoldier: { name: "Soldier" } });
+      const playerNoExit = makeUnit({ id: 2, faction: UnitFaction.FACTION_PLAYER, tile: tiles[1], geoscapeSoldier: { name: "Late" }, ai: true });
+      const hostileLive = makeUnit({ id: 3, faction: UnitFaction.FACTION_HOSTILE, tile: tiles[2], ai: true });
+      const hostileConverted = makeUnit({ id: 4, originalFaction: UnitFaction.FACTION_HOSTILE, faction: UnitFaction.FACTION_PLAYER, tile: tiles[3], ai: true });
+      const unconsciousCarry = makeUnit({ id: 20, faction: UnitFaction.FACTION_PLAYER, status: UnitStatus.STATUS_UNCONSCIOUS, tile: null });
+      const carriedCorpseItem = makeItem("STR_CARRIED_UNIT", { owner: playerExit, unit: unconsciousCarry });
+      const hostileDroppedItem = makeItem("STR_ALIEN_DROPPED", { owner: hostileConverted });
+      const fixedHostileItem = makeItem("STR_ALIEN_FIXED", { owner: hostileConverted, fixed: true });
+      const carryItem = makeItem("STR_CARRY_RIFLE", { owner: playerExit });
+      const carryAmmo = makeItem("STR_CARRY_AMMO", { ammo: true });
+      carryItem.ammo = carryAmmo;
+      const startRecoverItem = makeItem("STR_START_RECOVER", { tile: tiles[4] });
+      const endNextItem = makeItem("STR_END_NEXT", { tile: tiles[5] });
+      const conditionalItem = makeItem("STR_CONDITIONAL", { tile: tiles[6] });
+      const unresearchItem = makeItem("STR_UNRESEARCHED", { tile: tiles[7], requirements: ["STR_NEED_RESEARCH"] });
+      const removedOwner = makeUnit({ id: 30, faction: UnitFaction.FACTION_HOSTILE, tile: tiles[7] });
+      const removedOwnedItem = makeItem("STR_REMOVED_OWNED", { owner: removedOwner, recoverable: false });
+      const saveItems = [
+        carriedCorpseItem,
+        hostileDroppedItem,
+        fixedHostileItem,
+        carryItem,
+        carryAmmo,
+        startRecoverItem,
+        endNextItem,
+        conditionalItem,
+        unresearchItem,
+        removedOwnedItem
+      ];
+      const guaranteed = [];
+      const conditional = [];
+      const objectiveCounts = [];
+      const tileEngineCalls = [];
+      const save = {
+        units: [playerExit, playerNoExit, hostileLive, hostileConverted],
+        items: saveItems,
+        selected: null,
+        aborted: true,
+        getUnits() { return this.units; },
+        getItems() { return this.items; },
+        getGuaranteedRecoveredItems() { return guaranteed; },
+        getConditionalRecoveredItems() { return conditional; },
+        resetTurnCounter() { this.resetCalled = true; this.turn = 1; this.side = UnitFaction.FACTION_PLAYER; this.beforeGame = true; },
+        isAborted() { return this.aborted; },
+        setAborted(value) { this.aborted = value; },
+        getTile(pos) { return tileMap.get(key(Position.from(pos))) || null; },
+        getTiles() { return tiles; },
+        getMissionType() { return "STR_NEXT_STAGE"; },
+        getDepth() { return this.depth || 0; },
+        setDepth(value) { this.depth = value; },
+        setTurnLimit(value) { this.turnLimit = value; },
+        setChronoTrigger(value) { this.chrono = value; },
+        setCheatTurn(value) { this.cheat = value; },
+        setObjectiveType(value) { this.objectiveType = value; },
+        setObjectiveCount(value) { objectiveCounts.push(value); this.objectiveCount = value; },
+        getSpawnNode(rank, unit) { return unit === playerExit ? { getPosition: () => new Position(10, 1, 0) } : null; },
+        setUnitPosition(unit, pos) {
+          const tile = this.getTile(pos);
+          if (!tile) return false;
+          unit.setPosition(pos);
+          tile.setUnit(unit);
+          return true;
+        },
+        getSelectedUnit() { return this.selected; },
+        setSelectedUnit(unit) { this.selected = unit; },
+        selectNextPlayerUnit() { this.selected = this.units.find(unit => unit.getOriginalFaction() === UnitFaction.FACTION_PLAYER && !unit.isOut()) || null; return this.selected; },
+        setMusic(value) { this.music = value; },
+        setGlobalShade(value) { this.globalShade = value; },
+        getTileEngine() {
+          return {
+            calculateSunShading: () => tileEngineCalls.push("sun"),
+            calculateTerrainLighting: () => tileEngineCalls.push("terrain"),
+            calculateUnitLighting: () => tileEngineCalls.push("unit")
+          };
+        }
+      };
+      const deploymentScript = [{ id: "deployment-script", init: () => {}, getLabel: () => 0, getConditionals: () => [], getChancesOfExecution: () => 0 }];
+      const terrainScript = [{ id: "terrain-script", init: () => {}, getLabel: () => 0, getConditionals: () => [], getChancesOfExecution: () => 0 }];
+      const deployment = {
+        getType: () => "STR_NEXT_STAGE",
+        getTurnLimit: () => 17,
+        getChronoTrigger: () => 2,
+        getCheatTurn: () => 9,
+        getDimensions: () => [20, 20, 1],
+        getTerrains: () => ["STR_TEST_TERRAIN"],
+        getMinDepth: () => 0,
+        getMaxDepth: () => 0,
+        getShade: () => 12,
+        getScript: () => "STR_DEPLOYMENT_SCRIPT",
+        getObjectiveType: () => SpecialTileType.MUST_DESTROY,
+        getObjectivesRequired: () => 3,
+        getRace: () => "",
+        getCivilians: () => 4,
+        getMusic: () => []
+      };
+      const terrain = {
+        getScript: () => "STR_TERRAIN_SCRIPT",
+        getMinDepth: () => 0,
+        getMaxDepth: () => 0,
+        getMusic: () => []
+      };
+      const mod = {
+        getInventory: id => id === "STR_GROUND" ? ground : null,
+        getDeployment: () => deployment,
+        getTerrain: () => terrain,
+        getMapScript: id => id === "STR_DEPLOYMENT_SCRIPT" ? deploymentScript : (id === "STR_TERRAIN_SCRIPT" ? terrainScript : null)
+      };
+      const savedGame = {
+        isResearched: requirements => requirements.length === 0,
+        getMissionSites: () => [{ isInBattlescape: () => true, getAlienRace: () => "STR_STAGE_RACE" }],
+        getAlienBases: () => []
+      };
+      const generator = new BattlescapeGenerator(save, mod, savedGame);
+      let generatedScript = null;
+      let generatedDimensions = null;
+      generator.generateMap = async (script, genTerrain, width, length, height) => {
+        generatedScript = script;
+        generatedDimensions = [genTerrain, width, length, height];
+      };
+      let alienSequence = 0;
+      generator.deployAliens = function() {
+        alienSequence = this._unitSequence;
+        this._save.getUnits().push(makeUnit({ id: 50, faction: UnitFaction.FACTION_HOSTILE, tile: null }));
+      };
+      let civilianCount = -1;
+      generator.deployCivilians = count => { civilianCount = count; };
+
+      await generator.nextStage();
+
+      assert(playerNoExit.timeOutCount === 1 && hostileLive.timeOutCount === 1 && hostileConverted.timeOutCount === 1, "nextStage should time out aborted non-exit players and non-player units");
+      assert(playerExit.timeOutCount === 0, "nextStage should keep player units in the exit area active for stage transition");
+      assert(playerNoExit.aiCleared === 1 && hostileLive.aiCleared === 1 && hostileConverted.aiCleared === 1, "nextStage should clear AI modules on timed-out units");
+      assert(playerNoExit.fireValues.at(-1) === 0 && hostileLive.fireValues.at(-1) === 0, "nextStage should clear unit fire before reset");
+      assert(playerNoExit.positions.at(-1).equals(new Position(-1, -1, -1)), "nextStage should move timed-out units to timeout position");
+      assert(tiles[0].units.includes(null) && tiles[1].units.includes(null) && tiles[2].units.includes(null), "nextStage should clear old tile occupancy");
+      assert(tiles[0].inventory.includes(carriedCorpseItem), "nextStage should drop carried unit items from living player inventory");
+      assert(unconsciousCarry.getPosition().equals(tiles[9].getPosition()), "nextStage should carry unconscious player units forward to the new craft inventory tile");
+      assert(tiles[3].inventory.includes(hostileDroppedItem), "nextStage should drop non-fixed changed-hostile inventory to the tile");
+      assert(hostileConverted.getInventory().includes(fixedHostileItem), "nextStage should leave fixed hostile inventory with the owner");
+      assert(guaranteed.includes(startRecoverItem), "nextStage should guarantee recovery for start-point items when aliens survive");
+      assert(conditional.includes(conditionalItem), "nextStage should conditionally recover ordinary floor items when aliens survive");
+      assert(conditional.includes(unresearchItem), "nextStage should not carry unresearchable floor artifacts to the next stage while aliens survive");
+      assert(!removedOwner.getInventory().includes(removedOwnedItem), "nextStage should de-equip removed owned items");
+      assert(save.items.includes(carryItem) && save.items.includes(carryAmmo), "nextStage should keep player-owned carry items and linked ammo active");
+      assert(save.items.includes(endNextItem) && tiles[10 - 1].inventory.includes(endNextItem), "nextStage should carry exit-grid items onto the next stage inventory tile");
+      assert(save.resetCalled === true && save.turnLimit === 17 && save.chrono === 2 && save.cheat === 9, "nextStage should apply turn, chrono, cheat and reset-turn metadata");
+      assert(generatedScript === deploymentScript, "nextStage should prefer deployment map script over terrain script");
+      assert(generatedDimensions[1] === 20 && generatedDimensions[2] === 20 && generatedDimensions[3] === 1, "nextStage should generate the next map with deployment dimensions");
+      assert(save.objectiveType === SpecialTileType.MUST_DESTROY && objectiveCounts.at(-1) === 2, "nextStage setupObjectives should clamp objective count to actual map markers");
+      assert(playerExit.turnsSinceSpotted.includes(255) && playerExit.cacheValues.includes(0) && playerExit.prepared === 1 && playerExit.preparedFull === false, "nextStage should refresh surviving player units without full new-turn processing");
+      assert(save.selected === playerExit, "nextStage should select the first surviving geoscape soldier");
+      assert(alienSequence === 5, "nextStage should seed alien unit sequence from the last pre-existing unit id");
+      assert(generator._alienRace === "STR_STAGE_RACE", "nextStage should infer alien race from in-battlescape mission sites when deployment race is empty");
+      assert(civilianCount === 4, "nextStage should deploy civilians using deployment civilian count");
+      assert(save.aborted === false, "nextStage should clear aborted flag after preparing the next stage");
+      assert(save.music === "", "nextStage should clear music when deployment and terrain provide none");
+      assert(save.globalShade === 12, "nextStage should apply deployment shade");
+      assert(JSON.stringify(tileEngineCalls) === JSON.stringify(["sun", "terrain", "unit"]), "nextStage should refresh sun, terrain and unit lighting");
+
+      const failingSave = {
+        ...save,
+        units: [playerExit],
+        items: [],
+        selected: null,
+        getUnits() { return this.units; },
+        getItems() { return this.items; },
+        getGuaranteedRecoveredItems: () => [],
+        getConditionalRecoveredItems: () => [],
+        getSelectedUnit() { return this.selected; },
+        setSelectedUnit(unit) { this.selected = unit; },
+        selectNextPlayerUnit() { return null; }
+      };
+      const failingGenerator = new BattlescapeGenerator(failingSave, mod, savedGame);
+      failingGenerator.generateMap = async () => {};
+      failingGenerator.deployAliens = () => {};
+      failingGenerator.deployCivilians = () => {};
+      let failed = false;
+      try {
+        await failingGenerator.nextStage();
+      } catch (error) {
+        failed = String(error.message || error).includes("no alien units could be placed");
+      }
+      assert(failed, "nextStage should fail when no alien units are deployed");
     }
 
     class FakeMapData {

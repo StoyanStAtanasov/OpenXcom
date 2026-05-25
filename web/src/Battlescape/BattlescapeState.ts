@@ -450,13 +450,8 @@ export class BattlescapeState extends State {
     if (nextStage.length > 0 && inExitArea) {
       this._popups = [];
       this._save.setMissionType(nextStage);
-      const generator = new BattlescapeGenerator(this._save, mod);
-      const nextStageGenerator = generator as unknown as { nextStage?: () => Promise<void> | void };
-      if (typeof nextStageGenerator.nextStage === "function") {
-        await nextStageGenerator.nextStage();
-      } else {
-        console.warn("BattlescapeGenerator::nextStage boundary not translated yet.");
-      }
+      const generator = new BattlescapeGenerator(this._save, mod, game.getSavedGame());
+      await generator.nextStage();
       game.popState();
       const { BriefingState } = await import("./BriefingState.js");
       game.pushState(new BriefingState(null, null));

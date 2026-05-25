@@ -1,6 +1,6 @@
 # OpenXcom TS Port Context Packet
 
-Generated: 2026-05-25T18:17:51.491Z
+Generated: 2026-05-25T18:32:42.228Z
 Role: resume
 
 This is the compact handoff surface for resumed turns and subagents. Regenerate it with `npm run context` instead of rereading long narrative docs.
@@ -9,28 +9,28 @@ This is the compact handoff surface for resumed turns and subagents. Regenerate 
 
 - Objective: Faithfully translate OpenXcom C++ source into the browser TypeScript port.
 - Path parity: 336/336 (100%)
-- Tracked slices: 19
-- Integrated verified slices: 18
+- Tracked slices: 20
+- Integrated verified slices: 19
 - Slice path warnings: 0
-- Status rollup: integrated-verified=18, partial-integrated-verified=1
-- Local Codex status: gpt-5.5 (xhigh); context 35.2% left (167571/258400 latest input tokens); credits not reported locally
+- Status rollup: integrated-verified=19, partial-integrated-verified=1
+- Local Codex status: gpt-5.5 (xhigh); context 7.5% left (239140/258400 latest input tokens); credits not reported locally
 
 ## Active Slice
 
-- Name: Battlescape tactical controls
+- Name: Battlescape next-stage transition
 - Area: Battlescape
 - Status: integrated-verified
 - Slice percent: 100%
-- Next action: Continue remaining battlescape playability gaps: translate BattlescapeGenerator::nextStage() and broaden full mission-end playthrough coverage.
+- Next action: Broaden mission-end verification from direct route fixtures to generated multi-stage mission playthroughs.
 - Verification markers: none
 
 Boundaries:
-- BattlescapeGenerator::nextStage() remains an explicit C++ stage-transition boundary before multi-stage missions can claim full parity
-- Full end-to-end mission completion still needs a wider playthrough verifier that reaches finishBattle from generated combat rather than direct route fixtures
+- The verifier drives nextStage directly with source-shaped fake fixtures; a later playthrough verifier should reach it through real generated multi-stage mission completion.
+- Deeper generated map content fidelity remains owned by the broader BattlescapeGenerator map/script/deployment slices.
 
-Source files (4): src/Battlescape/BattlescapeState.cpp; src/Battlescape/BattlescapeState.h; src/Menu/PauseState.cpp; src/Menu/OptionsBaseState.h
+Source files (6): src/Battlescape/BattlescapeGenerator.cpp; src/Battlescape/BattlescapeGenerator.h; src/Savegame/SavedBattleGame.cpp; src/Savegame/SavedBattleGame.h; src/Savegame/BattleUnit.cpp; src/Savegame/BattleUnit.h
 
-Target files (5): web/src/Battlescape/BattlescapeState.ts; web/src/Menu/PauseState.ts; web/src/Menu/OptionsBaseState.ts; web/src/Menu/OptionsOrigin.ts; web/scripts/verify-battle-runtime.mjs
+Target files (5): web/src/Battlescape/BattlescapeGenerator.ts; web/src/Battlescape/BattlescapeState.ts; web/src/Savegame/SavedBattleGame.ts; web/src/Savegame/BattleUnit.ts; web/scripts/verify-battle-runtime.mjs
 
 ## Integration Queue
 
@@ -60,11 +60,11 @@ Worker final format:
 Prompt skeletons:
 
 ```text
-Read-only sidecar for OpenXcom TS port slice "Battlescape tactical controls" (100%).
+Read-only sidecar for OpenXcom TS port slice "Battlescape next-stage transition" (100%).
 Do not edit files.
 Inspect only the exact file list provided by the main agent plus this context packet.
-Next action: Continue remaining battlescape playability gaps: translate BattlescapeGenerator::nextStage() and broaden full mission-end playthrough coverage..
-Boundaries: BattlescapeGenerator::nextStage() remains an explicit C++ stage-transition boundary before multi-stage missions can claim full parity; Full end-to-end mission completion still needs a wider playthrough verifier that reaches finishBattle from generated combat rather than direct route fixtures.
+Next action: Broaden mission-end verification from direct route fixtures to generated multi-stage mission playthroughs..
+Boundaries: The verifier drives nextStage directly with source-shaped fake fixtures; a later playthrough verifier should reach it through real generated multi-stage mission completion.; Deeper generated map content fidelity remains owned by the broader BattlescapeGenerator map/script/deployment slices..
 Return summary-first: files inspected, source facts, risks, recommended integration/verifier checks.
 ```
 

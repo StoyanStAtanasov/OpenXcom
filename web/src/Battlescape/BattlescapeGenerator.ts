@@ -15,7 +15,7 @@ import type { RuleCraft } from "../Mod/RuleCraft.ts";
 import type { RuleUfo } from "../Mod/RuleUfo.ts";
 import type { Unit } from "../Mod/Unit.ts";
 import { BattleItem } from "../Savegame/BattleItem.ts";
-import { BattleUnit, UnitFaction } from "../Savegame/BattleUnit.ts";
+import { BattleUnit, UnitFaction, UnitStatus } from "../Savegame/BattleUnit.ts";
 import { GameDifficulty } from "../Savegame/SavedGame.ts";
 import { Node, NodeRank } from "../Savegame/Node.ts";
 import type { Base } from "../Savegame/Base.ts";
@@ -69,6 +69,12 @@ type WorldTextureLike = {
   getRandomTerrain?: (target: unknown) => string;
 };
 
+type BattlescapeGeneratorSavedGameLike = {
+  isResearched?: (requirements: string[] | string, considerDebugMode?: boolean) => boolean;
+  getMissionSites?: () => Array<{ isInBattlescape?: () => boolean; getAlienRace?: () => string }>;
+  getAlienBases?: () => Array<{ isInBattlescape?: () => boolean; getAlienRace?: () => string }>;
+};
+
 function bytes(data: ArrayBuffer | Uint8Array): Uint8Array {
   return data instanceof ArrayBuffer ? new Uint8Array(data) : data;
 }
@@ -104,7 +110,11 @@ export class BattlescapeGenerator {
   private _baseInventory = false;
   private _allowAutoLoadout = !(Options as any).disableAutoEquip;
 
-  constructor(private _save: SavedBattleGame, private _mod: BattlescapeGeneratorModLike | null = null) {}
+  constructor(
+    private _save: SavedBattleGame,
+    private _mod: BattlescapeGeneratorModLike | null = null,
+    private _savedGame: BattlescapeGeneratorSavedGameLike | null = null
+  ) {}
 
   async generateMap(script: MapScript[], terrain: RuleTerrain, mapsize_x: number, mapsize_y: number, mapsize_z: number, resetTerrain = true): Promise<void> {
     this._terrain = terrain;
@@ -309,7 +319,7 @@ export class BattlescapeGenerator {
       throw new Error("Map generator encountered an error: No valid terrain found.");
     }
 
-    this.setDepth(deployment, this._terrain);
+    this.setDepth(deployment, this._terrain, false);
     if (deployment.getShade() !== -1) {
       this._worldShade = deployment.getShade();
     }
@@ -324,11 +334,8 @@ export class BattlescapeGenerator {
       throw new Error(`Map generator encountered an error: ${this._terrain.getScript()} script not found.`);
     }
 
-    this._save.setObjectiveType(deployment.getObjectiveType());
-    if (deployment.getObjectivesRequired() > 0) {
-      this._save.setObjectiveCount(deployment.getObjectivesRequired());
-    }
     await this.generateMap(script, this._terrain, width, length, height);
+    this.setupObjectives(deployment);
     this.deployXCOM();
 
     const unitsBefore = this._save.getUnits().length;
@@ -338,7 +345,7 @@ export class BattlescapeGenerator {
     }
     this.deployCivilians(deployment.getCivilians());
     this._save.setAborted(false);
-    this.setMusic(deployment, this._terrain);
+    this.setMusic(deployment, this._terrain, false);
     this._save.setGlobalShade(this._worldShade);
     this._save.initUtilities(this._mod || undefined);
     this._save.getTileEngine()?.calculateSunShading();
@@ -361,6 +368,265 @@ export class BattlescapeGenerator {
 
     this.setCraft(craft);
     this.deployXCOM();
+  }
+
+  async nextStage(): Promise<void> {
+    const ground = this._mod?.getInventory?.("STR_GROUND", true) || null;
+    if (!ground) {
+      throw new Error("Inventory STR_GROUND not found.");
+    }
+
+    for (const unit of this._save.getUnits()) {
+      if (unit.getOriginalFaction() === UnitFaction.FACTION_PLAYER && !unit.isOut()) {
+        const unitsToDrop = unit.getInventory().filter(item => item.getUnit());
+        for (const corpseItem of unitsToDrop) {
+          corpseItem.moveToOwner(null);
+          const tile = unit.getTile() as Tile | null;
+          tile?.addItem(corpseItem, ground);
+          const corpseUnit = corpseItem.getUnit();
+          if (corpseUnit && corpseUnit.getStatus() === UnitStatus.STATUS_UNCONSCIOUS && tile) {
+            corpseUnit.setPosition(tile.getPosition());
+          }
+        }
+      }
+    }
+
+    let aliensAlive = 0;
+    for (const unit of this._save.getUnits()) {
+      unit.clearVisibleUnits();
+      unit.clearVisibleTiles();
+
+      const tmpTile = this._save.getTile(unit.getPosition());
+      const isInExit = unit.isInExitArea(SpecialTileType.END_POINT) || unit.liesInExitArea(tmpTile, SpecialTileType.END_POINT);
+
+      if (unit.getStatus() !== UnitStatus.STATUS_DEAD &&
+        ((unit.getOriginalFaction() === UnitFaction.FACTION_PLAYER && this._save.isAborted() && !isInExit) ||
+          unit.getOriginalFaction() !== UnitFaction.FACTION_PLAYER)) {
+        if (unit.getOriginalFaction() === UnitFaction.FACTION_HOSTILE && !unit.isOut()) {
+          if (unit.getOriginalFaction() === unit.getFaction()) {
+            aliensAlive++;
+          } else {
+            const tile = unit.getTile() as Tile | null;
+            if (tile) {
+              const inventory = unit.getInventory();
+              for (let i = 0; i < inventory.length;) {
+                const item = inventory[i];
+                if (!item.getRules().isFixed()) {
+                  tile.addItem(item, ground);
+                  inventory.splice(i, 1);
+                } else {
+                  ++i;
+                }
+              }
+            }
+          }
+        }
+        unit.goToTimeOut();
+        if (unit.getAIModule()) {
+          unit.setAIModule(null);
+        }
+      }
+
+      const tile = unit.getTile() as Tile | null;
+      if (tile) {
+        const pos = unit.getPosition();
+        const size = unit.getArmor().getSize();
+        for (let x = 0; x !== size; ++x) {
+          for (let y = 0; y !== size; ++y) {
+            this._save.getTile(pos.add(new Position(x, y, 0)))?.setUnit(null);
+          }
+        }
+      }
+      unit.setFire(0);
+      unit.setTile(null);
+      unit.setPosition(new Position(-1, -1, -1), false);
+    }
+
+    const takeHomeGuaranteed = this._save.getGuaranteedRecoveredItems();
+    const takeHomeConditional = this._save.getConditionalRecoveredItems();
+    const takeToNextStage: BattleItem[] = [];
+    const carryToNextStage: BattleItem[] = [];
+    const removeFromGame: BattleItem[] = [];
+
+    this._save.resetTurnCounter();
+
+    for (const item of this._save.getItems()) {
+      if (item.isAmmo()) {
+        continue;
+      }
+
+      let toContainer = removeFromGame;
+      const itemUnit = item.getUnit();
+      if (((itemUnit && itemUnit.getGeoscapeSoldier()) || item.getRules().isRecoverable()) && !item.getOwner()) {
+        if (item.getFuseTimer() === -1) {
+          if (aliensAlive === 0) {
+            if ((itemUnit && (itemUnit.getOriginalFaction() !== UnitFaction.FACTION_PLAYER ||
+              itemUnit.getStatus() === UnitStatus.STATUS_DEAD)) ||
+              !this.isResearched(item.getRules().getRequirements())) {
+              toContainer = takeHomeGuaranteed;
+            } else {
+              toContainer = takeToNextStage;
+            }
+          } else {
+            const tile = item.getTile() as Tile | null;
+            if (tile) {
+              toContainer = takeHomeConditional;
+              const floor = tile.getMapData(TilePart.O_FLOOR);
+              if (floor) {
+                if (floor.getSpecialType() === SpecialTileType.START_POINT) {
+                  toContainer = takeHomeGuaranteed;
+                } else if (floor.getSpecialType() === SpecialTileType.END_POINT) {
+                  if (itemUnit && (itemUnit.getOriginalFaction() !== UnitFaction.FACTION_PLAYER ||
+                    itemUnit.getStatus() === UnitStatus.STATUS_DEAD)) {
+                    toContainer = takeHomeConditional;
+                  } else {
+                    toContainer = takeToNextStage;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (item.getOwner() && item.getOwner()!.getFaction() === UnitFaction.FACTION_PLAYER) {
+        toContainer = carryToNextStage;
+      }
+
+      const ammo = item.getAmmoItem();
+      if (ammo && ammo !== item) {
+        ammo.setTile(null);
+        toContainer.push(ammo);
+      }
+      item.setTile(null);
+      toContainer.push(item);
+    }
+
+    for (const item of removeFromGame) {
+      const owner = item.getOwner();
+      if (owner) {
+        const inventory = owner.getInventory();
+        const index = inventory.indexOf(item);
+        if (index !== -1) {
+          inventory.splice(index, 1);
+        }
+      }
+    }
+
+    this._save.getItems().length = 0;
+    for (const item of carryToNextStage) {
+      this._save.getItems().push(item);
+    }
+
+    const deployment = this._mod?.getDeployment?.(this._save.getMissionType(), true);
+    if (!deployment) {
+      throw new Error(`BattlescapeGenerator deployment ${this._save.getMissionType()} not found.`);
+    }
+
+    this._save.setTurnLimit(deployment.getTurnLimit());
+    this._save.setChronoTrigger(deployment.getChronoTrigger());
+    this._save.setCheatTurn(deployment.getCheatTurn());
+    const [width, length, height] = deployment.getDimensions();
+    this._mapsize_x = width;
+    this._mapsize_y = length;
+    this._mapsize_z = height;
+    const terrains = deployment.getTerrains();
+    if (terrains.length === 0) {
+      throw new Error(`Map generator encountered an error: No valid terrain found for deployment ${deployment.getType()}.`);
+    }
+    this._terrain = this._mod?.getTerrain?.(terrains[RNG.generate(0, terrains.length - 1)], true) || null;
+    if (!this._terrain) {
+      throw new Error("Map generator encountered an error: No valid terrain found.");
+    }
+    this.setDepth(deployment, this._terrain, true);
+    this._worldShade = deployment.getShade();
+
+    const terrainScript = this._mod?.getMapScript?.(this._terrain.getScript()) || null;
+    const deploymentScript = deployment.getScript() ? this._mod?.getMapScript?.(deployment.getScript()) || null : null;
+    if (!deploymentScript && deployment.getScript()) {
+      throw new Error(`Map generator encountered an error: ${deployment.getScript()} script not found.`);
+    }
+    const script = deploymentScript || terrainScript;
+    if (!script) {
+      throw new Error(`Map generator encountered an error: ${this._terrain.getScript()} script not found.`);
+    }
+
+    await this.generateMap(script, this._terrain, width, length, height);
+    this.setupObjectives(deployment);
+
+    let selectedFirstSoldier = false;
+    let highestSoldierID = 0;
+    for (const unit of this._save.getUnits()) {
+      if (unit.getOriginalFaction() !== UnitFaction.FACTION_PLAYER || unit.isOut()) {
+        continue;
+      }
+      unit.setTurnsSinceSpotted(255);
+      unit.getVisibleTiles().length = 0;
+      unit.setCache(0);
+      if (!selectedFirstSoldier && unit.getGeoscapeSoldier()) {
+        this._save.setSelectedUnit(unit);
+        selectedFirstSoldier = true;
+      }
+      const node = this._save.getSpawnNode(NodeRank.NR_XCOM, unit);
+      if (node || this.placeUnitNearFriend(unit)) {
+        if (node) {
+          this._save.setUnitPosition(unit, node.getPosition());
+        }
+        if (!this._craftInventoryTile) {
+          this._craftInventoryTile = unit.getTile() as Tile | null;
+        }
+        this._craftInventoryTile?.setUnit(unit);
+        unit.setVisible(false);
+        if (unit.getId() > highestSoldierID) {
+          highestSoldierID = unit.getId();
+        }
+        unit.prepareNewTurn(false);
+      }
+    }
+
+    const selected = this._save.getSelectedUnit();
+    if (!selected || selected.isOut() || selected.getFaction() !== UnitFaction.FACTION_PLAYER) {
+      this._save.selectNextPlayerUnit();
+    }
+
+    for (const item of takeToNextStage) {
+      this._save.getItems().push(item);
+      if (!item.isAmmo()) {
+        this._craftInventoryTile?.addItem(item, ground);
+        const itemUnit = item.getUnit();
+        if (itemUnit && this._craftInventoryTile) {
+          this._craftInventoryTile.setUnit(itemUnit);
+          itemUnit.setPosition(this._craftInventoryTile.getPosition());
+        }
+      }
+    }
+
+    this._unitSequence = (this._save.getUnits().at(-1)?.getId() ?? BattleUnit.MAX_SOLDIER_ID - 1) + 1;
+
+    const unitCount = this._save.getUnits().length;
+    this._alienRace = deployment.getRace();
+    for (const mission of this._savedGame?.getMissionSites?.() || []) {
+      if (!this._alienRace && mission.isInBattlescape?.()) {
+        this._alienRace = mission.getAlienRace?.() || "";
+      }
+    }
+    for (const base of this._savedGame?.getAlienBases?.() || []) {
+      if (!this._alienRace && base.isInBattlescape?.()) {
+        this._alienRace = base.getAlienRace?.() || "";
+      }
+    }
+
+    this.deployAliens(deployment);
+    if (unitCount === this._save.getUnits().length) {
+      throw new Error("Map generator encountered an error: no alien units could be placed on the map.");
+    }
+    this.deployCivilians(deployment.getCivilians());
+    this._save.setAborted(false);
+    this.setMusic(deployment, this._terrain, true);
+    this._save.setGlobalShade(this._worldShade);
+    this._save.getTileEngine()?.calculateSunShading();
+    this._save.getTileEngine()?.calculateTerrainLighting();
+    this._save.getTileEngine()?.calculateUnitLighting();
   }
 
   deployAliens(deployment: AlienDeployment): number {
@@ -463,17 +729,49 @@ export class BattlescapeGenerator {
     return terrainId ? this._mod.getTerrain(terrainId, true) : null;
   }
 
-  private setDepth(deployment: AlienDeployment, terrain: RuleTerrain): void {
+  private setupObjectives(deployment: AlienDeployment): void {
+    const targetType = deployment.getObjectiveType();
+    if (targetType > -1) {
+      const objectives = deployment.getObjectivesRequired();
+      let actualCount = 0;
+      for (const tile of this._save.getTiles()) {
+        for (let part = TilePart.O_FLOOR; part <= TilePart.O_OBJECT; ++part) {
+          if (tile.getMapData(part as TilePart)?.getSpecialType() === targetType) {
+            actualCount++;
+          }
+        }
+      }
+      if (actualCount > 0) {
+        this._save.setObjectiveType(targetType);
+        if (actualCount < objectives || objectives === 0) {
+          this._save.setObjectiveCount(actualCount);
+        } else {
+          this._save.setObjectiveCount(objectives);
+        }
+      }
+    }
+  }
+
+  private isResearched(requirements: string[]): boolean {
+    return this._savedGame?.isResearched?.(requirements) ?? requirements.length === 0;
+  }
+
+  private setDepth(deployment: AlienDeployment, terrain: RuleTerrain, nextStage = false): void {
+    if (this._save.getDepth() > 0 && !nextStage) {
+      return;
+    }
     const minDepth = deployment.getMinDepth();
     const maxDepth = deployment.getMaxDepth();
-    if (minDepth !== 0 || maxDepth !== 0) {
+    if (maxDepth > 0) {
       this._save.setDepth(RNG.generate(minDepth, maxDepth));
       return;
     }
-    this._save.setDepth(RNG.generate(terrain.getMinDepth(), terrain.getMaxDepth()));
+    if (terrain.getMaxDepth() > 0 || nextStage) {
+      this._save.setDepth(RNG.generate(terrain.getMinDepth(), terrain.getMaxDepth()));
+    }
   }
 
-  private setMusic(deployment: AlienDeployment, terrain: RuleTerrain): void {
+  private setMusic(deployment: AlienDeployment, terrain: RuleTerrain, nextStage = false): void {
     const deploymentMusic = deployment.getMusic();
     if (deploymentMusic.length > 0) {
       this._save.setMusic(deploymentMusic[RNG.generate(0, deploymentMusic.length - 1)]);
@@ -482,6 +780,8 @@ export class BattlescapeGenerator {
     const terrainMusic = terrain.getMusic();
     if (terrainMusic.length > 0) {
       this._save.setMusic(terrainMusic[RNG.generate(0, terrainMusic.length - 1)]);
+    } else if (nextStage) {
+      this._save.setMusic("");
     }
   }
 

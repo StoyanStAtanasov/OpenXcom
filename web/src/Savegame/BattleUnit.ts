@@ -1075,6 +1075,10 @@ export class BattleUnit {
     return Boolean(this._tile?.getMapData?.(TilePart.O_FLOOR)?.getSpecialType?.() === stt);
   }
 
+  liesInExitArea(tile: Tile | null, stt: SpecialTileType = SpecialTileType.START_POINT): boolean {
+    return Boolean(tile?.getMapData(TilePart.O_FLOOR)?.getSpecialType() === stt);
+  }
+
   getActionTUs(actionType: BattleActionType, item: BattleItem | RuleItem | null): number {
     if (!item) {
       return 0;

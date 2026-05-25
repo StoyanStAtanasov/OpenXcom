@@ -1,14 +1,14 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T18:17:50.642Z",
+    "generatedAt": "2026-05-25T18:32:41.444Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
     "sourceCodeFiles": 646,
     "targetTsFiles": 341,
     "webOnlyTsFiles": 5,
-    "integratedVerifiedSlices": 18,
-    "trackedSlices": 19,
+    "integratedVerifiedSlices": 19,
+    "trackedSlices": 20,
     "slicePathWarnings": 0
   },
   "areas": [
@@ -113,7 +113,7 @@
     }
   ],
   "statusRollups": {
-    "integrated-verified": 18,
+    "integrated-verified": 19,
     "partial-integrated-verified": 1
   },
   "nextQueue": [
@@ -872,7 +872,7 @@
       "area": "Battlescape",
       "status": "integrated-verified",
       "slicePercent": 100,
-      "nextAction": "Continue remaining battlescape playability gaps: translate BattlescapeGenerator::nextStage() and broaden full mission-end playthrough coverage.",
+      "nextAction": "Continue broader full mission-end playthrough coverage and remaining battlescape runtime/adapter boundaries.",
       "sourceFiles": [
         "src/Battlescape/BattlescapeState.cpp",
         "src/Battlescape/BattlescapeState.h",
@@ -888,8 +888,34 @@
       ],
       "verification": "npm run build passed; npm run typecheck passed; npm run verify:battle-runtime passed for browser proof that BattlescapeState::btnInventoryClick opens InventoryState(!debugMode, this), cancels actions, blocks no-inventory units outside debug, prepares current-side units in debug mode before opening inventory without TU mode, btnEndTurnClick respects allowButtons() and clears tooltip before requestEndTurn(), btnHelpClick calls allowButtons(true) then pushes PauseState(OPT_BATTLESCAPE), allowButtons() preserves the C++ player/debug, panic-handled, busy/save, and active-projectile gates, showLaunchButton()/showPsiButton() toggle real button visibility, and finishBattle() clears popups, unwinds stack overlays, restores cursor visibility, stops ambient battle sound, pushes DebriefingState, chooses abort/win/lose cutscenes, and sets final game endings. The verifier also protects against browser import cycles by using the lightweight OptionsOrigin module, PauseState lazy child-state imports, and finishBattle lazy route imports.",
       "boundaries": [
-        "BattlescapeGenerator::nextStage() remains an explicit C++ stage-transition boundary before multi-stage missions can claim full parity",
         "Full end-to-end mission completion still needs a wider playthrough verifier that reaches finishBattle from generated combat rather than direct route fixtures"
+      ]
+    },
+    {
+      "name": "Battlescape next-stage transition",
+      "area": "Battlescape",
+      "status": "integrated-verified",
+      "slicePercent": 100,
+      "nextAction": "Broaden mission-end verification from direct route fixtures to generated multi-stage mission playthroughs.",
+      "sourceFiles": [
+        "src/Battlescape/BattlescapeGenerator.cpp",
+        "src/Battlescape/BattlescapeGenerator.h",
+        "src/Savegame/SavedBattleGame.cpp",
+        "src/Savegame/SavedBattleGame.h",
+        "src/Savegame/BattleUnit.cpp",
+        "src/Savegame/BattleUnit.h"
+      ],
+      "targetFiles": [
+        "web/src/Battlescape/BattlescapeGenerator.ts",
+        "web/src/Battlescape/BattlescapeState.ts",
+        "web/src/Savegame/SavedBattleGame.ts",
+        "web/src/Savegame/BattleUnit.ts",
+        "web/scripts/verify-battle-runtime.mjs"
+      ],
+      "verification": "npm run build passed; npm run typecheck passed; npm run verify:battle-runtime passed for compiled-browser proof of BattlescapeGenerator::nextStage(): carried unit-item drop/carry-forward behavior, timeout and AI cleanup for aborted/non-player units, tile occupancy/fire/tile/position reset, hostile changed-faction inventory drop with fixed-item retention, guaranteed/conditional/next-stage/remove item buckets, linked ammo carry-forward, owner de-equip on removed items, turn counter reset, deployment turn/chrono/cheat/dimension/script selection, setupObjectives map-marker scan and objective-count clamping, surviving X-COM reposition/selection/prepareNewTurn(false), alien unit-sequence seeding, mission-site alien-race fallback, civilian deploy count, aborted reset, next-stage empty music clearing, global shade, lighting refresh, and the no-alien-deployed failure branch.",
+      "boundaries": [
+        "The verifier drives nextStage directly with source-shaped fake fixtures; a later playthrough verifier should reach it through real generated multi-stage mission completion.",
+        "Deeper generated map content fidelity remains owned by the broader BattlescapeGenerator map/script/deployment slices."
       ]
     },
     {
@@ -948,14 +974,14 @@
     "targetByArea": {
       "apple": 68,
       "Basescape": 9114,
-      "Battlescape": 19653,
+      "Battlescape": 19948,
       "(root)": 335,
       "Engine": 7942,
       "Geoscape": 8501,
       "Interface": 2785,
       "Menu": 4740,
       "Mod": 12724,
-      "Savegame": 14213,
+      "Savegame": 14224,
       "Ufopaedia": 1902
     }
   }
