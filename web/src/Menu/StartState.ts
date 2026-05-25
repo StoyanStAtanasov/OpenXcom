@@ -68,7 +68,8 @@ export class StartState extends State {
     this._timer.onTimer(this.animate.bind(this));
     this._timer.start();
 
-    this.game().getCursor().setVisible(false);
+    // Browser canvas CSS hides the native pointer, so keep the translated cursor visible while loading.
+    this.game().getCursor().setVisible(true);
     this.game().getFpsCounter().setVisible(false);
 
     if (Options.reload) {
@@ -131,8 +132,8 @@ export class StartState extends State {
       } else {
         switch (this._anim) {
           case 1:
-            this.addLine("DOS/4GW Protected Mode Run-time  Version 1.9");
-            this.addLine("Copyright (c) Rational Systems, Inc. 1990-1993");
+            this.addLine("OpenXcom Browser Runtime");
+            this.addLine("TypeScript/WebCanvas adapter");
             break;
           case 6:
             this.addLine("");
@@ -143,9 +144,8 @@ export class StartState extends State {
             if (Options.mute) {
               this.addLine("No Sound Detected");
             } else {
-              this.addLine("SoundBlaster Sound Effects");
-              this.addLine(Options.preferredMusic === MUSIC_MIDI ? "General MIDI Music" : "SoundBlaster Music");
-              this.addLine("Base Port 220  Irq 7  Dma 1");
+              this.addLine("WebAudio Sound Effects");
+              this.addLine(Options.preferredMusic === MUSIC_MIDI ? "General MIDI Music" : "WebAudio Music");
             }
             this.addLine("");
             break;

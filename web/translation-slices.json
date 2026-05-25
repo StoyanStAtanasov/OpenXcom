@@ -853,6 +853,32 @@
     ]
   },
   {
+    "name": "Browser startup adapter",
+    "area": "Menu",
+    "status": "integrated-verified",
+    "slicePercent": 100,
+    "nextAction": "Continue active-mod ruleset runtime loading now that startup browser warnings and cursor visibility are covered.",
+    "sourceFiles": [
+      "src/Menu/StartState.cpp",
+      "src/Menu/StartState.h",
+      "src/Interface/Cursor.cpp",
+      "src/Interface/Cursor.h",
+      "src/Engine/Sound.cpp",
+      "src/Engine/Sound.h"
+    ],
+    "targetFiles": [
+      "web/src/Menu/StartState.ts",
+      "web/src/Engine/Sound.ts",
+      "web/scripts/verify-startup-browser.mjs",
+      "web/package.json"
+    ],
+    "verification": "npm run verify:startup-browser passed for build/typecheck/browser proof that StartState keeps the translated cursor visible while the canvas CSS hides the native pointer, browser startup output no longer contains DOS/4GW, SoundBlaster, Base Port, IRQ, or DMA text, browser-adapter startup lines are shown instead, and the startup console does not contain the AudioContext autoplay-policy warning.",
+    "boundaries": [
+      "This is a browser adapter slice: it preserves the StartState loading lifecycle but intentionally replaces native DOS/SoundBlaster platform text with browser platform text.",
+      "Full WebAudio mixer/backend parity and exact native audio backend behavior remain separate adapter boundaries."
+    ]
+  },
+  {
     "name": "Whole source path parity sweep",
     "area": "All",
     "status": "integrated-verified",

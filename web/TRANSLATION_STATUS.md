@@ -1,6 +1,6 @@
 # Translation Status
 
-Generated: 2026-05-25T19:02:48.061Z
+Generated: 2026-05-25T19:09:51.145Z
 
 ## Summary
 
@@ -9,8 +9,8 @@ Generated: 2026-05-25T19:02:48.061Z
 - Source code files (.cpp/.h): 646
 - TypeScript files: 341
 - TypeScript helper/web-only files: 5
-- Tracked slices: 22
-- Integrated and browser/build verified slices: 21
+- Tracked slices: 23
+- Integrated and browser/build verified slices: 22
 - Slice path warnings: 0
 
 Path parity is a progress signal, not proof of behavioral parity. Slice status and verifier notes carry the behavioral signal.
@@ -19,7 +19,7 @@ Path parity is a progress signal, not proof of behavioral parity. Slice status a
 
 | Status | Count |
 | --- | ---: |
-| integrated-verified | 21 |
+| integrated-verified | 22 |
 | partial-integrated-verified | 1 |
 
 ## Next Integration Queue
@@ -69,6 +69,7 @@ Path parity is a progress signal, not proof of behavioral parity. Slice status a
 | Battlescape next-stage transition | Battlescape | integrated-verified | 100% | npm run build passed; npm run typecheck passed; npm run verify:battle-runtime passed for compiled-browser proof of BattlescapeGenerator::nextStage(): carried unit-item drop/carry-forward behavior, timeout and AI cleanup for aborted/non-player units, tile occupancy/fire/tile/position reset, hostile changed-faction inventory drop with fixed-item retention, guaranteed/conditional/next-stage/remove item buckets, linked ammo carry-forward, owner de-equip on removed items, turn counter reset, deployment turn/chrono/cheat/dimension/script selection, setupObjectives map-marker scan and objective-count clamping, surviving X-COM reposition/selection/prepareNewTurn(false), alien unit-sequence seeding, mission-site alien-race fallback, civilian deploy count, aborted reset, next-stage empty music clearing, global shade, lighting refresh, and the no-alien-deployed failure branch. | The verifier drives nextStage directly with source-shaped fake fixtures; a later playthrough verifier should reach it through real generated multi-stage mission completion.; Deeper generated map content fidelity remains owned by the broader BattlescapeGenerator map/script/deployment slices. |
 | Engine audio volume and reserved channels | Engine | integrated-verified | 100% | npm run build passed; npm run typecheck passed; npm run verify:battle-runtime passed for browser proof that Game::setVolume applies the source exponential volume curve, Sound channel -1 controls default sound, channel 3 is halved without a saved battle and scaled by SavedBattleGame::getAmbientVolume() with one, Music receives the source music curve, UI channels 1 and 2 receive the source UI curve, muted setVolume calls preserve current adapter volumes, TextButton/Window popup sounds now use the source reserved UI channel group rotation, and Sound.stop() clears owned looping-sound state so ambient playback can restart after global halt. | Browser WebAudio still adapts SDL_mixer channels rather than reproducing native mixer internals exactly.; Full YM3812/Adlib playback, FLC audio, and native backend parity remain separate browser adapter seams. |
 | Engine mod selection and ruleset manifest | Engine | integrated-verified | 100% | npm run verify:mod-selection passed for build/typecheck and source-shaped browser proof that Options.updateMods() detects xcom1/xcom2 master availability from the resource manifest, defaults to xcom1 active when both UFO and TFTD data exist, defaults to xcom2 when only TFTD data exists, preserves explicit xcom2 activation, turns off duplicate active masters, exposes ModInfo.getMaster()/canActivate() semantics for master/standalone/dependent mods, and keeps FileMap rulesets grouped as [modId, string[]]. npm run verify:new-battle-sandbox passed afterward to prove the existing XCOM1 playable startup/new-battle path still works. | Arbitrary mod directory scanning, metadata.yml parsing, resourceConfig parsing, and external resource directories remain browser adapter boundaries.; Game.loadMods()/Mod.loadAll() still load the translated xcom1 rules directly; threading FileMap.getRulesets() into the full ruleset loader and fully starting xcom2/TFTD remains a separate slice. |
+| Browser startup adapter | Menu | integrated-verified | 100% | npm run verify:startup-browser passed for build/typecheck/browser proof that StartState keeps the translated cursor visible while the canvas CSS hides the native pointer, browser startup output no longer contains DOS/4GW, SoundBlaster, Base Port, IRQ, or DMA text, browser-adapter startup lines are shown instead, and the startup console does not contain the AudioContext autoplay-policy warning. | This is a browser adapter slice: it preserves the StartState loading lifecycle but intentionally replaces native DOS/SoundBlaster platform text with browser platform text.; Full WebAudio mixer/backend parity and exact native audio backend behavior remain separate adapter boundaries. |
 | Whole source path parity sweep | All | integrated-verified | 100% | npm run build passed; npx --yes --package typescript tsc --noEmit passed; npm run status reports 336/336 source units with same-path TypeScript files; Playwright VERIFY_STARTUP passed with no console errors and a nonblank canvas | This slice proves source path coverage and browser startup, not full behavioral parity; Native audio, native OpenGL/scaler internals, exact SDL filesystem/dialog behavior, and deeper gameplay fidelity remain owned by their runtime integration slices |
 
 ## Known Verification Signals

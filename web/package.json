@@ -28,6 +28,7 @@
     "verify:save-menu": "node scripts/verify-save-menu.mjs",
     "verify:menu-geoscape-routes": "node scripts/verify-menu-geoscape-routes.mjs",
     "verify:mod-selection": "node scripts/verify-mod-selection.mjs",
+    "verify:startup-browser": "node scripts/verify-startup-browser.mjs",
     "verify:new-battle-sandbox": "node scripts/verify-new-battle-sandbox.mjs",
     "verify:saveconverter-metadata": "node scripts/verify-saveconverter-metadata.mjs"
   },

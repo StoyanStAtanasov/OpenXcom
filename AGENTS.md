@@ -213,6 +213,9 @@ Do not delete existing screenshot evidence in `output/playwright` unless it was 
 - For progress/doc audits, use no-fork read-only sidecars with a tight file list; the main agent should keep integration and verification decisions local.
 - Treat model choice as an experiment with feedback: record which tasks Spark handles safely and where it should be avoided; do not spend extra-high reasoning on low-ambiguity mechanical work.
 - Treat 100% source path parity as an inventory milestone, not project completion. The real finish line is verified behavior through source-shaped runtime slices and explicit remaining boundaries.
+- Startup loader text and cursor visibility are browser adapter seams. Do not blindly preserve DOS/4GW, SoundBlaster IRQ/DMA, or hidden-native-cursor assumptions when the canvas CSS hides the browser pointer.
+- Browser audio startup is also an adapter seam: never create or resume `AudioContext` before browser user activation. Install one-shot pointer/key/touch unlock listeners and let pre-gesture sounds be silent instead of logging autoplay-policy warnings.
+- Spark usage-limit status can contradict stale local `/status` data. If a Spark sidecar returns a usage-limit error, close it and continue locally or use another model; do not retry the same unavailable bucket.
 - When C++ methods pass contextual neighbor objects such as `tileBelow`, preserve that parameter through the full call chain. Do not collapse it to a simpler setter because status/floating side effects may live in the callee.
 - On Windows Node verifier helpers, do not spawn `npm.cmd` directly with `shell: false`; route `.cmd` through `cmd /d /s /c` or reuse an existing verifier `run()` helper.
 - Pathfinding verifiers should assert source behavior, not incidental path shape. A* can route around one blocked tile with diagonal moves in the same number of steps, so check that the blocked straight-line path changed instead of assuming a longer path.

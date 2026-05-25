@@ -13,6 +13,8 @@ export class Sound {
   private static _channelVolumes = new Map<number, number>();
   private static _loopingSounds = new Set<Sound>();
   private static _groupCursor = new Map<number, number>([[0, 1]]);
+  private static _userActivated = false;
+  private static _unlockInstalled = false;
 
   load(filename: string): void;
   load(data: ArrayBuffer | Uint8Array | number[], size?: number): void;
@@ -148,17 +150,49 @@ export class Sound {
     if (typeof window === "undefined") {
       return null;
     }
+    Sound.installUnlockListeners();
+    if (!Sound.hasUserActivation()) {
+      return null;
+    }
     if (!Sound._context) {
       const AudioCtor = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtor) {
         return null;
       }
-      Sound._context = new AudioCtor();
+      try {
+        Sound._context = new AudioCtor();
+      } catch {
+        return null;
+      }
     }
     if (Sound._context.state === "suspended") {
-      void Sound._context.resume();
+      void Sound._context.resume().catch(() => undefined);
     }
     return Sound._context;
+  }
+
+  private static hasUserActivation(): boolean {
+    const activation = typeof navigator !== "undefined"
+      ? (navigator as unknown as { userActivation?: { hasBeenActive?: boolean; isActive?: boolean } }).userActivation
+      : undefined;
+    return Sound._userActivated || Boolean(activation?.hasBeenActive || activation?.isActive);
+  }
+
+  private static installUnlockListeners(): void {
+    if (Sound._unlockInstalled || typeof window === "undefined") {
+      return;
+    }
+    Sound._unlockInstalled = true;
+    const unlock = () => {
+      Sound._userActivated = true;
+      const context = Sound.audioContext();
+      if (context?.state === "suspended") {
+        void context.resume().catch(() => undefined);
+      }
+    };
+    window.addEventListener("pointerdown", unlock, { once: true, capture: true });
+    window.addEventListener("keydown", unlock, { once: true, capture: true });
+    window.addEventListener("touchstart", unlock, { once: true, capture: true, passive: true });
   }
 
   private decode(context: AudioContext): Promise<AudioBuffer | null> {
