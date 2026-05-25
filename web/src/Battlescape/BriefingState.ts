@@ -11,6 +11,7 @@ import { BattlescapeState } from "./BattlescapeState.ts";
 import { NextTurnState } from "./NextTurnState.ts";
 import { AliensCrashState } from "./AliensCrashState.ts";
 import { InventoryState } from "./InventoryState.ts";
+import { CutsceneState } from "../Menu/CutsceneState.ts";
 
 /**
  * Briefing screen which displays info about a tactical mission.
@@ -120,7 +121,7 @@ export class BriefingState extends State {
   override init(): void {
     super.init();
     if (this._cutsceneId.length > 0) {
-      console.log(`CutsceneState boundary: ${this._cutsceneId}`);
+      this.game().pushState(new CutsceneState(this._cutsceneId));
       this._cutsceneId = "";
     } else {
       this.game().getMod()?.playMusic(this._musicId);

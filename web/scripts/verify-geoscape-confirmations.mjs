@@ -262,6 +262,35 @@ const baseDefenseVerifier = String.raw`async page => {
       };
       battle.getUnits().push(hostile, player);
 
+      const originalGetDeployment = realMod.getDeployment.bind(realMod);
+      try {
+        realMod.getDeployment = id => id === "STR_TEST_MISSION"
+          ? {
+            getBriefingData: () => ({
+              palette: 0,
+              background: "BACK16.SCR",
+              textOffset: 0,
+              showTarget: true,
+              showCraft: true,
+              cutscene: "TEST_BRIEFING_CUTSCENE",
+              music: "GMDEFEND",
+              title: "STR_TEST_MISSION",
+              desc: "STR_TEST_MISSION_BRIEFING"
+            })
+          }
+          : originalGetDeployment(id);
+        const cutsceneBriefing = new BriefingState();
+        states.splice(0, states.length, cutsceneBriefing);
+        cutsceneBriefing.init();
+        assert(states[states.length - 1] instanceof CutsceneState, "BriefingState init should push CutsceneState for deployment briefing cutscenes");
+        assert(states[states.length - 1]._cutsceneId === "TEST_BRIEFING_CUTSCENE", "BriefingState pushed CutsceneState with wrong cutscene id");
+        assert(cutsceneBriefing._cutsceneId === "", "BriefingState should clear the cutscene id after pushing it");
+      } finally {
+        realMod.getDeployment = originalGetDeployment;
+      }
+      states.splice(0, states.length, ...originalStates);
+      game.setSavedGame(save);
+
       const briefing = new BriefingState();
       game.pushState(briefing);
       briefing.btnOkClick();
