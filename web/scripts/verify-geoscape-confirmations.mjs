@@ -35,7 +35,7 @@ const baseDefenseVerifier = String.raw`async page => {
       { GameTime },
       { MissionStatistics },
       { Vehicle },
-      { SavedGame },
+      { SavedGame, GameEnding },
       { SaveConverter },
       { SavedBattleGame },
       { UnitFaction },
@@ -57,6 +57,11 @@ const baseDefenseVerifier = String.raw`async page => {
       { CommendationState },
       { SaveGameState, SaveType },
       { CutsceneState },
+      { StatisticsState },
+      { GoToMainMenuState },
+      { LoadGameState },
+      { OPT_GEOSCAPE },
+      { Screen },
       { ResearchProject },
       { Production },
       { RuleResearch },
@@ -101,6 +106,11 @@ const baseDefenseVerifier = String.raw`async page => {
       import("/web/dist/Battlescape/CommendationState.js"),
       import("/web/dist/Menu/SaveGameState.js"),
       import("/web/dist/Menu/CutsceneState.js"),
+      import("/web/dist/Menu/StatisticsState.js"),
+      import("/web/dist/Menu/MainMenuState.js"),
+      import("/web/dist/Menu/LoadGameState.js"),
+      import("/web/dist/Menu/OptionsBaseState.js"),
+      import("/web/dist/Engine/Screen.js"),
       import("/web/dist/Savegame/ResearchProject.js"),
       import("/web/dist/Savegame/Production.js"),
       import("/web/dist/Mod/RuleResearch.js"),
@@ -1007,6 +1017,78 @@ const baseDefenseVerifier = String.raw`async page => {
         assert(gameOverRoute[0] instanceof CutsceneState, "MonthlyReportState should push CutsceneState on visible game-over confirmation");
         assert(gameOverRoute[1] instanceof SaveGameState, "MonthlyReportState should push ironman SaveGameState after game-over cutscene");
         assert(gameOverRoute[1]._type === SaveType.SAVE_IRONMAN, "MonthlyReportState game-over ironman save should use SAVE_IRONMAN");
+
+        const makeTerminalSave = (ending, monthsPassed = 2) => {
+          const terminalSave = new SavedGame();
+          terminalSave.setMonthsPassed(monthsPassed);
+          terminalSave.setEnding(ending);
+          terminalSave.setName("terminal-statistics-route");
+          return terminalSave;
+        };
+        const originalGetVideo = realMod.getVideo;
+        const originalLoad = SavedGame.prototype.load;
+        const originalResolution = {
+          x: Options.baseXResolution,
+          y: Options.baseYResolution
+        };
+        try {
+          realMod.getVideo = () => null;
+
+          game.setSavedGame(makeTerminalSave(GameEnding.END_LOSE, 2));
+          const loseCutscene = new CutsceneState(CutsceneState.LOSE_GAME);
+          states.splice(0, states.length, loseCutscene);
+          loseCutscene.init();
+          assert(states.length === 1 && states[0] instanceof StatisticsState, "LOSE_GAME CutsceneState should route campaign saves to StatisticsState");
+          assert(game.getSavedGame()?.getEnding?.() === GameEnding.END_LOSE, "LOSE_GAME CutsceneState should keep the terminal saved game for statistics");
+
+          game.setSavedGame(makeTerminalSave(GameEnding.END_WIN, 3));
+          const winCutscene = new CutsceneState(CutsceneState.WIN_GAME);
+          states.splice(0, states.length, winCutscene);
+          winCutscene.init();
+          assert(states.length === 1 && states[0] instanceof StatisticsState, "WIN_GAME CutsceneState should route campaign saves to StatisticsState");
+
+          game.setSavedGame(makeTerminalSave(GameEnding.END_LOSE, -1));
+          const introCutscene = new CutsceneState(CutsceneState.LOSE_GAME);
+          states.splice(0, states.length, introCutscene);
+          introCutscene.init();
+          assert(game.getSavedGame() === null, "pre-campaign terminal CutsceneState should clear the saved game");
+          assert(states.length === 1 && states[0] instanceof GoToMainMenuState, "pre-campaign terminal CutsceneState should route to GoToMainMenuState");
+
+          const openSave = makeTerminalSave(GameEnding.END_NONE, 4);
+          game.setSavedGame(openSave);
+          const openStats = new StatisticsState();
+          states.splice(0, states.length, openStats);
+          openStats.btnOkClick();
+          assert(states.length === 0, "StatisticsState END_NONE OK should pop back to the previous state");
+          assert(game.getSavedGame() === openSave, "StatisticsState END_NONE OK should keep the active saved game");
+
+          game.setSavedGame(makeTerminalSave(GameEnding.END_WIN, 5));
+          const terminalStats = new StatisticsState();
+          states.splice(0, states.length, terminalStats);
+          terminalStats.btnOkClick();
+          assert(game.getSavedGame() === null, "StatisticsState terminal OK should clear the saved game");
+          assert(states.length === 1 && states[0] instanceof GoToMainMenuState, "StatisticsState terminal OK should route to GoToMainMenuState");
+
+          SavedGame.prototype.load = function loadTerminalSave() {
+            this.setMonthsPassed(6);
+            this.setEnding(GameEnding.END_WIN);
+            this.setName("loaded-terminal-save");
+          };
+          game.setSavedGame(makeTerminalSave(GameEnding.END_NONE, 1));
+          const loadEndedSave = new LoadGameState(OPT_GEOSCAPE, "terminal.asav", null);
+          states.splice(0, states.length, loadEndedSave);
+          for (let i = 0; i < 11; ++i) {
+            loadEndedSave.think();
+          }
+          assert(states.length === 1 && states[0] instanceof StatisticsState, "LoadGameState should route ended saves to StatisticsState");
+          assert(game.getSavedGame()?.getEnding?.() === GameEnding.END_WIN, "LoadGameState should keep the loaded terminal saved game");
+          assert(Options.baseXResolution === Screen.ORIGINAL_WIDTH && Options.baseYResolution === Screen.ORIGINAL_HEIGHT, "LoadGameState ended-save route should reset to original resolution");
+        } finally {
+          realMod.getVideo = originalGetVideo;
+          SavedGame.prototype.load = originalLoad;
+          Options.baseXResolution = originalResolution.x;
+          Options.baseYResolution = originalResolution.y;
+        }
 
         assert(!monthlyLogs.some(line => line.includes("is not translated yet")), "MonthlyReportState still emitted untranslated follow-up log");
       } finally {

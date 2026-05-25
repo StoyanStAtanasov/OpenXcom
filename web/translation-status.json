@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T22:12:09.444Z",
+    "generatedAt": "2026-05-25T22:19:44.320Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
@@ -526,10 +526,12 @@
       "name": "End-game statistics screen",
       "area": "Menu",
       "status": "integrated-verified",
-      "slicePercent": 90,
+      "slicePercent": 100,
       "sourceFiles": [
         "src/Menu/StatisticsState.cpp",
         "src/Menu/CutsceneState.cpp",
+        "src/Menu/LoadGameState.cpp",
+        "src/Geoscape/GeoscapeState.cpp",
         "src/Basescape/SoldierMemorialState.cpp",
         "src/Savegame/SavedGame.cpp",
         "src/Savegame/SavedGame.h",
@@ -539,14 +541,15 @@
       "targetFiles": [
         "web/src/Menu/StatisticsState.ts",
         "web/src/Menu/CutsceneState.ts",
+        "web/src/Menu/LoadGameState.ts",
+        "web/src/Geoscape/GeoscapeState.ts",
         "web/src/Basescape/SoldierMemorialState.ts",
         "web/src/Savegame/SavedGame.ts",
         "web/src/Savegame/AlienBase.ts"
       ],
-      "verification": "npm run build passed; npx --yes --package typescript tsc --noEmit passed; Playwright VERIFY_STATISTICS_STATE passed for memorial statistics button, 28-row statistics aggregation, END_NONE back navigation, and END_WIN main-menu return; npm run verify:geoscape-confirmations passed with CutsceneState compiled through source-shaped media existence selection and game-over CutsceneState route construction",
+      "verification": "npm run build passed; npx --yes --package typescript tsc --noEmit passed; Playwright VERIFY_STATISTICS_STATE passed for memorial statistics button, 28-row statistics aggregation, END_NONE back navigation, and END_WIN main-menu return; npm run verify:geoscape-confirmations passed with CutsceneState compiled through source-shaped media existence selection, monthly game-over CutsceneState route construction, direct WIN_GAME/LOSE_GAME CutsceneState campaign routing to StatisticsState, pre-campaign terminal routing to GoToMainMenuState, StatisticsState OK exit split, and LoadGameState ended-save routing to StatisticsState at original resolution",
       "boundaries": [
-        "Broader final end-game entry integration still pending; normal save/load menu routing is now covered by the save-menu verifier",
-        "Debriefing mission-stat population remains a battlescape/debriefing boundary"
+        "Debriefing mission-stat population and generated mission completion remain battlescape/debriefing runtime boundaries, not statistics menu route boundaries."
       ]
     },
     {
