@@ -596,6 +596,149 @@ const verifier = String.raw`async page => {
     assert(cacheValues.length === 1 && cacheValues[0] === 0 && cachedUnits[0] === firingUnit, "ProjectileFlyBState shot lift-off did not clear and recache the unit");
     assert(shotSounds.length === 1 && shotSounds[0].sound === 77, "ProjectileFlyBState shot lift-off did not prefer ammo fire sound");
 
+    const shotgunExplosions = [];
+    const shotgunHitCalls = [];
+    const shotgunStates = [];
+    const shotgunHits = [];
+    const shotgunLineCalls = [];
+    const shotgunNerfs = [];
+    let shotgunFiringXP = 5;
+    let shotgunAccuracyCalls = 0;
+    const shotgunActor = {
+      getFaction: () => UnitFaction.FACTION_PLAYER,
+      getFiringAccuracy: () => { shotgunAccuracyCalls++; return 900; },
+      getFiringXP: () => shotgunFiringXP,
+      nerfFiringXP: value => { shotgunNerfs.push(value); shotgunFiringXP = value; }
+    };
+    const shotgunAmmoRule = {
+      getBulletSprite: () => -1,
+      getVaporColor: () => -1,
+      getVaporDensity: () => -1,
+      getVaporProbability: () => 5,
+      getBulletSpeed: () => 0,
+      getShotgunPellets: () => 3,
+      getExplosionRadius: () => 0,
+      getHitAnimation: () => 44,
+      getPower: () => 18,
+      getDamageType: () => ItemDamageType.DT_AP,
+      getFireSound: () => -1,
+      getName: () => "STR_SHOTGUN_SHELL"
+    };
+    const shotgunAmmo = {
+      getRules: () => shotgunAmmoRule
+    };
+    const shotgunWeaponRule = {
+      getAutoShots: () => 1,
+      getBulletSprite: () => -1,
+      getVaporColor: () => -1,
+      getVaporDensity: () => -1,
+      getVaporProbability: () => 5,
+      getBulletSpeed: () => 0,
+      getAimRange: () => 100,
+      getMinRange: () => 0,
+      getSnapRange: () => 100,
+      getAutoRange: () => 100,
+      getDropoff: () => 0
+    };
+    const shotgunWeapon = {
+      getRules: () => shotgunWeaponRule,
+      getAmmoItem: () => shotgunAmmo
+    };
+    const shotgunEngine = {
+      getOriginVoxel: () => new Position(8, 8, 12),
+      calculateLine: (_origin, _target, storeTrajectory, trajectory) => {
+        if (storeTrajectory && trajectory) {
+          const impact = new Position(2 * 16 + 8 + shotgunLineCalls.length, 2 * 16 + 8, 12);
+          trajectory.push(impact);
+          shotgunLineCalls.push(impact);
+          return VoxelType.V_UNIT;
+        }
+        return VoxelType.V_EMPTY;
+      },
+      hit: (pos, power, type, unit) => {
+        shotgunHitCalls.push({ pos: pos.clone(), power, type, unit });
+        shotgunFiringXP += 2;
+        return null;
+      }
+    };
+    const shotgunSave = {
+      getTileEngine: () => shotgunEngine,
+      getDepth: () => 0,
+      getBattleGame: () => ({ getPanicHandled: () => false }),
+      getTile: () => ({
+        getUnit: () => ({
+          getStatistics: () => ({ shotAtCounter: 0 })
+        })
+      })
+    };
+    const shotgunParent = {
+      getMap: () => ({
+        resetCameraSmoothing: () => {},
+        getExplosions: () => shotgunExplosions
+      }),
+      getSave: () => shotgunSave,
+      getMod: () => null,
+      getTileEngine: () => shotgunEngine,
+      statePushFront: state => shotgunStates.push(state)
+    };
+    const shotgunState = Object.create(ProjectileFlyBState.prototype);
+    shotgunState._unit = shotgunActor;
+    shotgunState._ammo = shotgunAmmo;
+    shotgunState._origin = new Position(0, 0, 0);
+    shotgunState._targetVoxel = new Position(5 * 16 + 8, 2 * 16 + 8, 12);
+    shotgunState._projectileImpact = VoxelType.V_UNIT;
+    shotgunState._action = {
+      type: BattleActionType.BA_SNAPSHOT,
+      actor: shotgunActor,
+      weapon: shotgunWeapon,
+      target: new Position(2, 2, 0),
+      waypoints: [],
+      cameraPosition: new Position(-1, -1, -1),
+      autoShotCounter: 1,
+      result: ""
+    };
+    shotgunState._parent = shotgunParent;
+    shotgunState.projectileHitUnit = pos => shotgunHits.push(pos.clone());
+    shotgunState.handleImpact({ getPosition: () => new Position(1 * 16 + 8, 1 * 16 + 8, 12) });
+    assert(shotgunStates.length === 1, "ProjectileFlyBState shotgun impact did not queue the primary ExplosionBState");
+    assert(shotgunLineCalls.length === 2, "ProjectileFlyBState shotgun cascade did not trace one secondary projectile per extra pellet");
+    assert(shotgunExplosions.length === 2, "ProjectileFlyBState shotgun cascade did not add secondary hit animations");
+    assert(shotgunHitCalls.length === 2 && shotgunHitCalls.every(call => call.power === 18 && call.type === ItemDamageType.DT_AP), "ProjectileFlyBState shotgun cascade did not apply secondary TileEngine.hit calls");
+    assert(shotgunHits.length === 3, "ProjectileFlyBState shotgun cascade did not run projectileHitUnit for primary and secondary unit impacts");
+    assert(shotgunAccuracyCalls === 2, "ProjectileFlyBState shotgun cascade did not compute reduced accuracy for each extra pellet");
+    assert(shotgunNerfs.length === 1 && shotgunNerfs[0] === 6 && shotgunFiringXP === 6, "ProjectileFlyBState shotgun cascade did not cap firing XP after pellet hits");
+
+    const outAimed = [];
+    const outCacheValues = [];
+    const outCacheUnits = [];
+    const outState = Object.create(ProjectileFlyBState.prototype);
+    outState._unit = {
+      aim: value => outAimed.push(value),
+      setCache: value => outCacheValues.push(value)
+    };
+    outState._ammo = shotgunAmmo;
+    outState._projectileImpact = VoxelType.V_OUTOFBOUNDS;
+    outState._action = {
+      type: BattleActionType.BA_SNAPSHOT,
+      target: new Position(4, 4, 0),
+      autoShotCounter: 1,
+      weapon: {
+        getRules: () => ({ getAutoShots: () => 1 }),
+        getAmmoItem: () => null
+      }
+    };
+    outState._parent = {
+      getSave: () => ({
+        getTile: () => null
+      }),
+      getMap: () => ({
+        resetCameraSmoothing: () => {},
+        cacheUnits: () => outCacheUnits.push(true)
+      })
+    };
+    outState.handleImpact({});
+    assert(outAimed.length === 1 && outAimed[0] === false && outCacheValues[0] === 0 && outCacheUnits.length === 1, "ProjectileFlyBState out-of-bounds terminal impact did not lower and recache the weapon");
+
     return {
       straightPath: straightPath.copyPath(),
       straightTU: straightPath.getTotalTUCost(),
@@ -608,7 +751,9 @@ const verifier = String.raw`async page => {
       hitAftermathExplosions: queuedExplosions.length,
       blastKilledBy: blastVictim.getKilledBy(),
       hostileGrenadeDanger: dangerCalls.length,
-      shotFireSound: shotSounds[0].sound
+      shotFireSound: shotSounds[0].sound,
+      shotgunSecondaryHits: shotgunHitCalls.length,
+      shotgunFiringXP
     };
   });
 

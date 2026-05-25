@@ -9,6 +9,7 @@ import { UnitFaction, type BattleUnit } from "../Savegame/BattleUnit.ts";
 import type { Tile } from "../Savegame/Tile.ts";
 import { BattleState, cloneBattleAction } from "./BattleState.ts";
 import { BattleActionType, type BattleAction, type BattlescapeGame } from "./BattlescapeGame.ts";
+import { Explosion } from "./Explosion.ts";
 import { ExplosionBState } from "./ExplosionBState.ts";
 import { CursorType } from "./Map.ts";
 import { Position, type PositionLike } from "./Position.ts";
@@ -499,18 +500,49 @@ export class ProjectileFlyBState extends BattleState {
       this._parent.getSave().removeItem(this._ammo);
       this._action.weapon?.setAmmoItem(null);
     }
+    const lowerWeapon = this._action.type !== BattleActionType.BA_AUTOSHOT ||
+      this._action.autoShotCounter === (this._action.weapon?.getRules().getAutoShots() || 0) ||
+      !this._action.weapon?.getAmmoItem();
     if (this._ammo && this._projectileImpact !== VoxelType.V_OUTOFBOUNDS) {
       let offset = 0;
       if (this._ammo.getRules().getExplosionRadius() !== 0 && this._projectileImpact !== VoxelType.V_UNIT) {
         offset = -2;
       }
-      const lowerWeapon = this._action.type !== BattleActionType.BA_AUTOSHOT ||
-        this._action.autoShotCounter === (this._action.weapon?.getRules().getAutoShots() || 0) ||
-        !this._action.weapon?.getAmmoItem();
       this._parent.statePushFront(new ExplosionBState(this._parent, projectile.getPosition(offset), this._ammo, this._action.actor, null, lowerWeapon));
       if (this._projectileImpact === VoxelType.V_UNIT) {
         this.projectileHitUnit(projectile.getPosition(offset));
       }
+      const firingXP = this._unit.getFiringXP();
+      if (this._ammo.getRules().getShotgunPellets() !== 0) {
+        let i = 1;
+        while (i !== this._ammo.getRules().getShotgunPellets()) {
+          const proj = new Projectile(this._parent.getMod(), this._parent.getSave(), this._action, this._origin, this._targetVoxel, this._ammo);
+          const secondaryImpact = proj.calculateTrajectory(Math.max(0.0, (this._unit.getFiringAccuracy(this._action.type, this._action.weapon!) / 100.0) - i * 5.0));
+          if (secondaryImpact !== VoxelType.V_EMPTY) {
+            proj.skipTrajectory();
+            if (secondaryImpact !== VoxelType.V_OUTOFBOUNDS) {
+              const impactPosition = proj.getPosition(offset);
+              if (secondaryImpact === VoxelType.V_UNIT) {
+                this.projectileHitUnit(impactPosition);
+              }
+              this._parent.getMap().getExplosions().push(new Explosion(impactPosition, this._ammo.getRules().getHitAnimation()));
+              if (this._ammo.getRules().getExplosionRadius() !== 0) {
+                this._parent.getTileEngine()?.explode(impactPosition, this._ammo.getRules().getPower(), this._ammo.getRules().getDamageType(), this._ammo.getRules().getExplosionRadius(), this._unit);
+              } else {
+                this._parent.getSave().getTileEngine()?.hit(impactPosition, this._ammo.getRules().getPower(), this._ammo.getRules().getDamageType(), this._unit);
+              }
+            }
+          }
+          ++i;
+        }
+      }
+      if (this._unit.getFiringXP() > firingXP + 1) {
+        this._unit.nerfFiringXP(firingXP + 1);
+      }
+    } else if (this._projectileImpact === VoxelType.V_OUTOFBOUNDS && lowerWeapon) {
+      this._unit.aim(false);
+      this._unit.setCache(0);
+      this._parent.getMap().cacheUnits();
     }
   }
 }
