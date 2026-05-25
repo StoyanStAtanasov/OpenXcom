@@ -41,6 +41,7 @@ const verifier = String.raw`async page => {
       { GraphSubset },
       { Surface },
       { SurfaceSet },
+      { Particle },
       { Position },
       { MovementType },
       { UnitFaction, UnitStatus, UnitSide, UnitBodyPart },
@@ -50,7 +51,7 @@ const verifier = String.raw`async page => {
       { ItemDamageType, BattleType },
       { SpecialAbility },
       { Mod },
-      { Options, SCROLL_AUTO, SCROLL_TRIGGER },
+      { Options, SCROLL_AUTO, SCROLL_TRIGGER, PATH_FULL },
       { SDL_BUTTON_LEFT, SDL_BUTTON_MIDDLE, SDL_BUTTON_WHEELUP, SDL_KEYDOWN, SDL_KEYUP, SDL_MOUSEBUTTONDOWN, SDL_MOUSEBUTTONUP, SDL_MOUSEMOTION }
     ] = await Promise.all([
       import("/web/dist/Battlescape/Pathfinding.js"),
@@ -64,6 +65,7 @@ const verifier = String.raw`async page => {
       import("/web/dist/Engine/GraphSubset.js"),
       import("/web/dist/Engine/Surface.js"),
       import("/web/dist/Engine/SurfaceSet.js"),
+      import("/web/dist/Battlescape/Particle.js"),
       import("/web/dist/Battlescape/Position.js"),
       import("/web/dist/Mod/Armor.js"),
       import("/web/dist/Savegame/BattleUnit.js"),
@@ -754,6 +756,8 @@ const verifier = String.raw`async page => {
     const previousScrollSpeed = Options.battleScrollSpeed;
     const previousDragButton = Options.battleDragScrollButton;
     const previousSmoothCamera = Options.battleSmoothCamera;
+    const previousPreviewPath = Options.battleNewPreviewPath;
+    const previousTraceAI = Options.traceAI;
     const cameraInvalidations = [];
     const cameraDraws = [];
     const fakeCameraMap = {
@@ -984,10 +988,100 @@ const verifier = String.raw`async page => {
     projectileMap._projectileInFOV = true;
     projectileMap.drawProjectileOnTile(0, 0, 0, { lowX: 0, lowY: 0, lowZ: 0, highX: 0, highY: 0, highZ: 0 });
     assert(projectileMap.getPixel(35, 35) !== 0, "Map.drawProjectileOnTile did not blit the projectile sprite in tile order");
+
+    const pathfindingSet = new SurfaceSet(32, 40);
+    pathfindingSet.addFrame(10).setPixel(1, 1, 2);
+    pathfindingSet.addFrame(22).setPixel(2, 2, 3);
+    const cursorSet = new SurfaceSet(32, 40);
+    cursorSet.addFrame(7).setPixel(10, 10, 97);
+    const transparentFloorSet = new SurfaceSet(32, 40);
+    transparentFloorSet.addFrame(0);
+    const pathFloorData = new MapData({ getSurfaceset: () => transparentFloorSet });
+    pathFloorData.setSprite(0, 0);
+    const pathTile = new Tile(new Position(0, 0, 0));
+    pathTile.setMapData(pathFloorData, 0, 0, TilePart.O_FLOOR);
+    pathTile.setDiscovered(true, 2);
+    pathTile.setPreview(10);
+    pathTile.setTUMarker(8);
+    pathTile.setMarkerColor(10);
+    pathTile.addParticle(new Particle(4, 4, 48, 0, 32));
+    const vaporLut = Array.from({ length: 1024 }, (_value, index) => index & 255);
+    vaporLut[0 * 1024 + 3 * 256 + 15] = 99;
+    const selectedArrowUnit = {
+      getArmor: () => ({ getSize: () => 1 }),
+      getPosition: () => new Position(0, 0, 0),
+      getVisible: () => true,
+      getHeight: () => 22,
+      getFloatHeight: () => 0,
+      isKneeled: () => false,
+      getStatus: () => UnitStatus.STATUS_STANDING,
+      getWalkingPhase: () => 0,
+      getDiagonalWalkingPhase: () => 0,
+      getDirection: () => 0,
+      getVerticalDirection: () => 0
+    };
+    Options.traceAI = false;
+    Options.battleNewPreviewPath = PATH_FULL;
+    const pathSave = {
+      getMapSizeX: () => 1,
+      getMapSizeY: () => 1,
+      getMapSizeZ: () => 1,
+      getTiles: () => [pathTile],
+      getTile: posLike => {
+        const pos = Position.from(posLike);
+        return pos.x === 0 && pos.y === 0 && pos.z === 0 ? pathTile : null;
+      },
+      getUnits: () => [],
+      getSelectedUnit: () => selectedArrowUnit,
+      getDepth: () => 0,
+      getDebugMode: () => false,
+      getSide: () => UnitFaction.FACTION_PLAYER,
+      getPathfinding: () => ({ isPathPreviewed: () => true }),
+      getBattleState: () => ({ getMouseOverIcons: () => true }),
+      getBattleGame: () => ({ getCurrentAction: () => ({ type: 10 }) })
+    };
+    const pathMap = new BattleMap({
+      getSavedGame: () => ({ getSavedBattle: () => pathSave }),
+      getMod: () => ({
+        getSurfaceSet: name => name === "Pathfinding" ? pathfindingSet : (name === "CURSOR.PCK" ? cursorSet : null),
+        getLUTs: () => [vaporLut],
+        getInterface: () => ({ getElement: id => id === "messageWindows" ? { color: 21 } : { h: 0, w: 0, color: 0 } })
+      })
+    }, 80, 80, 0, 0, 80);
+    pathMap.getCamera().setMapOffset(new Position(20, 20, 0));
+    pathMap.getWaypoints().push(new Position(0, 0, 0));
+    pathMap.draw();
+    assert(pathMap.getPixel(21, 21) === 146, "Map.drawTerrain did not use source Pathfinding base preview frame/newBaseColor");
+    assert(pathMap.getPixel(22, 22) === 147, "Map.drawTerrain did not use source Pathfinding overlay frame/newBaseColor");
+    assert(pathMap.getPixel(30, 30) === 97, "Map.drawTerrain did not draw the source waypoint cursor frame");
+    const waypointSamples = [
+      pathMap.getPixel(23, 22),
+      pathMap.getPixel(22, 23),
+      pathMap.getPixel(23, 23),
+      pathMap.getPixel(23, 24),
+      pathMap.getPixel(23, 25),
+      pathMap.getPixel(22, 26),
+      pathMap.getPixel(23, 26),
+      pathMap.getPixel(24, 26)
+    ];
+    assert(waypointSamples.some(pixel => pixel === 23), "Map.drawTerrain did not draw source waypoint NumberText for BA_LAUNCH: " + JSON.stringify(waypointSamples));
+    assert(pathMap.getPixel(24, 24) === 99, "Map.drawTerrain did not apply source particle-cloud transparency LUT pixels");
+    assert(pathMap.getPixel(35, 14) === 16, "Map.drawTerrain did not draw the source selected-unit arrow");
+    let tuMarkerPixel = false;
+    for (let y = 42; y < 49; ++y) {
+      for (let x = 33; x < 38; ++x) {
+        if (pathMap.getPixel(x, y) !== 15) {
+          tuMarkerPixel = true;
+        }
+      }
+    }
+    assert(tuMarkerPixel, "Map.drawTerrain did not draw source pathfinding TU NumberText overlay");
     Options.battleEdgeScroll = previousEdgeScroll;
     Options.battleScrollSpeed = previousScrollSpeed;
     Options.battleDragScrollButton = previousDragButton;
     Options.battleSmoothCamera = previousSmoothCamera;
+    Options.battleNewPreviewPath = previousPreviewPath;
+    Options.traceAI = previousTraceAI;
 
     const dangerSave = new FakeSave(5, 5, 1);
     const dangerEngine = new TileEngine(dangerSave, aftermathVoxelData);

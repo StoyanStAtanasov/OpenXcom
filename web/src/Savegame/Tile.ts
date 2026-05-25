@@ -5,6 +5,7 @@ import { ItemDamageType } from "../Mod/RuleItem.ts";
 import type { RuleInventory } from "../Mod/RuleInventory.ts";
 import { BattleActionType } from "../Battlescape/BattleAction.ts";
 import { Position } from "../Battlescape/Position.ts";
+import { Particle } from "../Battlescape/Particle.ts";
 import type { Surface } from "../Engine/Surface.ts";
 import { BattleItem } from "./BattleItem.ts";
 import { BattleUnit } from "./BattleUnit.ts";
@@ -26,6 +27,24 @@ const LIGHTLAYERS = 3;
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
+
+type ParticleLike = {
+  animate: () => boolean;
+  getX?: () => number;
+  getY?: () => number;
+  getColor?: () => number;
+  getOpacity?: () => number;
+  getSize?: () => number;
+};
+
+type ParticleCloudParticle = {
+  animate: () => boolean;
+  getX: () => number;
+  getY: () => number;
+  getColor: () => number;
+  getOpacity: () => number;
+  getSize: () => number;
+};
 
 export class Tile {
   static NOT_CALCULATED = -1;
@@ -59,7 +78,7 @@ export class Tile {
   private _TUMarker = -1;
   private _overlaps = 0;
   private _danger = false;
-  private _particles: Array<{ animate?: () => boolean }> = [];
+  private _particles: ParticleCloudParticle[] = [];
   private _obstacle = 0;
 
   constructor(private _pos = new Position()) {}
@@ -438,7 +457,13 @@ export class Tile {
       }
       this._currentFrame[i] = newframe;
     }
-    this._particles = this._particles.filter(particle => particle.animate?.() ?? true);
+    for (let i = 0; i < this._particles.length;) {
+      if (!this._particles[i].animate()) {
+        this._particles.splice(i, 1);
+      } else {
+        ++i;
+      }
+    }
   }
 
   setUnit(unit: BattleUnit | null, tileBelow: Tile | null = null): void {
@@ -588,12 +613,26 @@ export class Tile {
     return this._danger;
   }
 
-  addParticle(particle: { animate?: () => boolean }): void {
-    this._particles.push(particle);
+  addParticle(particle: ParticleLike): void {
+    this._particles.push(this.normalizeParticle(particle));
   }
 
-  getParticleCloud(): Array<{ animate?: () => boolean }> {
+  getParticleCloud(): ParticleCloudParticle[] {
     return this._particles;
+  }
+
+  private normalizeParticle(particle: ParticleLike): ParticleCloudParticle {
+    if (particle instanceof Particle) {
+      return particle;
+    }
+    return {
+      animate: () => particle.animate(),
+      getX: particle.getX ?? (() => 0),
+      getY: particle.getY ?? (() => 0),
+      getColor: particle.getColor ?? (() => 0),
+      getOpacity: particle.getOpacity ?? (() => 0),
+      getSize: particle.getSize ?? (() => 0)
+    };
   }
 
   setObstacle(part: number): void {

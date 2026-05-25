@@ -9,6 +9,7 @@ import type { BattleItem } from "../Savegame/BattleItem.ts";
 import { UnitFaction } from "../Savegame/BattleUnit.ts";
 import type { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
 import { BattleActionType, type BattleAction } from "./BattlescapeGame.ts";
+import { Particle } from "./Particle.ts";
 import { Position, type PositionLike } from "./Position.ts";
 
 function cloneAction(action: BattleAction): BattleAction {
@@ -345,11 +346,20 @@ export class Projectile {
     if (!tile) {
       return;
     }
+    const map = this._save.getBattleGame()?.getMap?.() || null;
+    if (!map) {
+      return;
+    }
+    const tilePos = map.getCamera().convertMapToScreen(voxel.divide(new Position(16, 16, 24))).add(map.getCamera().getMapOffset());
+    const voxelPos = map.getCamera().convertVoxelToScreen(voxel);
     for (let i = 0; i !== Math.max(0, this._vaporDensity); ++i) {
-      let ttl = RNG.generate(32, 44);
-      tile.addParticle({
-        animate: () => --ttl > 0
-      });
+      tile.addParticle(new Particle(
+        voxelPos.x - tilePos.x + RNG.seedless(0, 4) - 2,
+        voxelPos.y - tilePos.y + RNG.seedless(0, 4) - 2,
+        RNG.seedless(48, 224),
+        this._vaporColor,
+        RNG.seedless(32, 44)
+      ));
     }
   }
 

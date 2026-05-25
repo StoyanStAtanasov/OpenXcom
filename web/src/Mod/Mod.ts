@@ -147,6 +147,7 @@ export class Mod {
   private palettes = new Map<string, PaletteColor[]>();
   private surfaces = new Map<string, Surface>();
   private surfaceSets = new Map<string, SurfaceSet>();
+  private transparencyLUTs: number[][] = [];
   private sounds = new Map<string, SoundSet>();
   private musics = new Map<string, Music>();
   private musicDefs = new Map<string, RuleMusic>();
@@ -271,6 +272,10 @@ export class Mod {
 
   getSurfaceSet(name: string): SurfaceSet | null {
     return this.surfaceSets.get(name) || null;
+  }
+
+  getLUTs(): number[][] {
+    return this.transparencyLUTs;
   }
 
   getInterface(type: string): RuleInterface | null {

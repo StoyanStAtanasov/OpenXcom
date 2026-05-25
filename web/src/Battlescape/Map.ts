@@ -1,9 +1,10 @@
 import { InteractiveSurface } from "../Engine/InteractiveSurface.ts";
 import { GraphSubset } from "../Engine/GraphSubset.ts";
-import { Options } from "../Engine/Options.ts";
+import { Options, PATH_ARROWS, PATH_FULL, PATH_TU_COST } from "../Engine/Options.ts";
 import { Palette } from "../Engine/Palette.ts";
 import { Surface } from "../Engine/Surface.ts";
 import { Timer } from "../Engine/Timer.ts";
+import { NumberText } from "../Interface/NumberText.ts";
 import type { Action } from "../Engine/Action.ts";
 import type { State } from "../Engine/State.ts";
 import { Mod } from "../Mod/Mod.ts";
@@ -12,6 +13,7 @@ import { UnitFaction, UnitStatus, type BattleUnit } from "../Savegame/BattleUnit
 import { SavedBattleGame } from "../Savegame/SavedBattleGame.ts";
 import type { Tile } from "../Savegame/Tile.ts";
 import { Camera } from "./Camera.ts";
+import { BattleActionType } from "./BattleAction.ts";
 import { Explosion } from "./Explosion.ts";
 import { Position } from "./Position.ts";
 import type { Projectile } from "./Projectile.ts";
@@ -62,6 +64,7 @@ export class Map extends InteractiveSurface {
   private _animFrame = 0;
   private _camera: Camera;
   private _visibleMapHeight: number;
+  private _arrow: Surface;
   private _waypoints: Position[] = [];
   private _unitDying = false;
   private _projectileInFOV = false;
@@ -71,6 +74,9 @@ export class Map extends InteractiveSurface {
   private _smoothingEngaged = false;
   private _iconHeight = 0;
   private _iconWidth = 0;
+  private _messageColor = Palette.blockOffset(1);
+  private _previewSetting = Options.battleNewPreviewPath;
+  private _transparencies: number[] | null = null;
   private _showObstacles = false;
   private _projectile: Projectile | null = null;
   private _explosions: Explosion[] = [];
@@ -82,9 +88,16 @@ export class Map extends InteractiveSurface {
     super(width, height, x, y);
     this._save = resolveSave(gameOrSave);
     this._mod = gameOrSave instanceof SavedBattleGame ? null : gameOrSave.getMod?.() || null;
+    this._arrow = this.createSelectedUnitArrow();
     this._spriteWidth = spriteWidth;
     this._spriteHeight = spriteHeight;
     this._visibleMapHeight = visibleMapHeight;
+    const battlescapeInterface = this._mod?.getInterface?.("battlescape") || null;
+    this._iconHeight = battlescapeInterface?.getElement("icons")?.h || 0;
+    this._iconWidth = battlescapeInterface?.getElement("icons")?.w || 0;
+    this._messageColor = battlescapeInterface?.getElement("messageWindows")?.color ?? this._messageColor;
+    this._previewSetting = Options.traceAI ? PATH_FULL : Options.battleNewPreviewPath;
+    this._transparencies = this._mod?.getLUTs?.()?.[this._save.getDepth?.() || 0] || null;
     this._camera = new Camera(this._spriteWidth, this._spriteHeight, this._save.getMapSizeX(), this._save.getMapSizeY(), this._save.getMapSizeZ(), this, visibleMapHeight);
     this._scrollMouseTimer.onSurfaceTimer(this.scrollMouse.bind(this));
     this._scrollKeyTimer.onSurfaceTimer(this.scrollKey.bind(this));
@@ -346,6 +359,10 @@ export class Map extends InteractiveSurface {
     const viewLevel = this._camera.getViewLevel();
     const endZ = this._camera.getShowAllLayers() ? this._save.getMapSizeZ() - 1 : viewLevel;
     const projectileBounds = this.calculateProjectileBounds();
+    const pathfinderTurnedOn = this._save.getPathfinding?.()?.isPathPreviewed?.() ?? false;
+    const numWaypid = (!this._waypoints.length && !(pathfinderTurnedOn && (this._previewSetting & PATH_TU_COST)))
+      ? null
+      : this.createNumberOverlay(pathfinderTurnedOn);
     this.lock();
     for (let z = 0; z <= endZ; ++z) {
       const topLayer = z === endZ;
@@ -412,6 +429,8 @@ export class Map extends InteractiveSurface {
           }
 
           this.drawSmokeAndFire(tile, sx, sy, tileShade);
+          this.drawParticleCloud(tile, sx, sy);
+          this.drawPathPreviewBase(tile, pos, sx, sy);
 
           const object = tile.getMapData?.(TilePart.O_OBJECT) || null;
           if (object && object.getBigWall() >= 6 && object.getBigWall() !== 9) {
@@ -419,16 +438,12 @@ export class Map extends InteractiveSurface {
           }
 
           this.drawCursor(tile, x, y, z, sx, sy, true);
-
-          if ((tile.getMarkerColor?.() ?? 0) > 0) {
-            this.drawTileDiamond(sx, sy, Palette.blockOffset(tile.getMarkerColor()) + 10);
-          }
-          if ((tile.getPreview?.() ?? -1) >= 0) {
-            this.drawPreviewMarker(sx, sy, tile.getPreview(), tile.getMarkerColor?.() || PathPreviewColor.YELLOW);
-          }
+          this.drawWaypointsOnTile(pos, sx, sy, numWaypid);
         }
       }
     }
+    this.drawPathfindingOverlays(numWaypid, pathfinderTurnedOn);
+    this.drawSelectedUnitArrow();
     this.unlock();
     if (this._flashScreen) {
       this.applyBlastFlash();
@@ -445,6 +460,30 @@ export class Map extends InteractiveSurface {
     const yOffset = tile.getMapData?.(part)?.getYOffset?.() || 0;
     sprite.blitNShade(this, sx, sy - yOffset, shade, half);
     return true;
+  }
+
+  private createSelectedUnitArrow(): Surface {
+    const f = Palette.blockOffset(1);
+    const b = 15;
+    const pixels = [
+      0, 0, b, b, b, b, b, 0, 0,
+      0, 0, b, f, f, f, b, 0, 0,
+      0, 0, b, f, f, f, b, 0, 0,
+      b, b, b, f, f, f, b, b, b,
+      b, f, f, f, f, f, f, f, b,
+      0, b, f, f, f, f, f, b, 0,
+      0, 0, b, f, f, f, b, 0, 0,
+      0, 0, 0, b, f, b, 0, 0, 0,
+      0, 0, 0, 0, b, 0, 0, 0, 0
+    ];
+    const arrow = new Surface(9, 9);
+    arrow.setPalette(this.getPalette());
+    for (let y = 0; y < 9; ++y) {
+      for (let x = 0; x < 9; ++x) {
+        arrow.setPixel(x, y, pixels[x + y * 9]);
+      }
+    }
+    return arrow;
   }
 
   private drawGroundItem(tile: Tile, sx: number, sy: number, shade: number): void {
@@ -469,6 +508,166 @@ export class Map extends InteractiveSurface {
     const animOffset = Math.trunc(this._animFrame / 2) + (tile.getAnimationOffset?.() || 0);
     frameNumber += animOffset > 3 ? animOffset - 4 : animOffset;
     this._mod?.getSurfaceSet("SMOKE.PCK")?.getFrame(frameNumber)?.blitNShade(this, sx, sy, shade);
+  }
+
+  private createNumberOverlay(pathfinderTurnedOn: boolean): NumberText {
+    const number = new NumberText(15, 15, 20, 30);
+    number.setPalette(this.getPalette());
+    number.setColor(pathfinderTurnedOn ? this._messageColor + 1 : Palette.blockOffset(1));
+    return number;
+  }
+
+  private drawParticleCloud(tile: Tile, sx: number, sy: number): void {
+    const particles = tile.getParticleCloud?.() || [];
+    if (!particles.length || !this._transparencies) {
+      return;
+    }
+    for (const particle of particles) {
+      const color = particle.getColor();
+      const opacity = particle.getOpacity();
+      if (this._transparencies.length < (color + 1) * 1024) {
+        continue;
+      }
+      const vaporX = Math.trunc(sx + particle.getX());
+      const vaporY = Math.trunc(sy + particle.getY());
+      switch (particle.getSize()) {
+        case 3:
+          this.applyParticlePixel(vaporX + 1, vaporY + 1, color, opacity);
+        case 2:
+          this.applyParticlePixel(vaporX + 1, vaporY, color, opacity);
+        case 1:
+          this.applyParticlePixel(vaporX, vaporY + 1, color, opacity);
+        default:
+          this.applyParticlePixel(vaporX, vaporY, color, opacity);
+          break;
+      }
+    }
+  }
+
+  private applyParticlePixel(x: number, y: number, color: number, opacity: number): void {
+    if (!this._transparencies) {
+      return;
+    }
+    const index = color * 1024 + opacity * 256 + this.getPixel(x, y);
+    const replacement = this._transparencies[index];
+    if (replacement != null) {
+      this.setPixel(x, y, replacement);
+    }
+  }
+
+  private drawPathPreviewBase(tile: Tile, pos: Position, sx: number, sy: number): void {
+    if ((tile.getPreview?.() ?? -1) === -1 || !this.isDiscovered(tile, 0) || !(this._previewSetting & PATH_ARROWS)) {
+      return;
+    }
+    const pathfinding = this._mod?.getSurfaceSet("Pathfinding") || null;
+    if (pos.z > 0 && tile.hasNoFloor?.(this._save.getTile(pos.add(new Position(0, 0, -1))))) {
+      pathfinding?.getFrame(11)?.blitNShade(this, sx, sy + 2, 0, false, tile.getMarkerColor?.() || 0);
+    }
+    pathfinding?.getFrame(tile.getPreview())?.blitNShade(this, sx, sy + (tile.getTerrainLevel?.() || 0), 0, false, tile.getMarkerColor?.() || 0);
+  }
+
+  private drawWaypointsOnTile(pos: Position, sx: number, sy: number, numWaypid: NumberText | null): void {
+    let waypid = 1;
+    let waypXOff = 2;
+    let waypYOff = 2;
+    const currentAction = this._save.getBattleGame?.()?.getCurrentAction?.() || null;
+    for (const waypoint of this._waypoints) {
+      if (waypoint.equals(pos)) {
+        if (waypXOff === 2 && waypYOff === 2) {
+          this._mod?.getSurfaceSet("CURSOR.PCK")?.getFrame(7)?.blitNShade(this, sx, sy, 0);
+        }
+        if (numWaypid && currentAction?.type === BattleActionType.BA_LAUNCH) {
+          numWaypid.setValue(waypid);
+          numWaypid.draw();
+          numWaypid.blitNShade(this, sx + waypXOff, sy + waypYOff, 0);
+          waypXOff += waypid > 9 ? 8 : 6;
+          if (waypXOff >= 26) {
+            waypXOff = 2;
+            waypYOff += 8;
+          }
+        }
+      }
+      ++waypid;
+    }
+  }
+
+  private drawPathfindingOverlays(numWaypid: NumberText | null, pathfinderTurnedOn: boolean): void {
+    if (!pathfinderTurnedOn) {
+      return;
+    }
+    numWaypid?.setBordered(true);
+    const offset = this._camera.getMapOffset();
+    const endZ = this._camera.getShowAllLayers() ? this._save.getMapSizeZ() - 1 : this._camera.getViewLevel();
+    const pathfinding = this._mod?.getSurfaceSet("Pathfinding") || null;
+    for (let z = 0; z <= endZ; ++z) {
+      for (let x = 0; x < this._save.getMapSizeX(); ++x) {
+        for (let y = 0; y < this._save.getMapSizeY(); ++y) {
+          const pos = new Position(x, y, z);
+          const screen = this._camera.convertMapToScreen(pos);
+          const sx = screen.x + offset.x;
+          const sy = screen.y + offset.y;
+          if (sx < -this._spriteWidth || sx > this.getWidth() + this._spriteWidth || sy < -this._spriteHeight || sy > this.getHeight() + this._spriteHeight) {
+            continue;
+          }
+          const tile = this._save.getTile(pos);
+          if (!tile || !this.isDiscovered(tile, 0) || (tile.getPreview?.() ?? -1) === -1) {
+            continue;
+          }
+          let adjustment = -(tile.getTerrainLevel?.() || 0);
+          const markerColor = tile.getMarkerColor?.() || 0;
+          const tileBelow = this._save.getTile(pos.add(new Position(0, 0, -1)));
+          if (this._previewSetting & PATH_ARROWS) {
+            if (z > 0 && tile.hasNoFloor?.(tileBelow)) {
+              pathfinding?.getFrame(23)?.blitNShade(this, sx, sy + 2, 0, false, markerColor);
+            }
+            pathfinding?.getFrame((tile.getPreview?.() ?? 0) + 12)?.blitNShade(this, sx, sy - adjustment, 0, false, markerColor);
+          }
+          if (numWaypid && (this._previewSetting & PATH_TU_COST) && (tile.getTUMarker?.() ?? -1) > -1) {
+            const tu = tile.getTUMarker();
+            const off = tu > 9 ? 5 : 3;
+            if ((this._save.getSelectedUnit?.()?.getArmor?.()?.getSize?.() ?? 0) > 1) {
+              adjustment += 1;
+              if (!(this._previewSetting & PATH_ARROWS)) {
+                adjustment += 7;
+              }
+            }
+            numWaypid.setValue(tu);
+            numWaypid.draw();
+            if (!(this._previewSetting & PATH_ARROWS)) {
+              numWaypid.blitNShade(this, sx + 16 - off, sy + (29 - adjustment), 0, false, markerColor);
+            } else {
+              numWaypid.blitNShade(this, sx + 16 - off, sy + (22 - adjustment), 0);
+            }
+          }
+        }
+      }
+    }
+    numWaypid?.setBordered(false);
+  }
+
+  private drawSelectedUnitArrow(): void {
+    const unit = this._save.getSelectedUnit?.() || null;
+    if (!unit || !((this._save.getSide?.() === UnitFaction.FACTION_PLAYER) || this._save.getDebugMode?.()) || unit.getPosition().z > this._camera.getViewLevel()) {
+      return;
+    }
+    const screen = this._camera.convertMapToScreen(unit.getPosition()).add(this._camera.getMapOffset());
+    const walking = this.calculateWalkingOffset(unit);
+    const offset = walking.offset.clone();
+    if ((unit.getArmor?.().getSize?.() ?? 0) > 1) {
+      offset.y += 4;
+    }
+    offset.y += 24 - ((unit.getHeight?.() || 22) + (unit.getFloatHeight?.() || 0));
+    if (unit.isKneeled?.()) {
+      offset.y -= 2;
+    }
+    if (this.getCursorType() !== CursorType.CT_NONE) {
+      this._arrow.blitNShade(
+        this,
+        screen.x + offset.x + Math.trunc(this._spriteWidth / 2) - Math.trunc(this._arrow.getWidth() / 2),
+        screen.y + offset.y - this._arrow.getHeight() + [0, 1, 2, 1, 0, 1, 2, 1][this._animFrame],
+        0
+      );
+    }
   }
 
   private drawCursor(tile: Tile, itX: number, itY: number, itZ: number, sx: number, sy: number, front: boolean): void {
@@ -989,23 +1188,4 @@ export class Map extends InteractiveSurface {
     this.drawLine(xs[3], ys[3], xs[0], ys[0], color);
   }
 
-  private drawPreviewMarker(sx: number, sy: number, preview: number, markerColor: number): void {
-    const color = Palette.blockOffset(markerColor) + 15;
-    const cx = sx;
-    const cy = sy + Math.trunc(this._spriteWidth / 4);
-    if (preview === 10) {
-      this.drawRect(cx - 2, cy - 2, 5, 5, color);
-      return;
-    }
-    const vectors = [
-      [0, -5], [5, -3], [6, 0], [5, 3], [0, 5], [-5, 3], [-6, 0], [-5, -3], [0, -7], [0, 7]
-    ];
-    const vector = vectors[preview] || [0, 0];
-    this.drawLine(cx, cy, cx + vector[0], cy + vector[1], color);
-    this.drawLine(cx + vector[0], cy + vector[1], cx + Math.trunc(vector[0] / 2), cy + Math.trunc(vector[1] / 2), color);
-  }
-}
-
-enum PathPreviewColor {
-  YELLOW = 10
 }

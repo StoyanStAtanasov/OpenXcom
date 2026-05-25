@@ -72,9 +72,14 @@ export class NumberText extends Surface {
     for (const ch of String(this._value)) {
       const digit = Number(ch);
       const surface = this._bordered ? this._borderedChars[digit] : this._chars[digit];
-      surface.setX(x);
-      surface.setY(0);
-      surface.blit(this);
+      for (let sy = 0; sy < surface.getHeight(); ++sy) {
+        for (let sx = 0; sx < surface.getWidth(); ++sx) {
+          const pixel = surface.getPixel(sx, sy);
+          if (pixel) {
+            this.setPixel(x + sx, sy, pixel);
+          }
+        }
+      }
       x += this._chars[digit].getWidth() + 1;
     }
     this.offset(this._color);
