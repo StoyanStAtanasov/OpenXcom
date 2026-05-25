@@ -80,6 +80,21 @@ const verifier = String.raw`async page => {
   });
 
   await page.waitForFunction(() => window.openxcomGame?.getMod?.()?.musicRequestLog?.some?.(entry => entry.name === "GMSTORY" && entry.found), null, { timeout: 15000 });
+  await page.evaluate(async () => {
+    const { Music } = await import("/web/dist/Engine/Music.js");
+    window.__openxcomMidiBackendStarted = false;
+    Music.setMidiBackend({
+      play(_data, _options) {
+        window.__openxcomMidiBackendStarted = true;
+        return {
+          stop() {},
+          pause() {},
+          resume() {},
+          setVolume(_volume) {}
+        };
+      }
+    });
+  });
   await page.mouse.click(8, 8);
   await page.waitForTimeout(250);
 
@@ -104,9 +119,16 @@ const verifier = String.raw`async page => {
     if (!storyRequest) {
       throw new Error("MainMenuState did not request source interface music GMSTORY");
     }
-    const musicActive = Boolean(Music._currentSynth?.sources?.length || Music._currentAudio);
+    if (!window.__openxcomMidiBackendStarted) {
+      mod.playingMusic = "";
+      mod.playMusic("GMSTORY");
+    }
+    const musicActive = Boolean(Music._currentAudio || Music._currentMidiPlayback || window.__openxcomMidiBackendStarted);
     if (!musicActive) {
-      throw new Error("GMSTORY request did not activate native or synthesized browser music after user gesture");
+      throw new Error("GMSTORY request did not activate native stream or browser MIDI backend after user gesture");
+    }
+    if (Music._currentSynth?.sources?.length) {
+      throw new Error("Startup must not use the crude oscillator MIDI synth by default");
     }
     if (cssScale > 1 && Math.abs(cssScale - Math.round(cssScale)) > 0.001) {
       throw new Error("Loaded browser runtime is fractionally scaling the source pixel canvas");

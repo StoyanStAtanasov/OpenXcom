@@ -13,6 +13,17 @@ type MidiSequence = {
   notes: Array<{ start: number; duration: number; note: number; velocity: number; channel: number }>;
 };
 
+type MidiPlaybackHandle = {
+  stop?: () => void;
+  pause?: () => void;
+  resume?: () => void;
+  setVolume?: (volume: number) => void;
+};
+
+export type BrowserMidiBackend = {
+  play: (data: Uint8Array, options: { loop: boolean; volume: number }) => MidiPlaybackHandle | void | null;
+};
+
 export class Music {
   protected _music: Uint8Array | null = null;
   private _streamUrl: string | null = null;
@@ -28,9 +39,12 @@ export class Music {
   private static _context: AudioContext | null = null;
   private static _masterGain: GainNode | null = null;
   private static _currentSynth: { sources: AudioScheduledSourceNode[]; timers: number[] } | null = null;
+  private static _currentMidiPlayback: MidiPlaybackHandle | null = null;
+  private static _midiBackend: BrowserMidiBackend | null = null;
   private static _pendingPlayback: { music: Music; loop: number } | null = null;
   private static _userActivated = false;
   private static _unlockInstalled = false;
+  private static _experimentalOscillatorMidi = false;
   private static _volume = 1.0;
 
   load(filename: string): void;
@@ -64,33 +78,53 @@ export class Music {
     this._lastError = "";
   }
 
-  play(loop = -1): void {
+  play(loop = -1): boolean {
     if (Options.mute || (!this._music && !this._streamUrl)) {
-      return;
+      return false;
     }
     ++this._playCount;
     this._lastLoop = loop;
     Music._playing = true;
     Music._paused = false;
     Music.stopCurrentAudio();
-    this.startPlayback(loop);
+    const started = this.startPlayback(loop);
+    if (!started) {
+      Music._playing = false;
+    }
+    return started;
   }
 
-  private startPlayback(loop: number): void {
+  private startPlayback(loop: number): boolean {
     if (!this._music && !this._streamUrl) {
-      return;
+      return false;
+    }
+    const mime = this.detectMimeType();
+    if (mime === "audio/midi" && !Music.hasMidiPlaybackPath()) {
+      this._lastError = "MIDI playback requires a browser MIDI backend or streamable digital music";
+      return false;
     }
     if (!Music.hasUserActivation()) {
       Music.deferPlayback(this, loop);
-      return;
+      return true;
     }
-    const mime = this.detectMimeType();
-    if (mime === "audio/midi" && this.playMidiSynth(loop)) {
-      return;
+    if (mime === "audio/midi") {
+      if (this.playNativeAudio(mime, loop)) {
+        return true;
+      }
+      if (this.playMidiBackend(loop)) {
+        return true;
+      }
+      if (Music._experimentalOscillatorMidi && this.playMidiSynth(loop)) {
+        return true;
+      }
+      this._lastError = "MIDI playback requires a browser MIDI backend or streamable digital music";
+      return false;
     }
-    if (!this.playNativeAudio(mime, loop)) {
-      this._lastError = `unsupported ${mime}`;
+    if (this.playNativeAudio(mime, loop)) {
+      return true;
     }
+    this._lastError = `unsupported ${mime}`;
+    return false;
   }
 
   private playNativeAudio(mime: string, loop: number): boolean {
@@ -113,9 +147,32 @@ export class Music {
     Music._currentUrl = this._streamUrl ? null : url;
     void audio.play().catch(error => {
       this._lastError = error instanceof Error ? error.message : "playback failed";
-      Music.deferPlayback(this, loop);
+      if (error instanceof DOMException && error.name === "NotAllowedError") {
+        Music.deferPlayback(this, loop);
+      } else if (Music._currentAudio === audio) {
+        Music._playing = false;
+      }
     });
     return true;
+  }
+
+  private playMidiBackend(loop: number): boolean {
+    if (!this._music) {
+      return false;
+    }
+    const backend = Music.currentMidiBackend();
+    if (!backend) {
+      return false;
+    }
+    try {
+      const handle = backend.play(this._music.slice(), { loop: loop !== 0, volume: Music._volume }) || null;
+      Music._currentMidiPlayback = handle;
+      return true;
+    } catch (error) {
+      this._lastError = error instanceof Error ? error.message : "MIDI backend failed";
+      Music._currentMidiPlayback = null;
+      return false;
+    }
   }
 
   private playMidiSynth(loop: number): boolean {
@@ -193,6 +250,7 @@ export class Music {
     if (Music._playing) {
       Music._paused = true;
       Music._currentAudio?.pause();
+      Music._currentMidiPlayback?.pause?.();
       if (Music._masterGain) {
         Music._masterGain.gain.value = 0;
       }
@@ -203,6 +261,7 @@ export class Music {
     if (Music._playing) {
       Music._paused = false;
       void Music._currentAudio?.play().catch(() => undefined);
+      Music._currentMidiPlayback?.resume?.();
       if (Music._masterGain) {
         Music._masterGain.gain.value = Music._volume;
       }
@@ -218,9 +277,26 @@ export class Music {
     if (Music._currentAudio) {
       Music._currentAudio.volume = Music._volume;
     }
+    Music._currentMidiPlayback?.setVolume?.(Music._volume);
     if (Music._masterGain) {
       Music._masterGain.gain.value = Music._paused ? 0 : Music._volume;
     }
+  }
+
+  static setMidiBackend(backend: BrowserMidiBackend | null): void {
+    Music._midiBackend = backend;
+  }
+
+  static setExperimentalOscillatorMidi(enabled: boolean): void {
+    Music._experimentalOscillatorMidi = enabled;
+  }
+
+  private static currentMidiBackend(): BrowserMidiBackend | null {
+    return Music._midiBackend || (globalThis as typeof globalThis & { openxcomMidiBackend?: BrowserMidiBackend }).openxcomMidiBackend || null;
+  }
+
+  private static hasMidiPlaybackPath(): boolean {
+    return Music.canPlayMimeType("audio/midi") || Music.currentMidiBackend() != null || Music._experimentalOscillatorMidi;
   }
 
   static getVolume(): number {
@@ -263,6 +339,7 @@ export class Music {
 
   private static stopCurrentAudio(): void {
     Music.stopCurrentSynth();
+    Music.stopCurrentMidiPlayback();
     if (Music._currentAudio) {
       Music._currentAudio.pause();
       Music._currentAudio.removeAttribute("src");
@@ -273,6 +350,15 @@ export class Music {
       URL.revokeObjectURL(Music._currentUrl);
       Music._currentUrl = null;
     }
+  }
+
+  private static stopCurrentMidiPlayback(): void {
+    try {
+      Music._currentMidiPlayback?.stop?.();
+    } catch {
+      // Match SDL_mixer tolerance for stopping an already-finished stream.
+    }
+    Music._currentMidiPlayback = null;
   }
 
   private static stopCurrentSynth(): void {
@@ -345,7 +431,9 @@ export class Music {
       const pending = Music._pendingPlayback;
       Music._pendingPlayback = null;
       if (pending && !Options.mute) {
-        pending.music.startPlayback(pending.loop);
+        if (!pending.music.startPlayback(pending.loop)) {
+          Music._playing = false;
+        }
       }
     };
     window.addEventListener("pointerdown", unlock, { once: true, capture: true });

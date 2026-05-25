@@ -15,18 +15,21 @@ const url = "http://127.0.0.1:4173/web/index.html";
 const verifier = String.raw`async page => {
   await page.goto("http://127.0.0.1:4173/web/index.html");
   await page.waitForFunction(() => document.readyState === "complete");
+  await page.mouse.click(8, 8);
 
   const result = await page.evaluate(async () => {
     const [
       { Mod },
       { RuleMusic },
       optionsModule,
-      { GMCatFile }
+      { GMCatFile },
+      { Music }
     ] = await Promise.all([
       import("/web/dist/Mod/Mod.js"),
       import("/web/dist/Mod/RuleMusic.js"),
       import("/web/dist/Engine/Options.js"),
-      import("/web/dist/Engine/GMCat.js")
+      import("/web/dist/Engine/GMCat.js"),
+      import("/web/dist/Engine/Music.js")
     ]);
     const { Options, MUSIC_AUTO } = optionsModule;
     const oldPreferred = Options.preferredMusic;
@@ -76,10 +79,49 @@ const verifier = String.raw`async page => {
         throw new Error("GM.CAT track init does not match source bytes; got " + body.join(","));
       }
 
+      Music.setMidiBackend(null);
+      Music.setExperimentalOscillatorMidi(false);
+      Music.stop();
+      const defaultMidiPlayed = gmStory.play(0);
+      if (defaultMidiPlayed || Music._currentSynth || Music._currentMidiPlayback) {
+        throw new Error("MIDI fallback should not use the crude oscillator synth by default");
+      }
+      if (!gmStory.getLastError().includes("browser MIDI backend")) {
+        throw new Error("MIDI fallback did not report the missing browser MIDI backend");
+      }
+
+      let backendStopped = false;
+      let backendVolume = -1;
+      let backendLoop = null;
+      let backendLength = 0;
+      Music.setMidiBackend({
+        play(data, options) {
+          backendLoop = options.loop;
+          backendVolume = options.volume;
+          backendLength = data.length;
+          return {
+            stop() { backendStopped = true; },
+            setVolume(volume) { backendVolume = volume; }
+          };
+        }
+      });
+      const backendMidi = cat.loadMIDI(12);
+      if (!backendMidi.play(-1)) {
+        throw new Error("Installed MIDI backend was not used for GM.CAT fallback");
+      }
+      Music.setVolume(0.25);
+      Music.stop();
+      Music.setMidiBackend(null);
+      if (!backendStopped || backendLoop !== true || backendLength !== bytes.length || backendVolume !== 0.25) {
+        throw new Error("MIDI backend handle did not receive source bytes/loop/volume/stop semantics");
+      }
+
       return {
         selectedKind: music.getSourceKind(),
         selectedMime: music.getMimeType(),
-        gmCatTrackInit: expected
+        gmCatTrackInit: expected,
+        midiFallback: gmStory.getLastError(),
+        backendLength
       };
     } finally {
       Options.preferredMusic = oldPreferred;

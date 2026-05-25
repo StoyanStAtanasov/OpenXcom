@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedAt": "2026-05-25T21:22:17.642Z",
+    "generatedAt": "2026-05-25T21:36:21.523Z",
     "sourceUnits": 336,
     "translatedUnits": 336,
     "percentByPathParity": 100,
@@ -945,7 +945,7 @@
       "area": "Engine",
       "status": "integrated-verified",
       "slicePercent": 100,
-      "nextAction": "Use native digital streaming when available; if MID/GM.CAT fallback quality is still unacceptable, evaluate a SoundFont/DLS MIDI renderer such as SpessaSynth/lib instead of tuning the crude oscillator fallback.",
+      "nextAction": "Use native digital streaming when available; if no OGG/MP3/WAV-style track is present, integrate a real SoundFont/DLS MIDI renderer such as SpessaSynth/lib through the explicit Music MIDI backend hook instead of tuning the crude oscillator fallback.",
       "sourceFiles": [
         "src/Engine/CatFile.cpp",
         "src/Engine/CatFile.h",
@@ -962,6 +962,7 @@
       ],
       "targetFiles": [
         "web/src/Engine/CatFile.ts",
+        "web/src/Engine/AdlibMusic.ts",
         "web/src/Engine/GMCat.ts",
         "web/src/Engine/Music.ts",
         "web/src/Engine/Options.ts",
@@ -970,11 +971,11 @@
         "web/scripts/verify-music-source-priority.mjs",
         "web/package.json"
       ],
-      "verification": "npm run build passed; npm run typecheck passed; npm run verify:music-source-priority passed for compiled-browser proof that Options.preferredMusic uses the source MUSIC_AUTO default, Mod.loadMusicResources follows Mod::loadMusic() digital priority by streaming browser-playable OGG before MID/GM fallback when both are present, CatFile.load preserves source object-size semantics after skipping embedded CAT names, and GM.CAT conversion emits the source controller reset bytes without the extra 00 B0 corruption. npm run verify:startup-browser passed afterward for source GMSTORY request playback after user gesture.",
+      "verification": "npm run build passed; npm run typecheck passed; npm run verify:music-source-priority passed for compiled-browser proof that Options.preferredMusic uses the source MUSIC_AUTO default, Mod.loadMusicResources follows Mod::loadMusic() digital priority by streaming browser-playable OGG before MID/GM fallback when both are present, CatFile.load preserves source object-size semantics after skipping embedded CAT names, GM.CAT conversion emits the source controller reset bytes without the extra 00 B0 corruption, the crude oscillator MIDI synth is disabled by default, and an explicitly installed browser MIDI backend receives the GM.CAT bytes, loop flag, volume, and stop lifecycle. npm run verify:startup-browser passed afterward for source GMSTORY request playback after user gesture through the backend hook without creating the oscillator synth.",
       "boundaries": [
         "Browser codec support decides which digital formats can stream natively; unsupported formats still fall back to buffered/native or later adapter handling.",
-        "The current WebAudio MIDI synth is only a fallback for original MID/GM.CAT data and is not exact General MIDI, SoundFont, or YM3812 parity.",
-        "Adlib/YM3812 playback remains a separate browser adapter boundary."
+        "Original MID/GM.CAT playback now requires native browser MIDI support or an explicitly installed browser MIDI backend; the old oscillator MIDI synth is disabled unless a developer opts into it.",
+        "Adlib/YM3812 playback and real SoundFont/DLS MIDI rendering remain separate browser adapter boundaries."
       ]
     },
     {
@@ -1084,7 +1085,7 @@
         "web/scripts/verify-startup-browser.mjs",
         "web/package.json"
       ],
-      "verification": "npm run verify:startup-browser passed for build/typecheck/browser proof that StartState shows the native browser cursor during loading, the loaded browser runtime keeps the native cursor visible instead of relying on a reload-sensitive translated cursor blit, Font.loadTerminal() decodes the embedded source DosFont.h bitmap, normal UI font PNG shades preserve the source indexed grayscale values, browser startup output no longer contains DOS/4GW, SoundBlaster, Base Port, IRQ, or DMA text, browser-adapter startup lines are shown instead, C++ default geoscape/battlescape scale uses a 320x200 base surface scaled to the 640x400 display, browser CSS canvas scale is non-fractional, State::init() requests main-menu RuleInterface music through Mod.playMusic(), GMSTORY is found, a user gesture activates native or synthesized browser music, and the startup console does not contain the AudioContext autoplay-policy warning.",
+      "verification": "npm run verify:startup-browser passed for build/typecheck/browser proof that StartState shows the native browser cursor during loading, the loaded browser runtime keeps the native cursor visible instead of relying on a reload-sensitive translated cursor blit, Font.loadTerminal() decodes the embedded source DosFont.h bitmap, normal UI font PNG shades preserve the source indexed grayscale values, browser startup output no longer contains DOS/4GW, SoundBlaster, Base Port, IRQ, or DMA text, browser-adapter startup lines are shown instead, C++ default geoscape/battlescape scale uses a 320x200 base surface scaled to the 640x400 display, browser CSS canvas scale is non-fractional, State::init() requests main-menu RuleInterface music through Mod.playMusic(), GMSTORY is found, a user gesture activates native stream or explicit browser MIDI backend music without using the crude oscillator synth, and the startup console does not contain the AudioContext autoplay-policy warning.",
       "boundaries": [
         "This is a browser adapter slice: it preserves the StartState loading lifecycle but intentionally replaces native DOS/SoundBlaster platform text with browser platform text.",
         "Full WebAudio mixer/backend parity and exact native audio backend behavior remain separate adapter boundaries."
@@ -1196,7 +1197,7 @@
       "Basescape": 9114,
       "Battlescape": 19948,
       "(root)": 335,
-      "Engine": 8907,
+      "Engine": 8995,
       "Geoscape": 8639,
       "Interface": 2796,
       "Menu": 4767,

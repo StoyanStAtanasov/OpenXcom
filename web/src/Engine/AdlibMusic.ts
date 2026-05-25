@@ -50,18 +50,18 @@ export class AdlibMusic extends Music {
     }
   }
 
-  override play(loop = -1): void {
+  override play(loop = -1): boolean {
     void loop;
     if (Options.mute) {
-      return;
+      return false;
     }
     if (!this._data) {
       Logger.log(LOG_WARNING, "AdlibMusic browser boundary: no data loaded.");
-      return;
+      return false;
     }
     Music.stop();
-    super.play(-1);
     Logger.log(LOG_WARNING, "AdlibMusic browser boundary: custom YM3812 playback is not implemented yet.");
+    return false;
   }
 
   static player(_udata: void, _stream: Uint8Array, _len: number): void {}

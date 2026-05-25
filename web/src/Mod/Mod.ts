@@ -781,8 +781,8 @@ export class Mod {
     const music = id === 0 ? this.getRandomMusic(name) : this.getMusic(track, false);
     this.musicRequestLog.push({ name, id, track, found: music != null && music !== this.muteMusic });
     const selected = music || this.muteMusic;
-    selected.play(loop);
-    if (selected !== this.muteMusic) {
+    const played = selected.play(loop);
+    if (selected !== this.muteMusic && played) {
       this.playingMusic = name;
     }
   }
