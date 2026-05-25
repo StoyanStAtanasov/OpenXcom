@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-25T23:31:23.910Z",
+  "generatedAt": "2026-05-25T23:36:19.227Z",
   "role": "resume",
   "objective": "Faithfully translate OpenXcom C++ source into the browser TypeScript port.",
   "sourceOfTruth": {
@@ -27,12 +27,12 @@
       "sessionId": "019e521f-e642-7db1-b68d-3f765878eb44",
       "model": "gpt-5.5",
       "reasoningEffort": "xhigh",
-      "lastEventAt": "2026-05-25T23:31:16.101Z",
-      "latestInputTokens": 181056,
+      "lastEventAt": "2026-05-25T23:36:15.189Z",
+      "latestInputTokens": 59057,
       "contextWindow": 258400,
-      "contextLeftPercent": 29.9,
+      "contextLeftPercent": 77.1,
       "primaryLimit": {
-        "used_percent": 58,
+        "used_percent": 60,
         "window_minutes": 300,
         "resets_at": 1779756514
       },

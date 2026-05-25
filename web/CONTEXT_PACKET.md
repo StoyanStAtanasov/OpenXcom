@@ -1,6 +1,6 @@
 # OpenXcom TS Port Context Packet
 
-Generated: 2026-05-25T23:31:23.910Z
+Generated: 2026-05-25T23:36:19.227Z
 Role: resume
 
 This is the compact handoff surface for resumed turns and subagents. Regenerate it with `npm run context` instead of rereading long narrative docs.
@@ -13,7 +13,7 @@ This is the compact handoff surface for resumed turns and subagents. Regenerate 
 - Integrated verified slices: 28
 - Slice path warnings: 0
 - Status rollup: integrated-verified=28
-- Local Codex status: gpt-5.5 (xhigh); context 29.9% left (181056/258400 latest input tokens); credits not reported locally
+- Local Codex status: gpt-5.5 (xhigh); context 77.1% left (59057/258400 latest input tokens); credits not reported locally
 
 ## Active Slice
 
