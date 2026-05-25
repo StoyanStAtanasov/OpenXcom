@@ -1027,6 +1027,36 @@
     ]
   },
   {
+    "name": "FLC video player and cutscene resource mapping",
+    "area": "Engine/Menu",
+    "status": "integrated-verified",
+    "slicePercent": 90,
+    "nextAction": "Translate remaining native cutscene adapter details only where the source has observable behavior, especially exact palette fade timing and any TFTD internal-audio edge cases.",
+    "sourceFiles": [
+      "src/Engine/FlcPlayer.cpp",
+      "src/Engine/FlcPlayer.h",
+      "src/Menu/VideoState.cpp",
+      "src/Menu/VideoState.h",
+      "src/Engine/FileMap.cpp",
+      "src/Engine/FileMap.h"
+    ],
+    "targetFiles": [
+      "web/src/Engine/FlcPlayer.ts",
+      "web/src/Menu/VideoState.ts",
+      "web/src/Engine/FileMap.ts",
+      "web/src/Engine/Options.ts",
+      "web/src/Engine/Surface.ts",
+      "web/scripts/build.mjs",
+      "web/scripts/verify-video-flc-player.mjs",
+      "web/package.json"
+    ],
+    "verification": "npm run verify:video-flc-player passed for build/typecheck/browser proof that the old FlcPlayer browser-boundary marker is gone, FileMap resolves original UFOINTRO/UFOINT.FLI from the generated manifest, FlcPlayer initializes the real source FLI file, decodes multiple C++ FLI/FLC frame chunks into an indexed Surface, applies source palette chunks, and produces nonzero decoded pixels. npm run verify:startup-browser, npm run verify:music-source-priority, and npm run verify:active-mod-runtime passed afterward to protect startup audio/cursor behavior, source music priority, and active xcom2 resource loading after the FileMap manifest-path fix.",
+    "boundaries": [
+      "The browser uses the game frame loop instead of the blocking SDL polling loop, but the decoder chunk bodies, frame counters, skip flag, palette updates, UFO intro audio-sequence table, and VideoState source sequencing are translated from C++.",
+      "Exact SDL_mixer fade-out timing and deeper TFTD internal-audio parity remain adapter follow-ups; verified coverage is source FLI video decode and cutscene resource routing."
+    ]
+  },
+  {
     "name": "Whole source path parity sweep",
     "area": "All",
     "status": "integrated-verified",

@@ -1,6 +1,6 @@
 # Translation Status
 
-Generated: 2026-05-25T22:38:50.567Z
+Generated: 2026-05-25T22:59:17.886Z
 
 ## Summary
 
@@ -9,8 +9,8 @@ Generated: 2026-05-25T22:38:50.567Z
 - Source code files (.cpp/.h): 646
 - TypeScript files: 342
 - TypeScript helper/web-only files: 6
-- Tracked slices: 26
-- Integrated and browser/build verified slices: 26
+- Tracked slices: 27
+- Integrated and browser/build verified slices: 27
 - Slice path warnings: 0
 
 Path parity is a progress signal, not proof of behavioral parity. Slice status and verifier notes carry the behavioral signal.
@@ -19,7 +19,7 @@ Path parity is a progress signal, not proof of behavioral parity. Slice status a
 
 | Status | Count |
 | --- | ---: |
-| integrated-verified | 26 |
+| integrated-verified | 27 |
 
 ## Next Integration Queue
 
@@ -71,6 +71,7 @@ Path parity is a progress signal, not proof of behavioral parity. Slice status a
 | Active master ruleset runtime | Engine | integrated-verified | 100% | npm run verify:active-mod-runtime passed for build/typecheck/browser proof that an explicit xcom2 active master maps FileMap rulesets as xcom2, Game.loadMods() passes those groups into Mod.loadAll(), Mod loads xcom2-only rules such as STR_TRITON, STR_DART_PISTOL, and STR_SURVEY_SHIP while excluding xcom1-only STR_SKYRANGER and STR_RIFLE, Game.loadLanguages() loads STR_TRITON from the active xcom2 language folder, active-master original-resource loading can load TFTD TERRAIN/SAND and MAPS/SEABED00, Mod.newSave() creates a TFTD starting base containing the STR_TRITON craft despite TFTD startingBase.rul listing craft coordinates before type, NewBattleState uses source-shaped RuleGlobe/deployment terrain selection, and the xcom2 New Battle OK route passes Triton craft, mission, terrain, alien race, item level, and BriefingState handoff into BattlescapeGenerator. npm run verify:new-battle-sandbox passed afterward to prove the existing XCOM1 sandbox path still works. | Arbitrary external mod scanning, metadata.yml/resourceConfig parsing, and deep multi-mod override behavior remain browser adapter boundaries.; This proves built-in xcom2 master runtime ingestion, not full TFTD campaign/tactical playthrough parity. |
 | Browser startup adapter | Menu | integrated-verified | 100% | npm run verify:startup-browser passed for build/typecheck/browser proof that StartState shows the native browser cursor during loading, the loaded browser runtime keeps the native cursor visible instead of relying on a reload-sensitive translated cursor blit, Font.loadTerminal() decodes the embedded source DosFont.h bitmap, normal UI font PNG shades preserve the source indexed grayscale values, browser startup output no longer contains DOS/4GW, SoundBlaster, Base Port, IRQ, or DMA text, browser-adapter startup lines are shown instead, C++ default geoscape/battlescape scale uses a 320x200 base surface scaled to the 640x400 display, browser CSS canvas scale is non-fractional, State::init() requests main-menu RuleInterface music through Mod.playMusic(), GMSTORY is found, a user gesture activates native stream or explicit browser MIDI backend music without using the crude oscillator synth, and the startup console does not contain the AudioContext autoplay-policy warning. | This is a browser adapter slice: it preserves the StartState loading lifecycle but intentionally replaces native DOS/SoundBlaster platform text with browser platform text.; Full WebAudio mixer/backend parity and exact native audio backend behavior remain separate adapter boundaries. |
 | Interface battlescape theme and palette depth | Engine/Menu | integrated-verified | 100% | npm run build passed; npm run typecheck passed; npm run verify:interface-battlescape-theme passed for browser proof that State::applyBattlescapeTheme sets the source battlescapeTheme color/high-contrast flags, applies TAC00.SCR to Window surfaces, propagates TextList/ComboBox arrow colors, State::setInterface delegates palette selection to SavedBattleGame::setPaletteByDepth with battlescape cursor-color update, and ComboBox now follows the source compound-surface popup contract: TextButton press opens a modal Window/TextList dropdown, list-row click updates selection/button text and closes with one change event, outside click closes the modal popup with source onChange behavior, and popupAboveButton places the dropdown above the button. npm run verify:new-battle-sandbox passed after the ComboBox source translation, proving the multi-combobox NewBattle screen still initializes and routes its source mission setup. | This slice covers battlescape-origin save/options/pause menu palette/theme behavior, not unrelated native FLC palette animation. |
+| FLC video player and cutscene resource mapping | Engine/Menu | integrated-verified | 90% | npm run verify:video-flc-player passed for build/typecheck/browser proof that the old FlcPlayer browser-boundary marker is gone, FileMap resolves original UFOINTRO/UFOINT.FLI from the generated manifest, FlcPlayer initializes the real source FLI file, decodes multiple C++ FLI/FLC frame chunks into an indexed Surface, applies source palette chunks, and produces nonzero decoded pixels. npm run verify:startup-browser, npm run verify:music-source-priority, and npm run verify:active-mod-runtime passed afterward to protect startup audio/cursor behavior, source music priority, and active xcom2 resource loading after the FileMap manifest-path fix. | The browser uses the game frame loop instead of the blocking SDL polling loop, but the decoder chunk bodies, frame counters, skip flag, palette updates, UFO intro audio-sequence table, and VideoState source sequencing are translated from C++.; Exact SDL_mixer fade-out timing and deeper TFTD internal-audio parity remain adapter follow-ups; verified coverage is source FLI video decode and cutscene resource routing. |
 | Whole source path parity sweep | All | integrated-verified | 100% | npm run build passed; npx --yes --package typescript tsc --noEmit passed; npm run status reports 336/336 source units with same-path TypeScript files; Playwright VERIFY_STARTUP passed with no console errors and a nonblank canvas | This slice proves source path coverage and browser startup, not full behavioral parity; Native audio, native OpenGL/scaler internals, exact SDL filesystem/dialog behavior, and deeper gameplay fidelity remain owned by their runtime integration slices |
 
 ## Known Verification Signals

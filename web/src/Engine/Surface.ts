@@ -451,6 +451,18 @@ export class Surface {
     return this._pixels[y * this.getWidth() + x];
   }
 
+  getPixels(): Uint8Array {
+    return this._pixels;
+  }
+
+  getPitch(): number {
+    return this.getWidth();
+  }
+
+  markPixelsDirty(): void {
+    this.invalidatePixels();
+  }
+
   getCanvas(): HTMLCanvasElement {
     this.commitPixels();
     return this._canvas;

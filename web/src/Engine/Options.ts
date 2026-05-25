@@ -12,11 +12,16 @@ type ResourceManifest = {
   ufoMapsDir?: string | null;
   ufoRoutesDir?: string | null;
   ufoSoundDir?: string | null;
+  ufoSoundFiles?: string[];
+  ufoIntroFiles?: string[];
   tftdPalettesDat?: string | null;
   tftdTerrainDir?: string | null;
   tftdMapsDir?: string | null;
   tftdRoutesDir?: string | null;
   tftdSoundDir?: string | null;
+  tftdSoundFiles?: string[];
+  tftdAnimsFiles?: string[];
+  tftdFlopIntFiles?: string[];
   commonSoldierNameFiles?: string[];
   [key: string]: string | string[] | null | undefined;
 };
@@ -595,7 +600,10 @@ export class Options {
         tftdTerrainDir: manifest.tftdTerrainDir,
         tftdMapsDir: manifest.tftdMapsDir,
         tftdRoutesDir: manifest.tftdRoutesDir,
-        tftdSoundDir: manifest.tftdSoundDir
+        tftdSoundDir: manifest.tftdSoundDir,
+        tftdSoundFiles: manifest.tftdSoundFiles,
+        tftdAnimsFiles: manifest.tftdAnimsFiles,
+        tftdFlopIntFiles: manifest.tftdFlopIntFiles
       };
     }
     return {
@@ -604,7 +612,9 @@ export class Options {
       ufoTerrainDir: manifest.ufoTerrainDir,
       ufoMapsDir: manifest.ufoMapsDir,
       ufoRoutesDir: manifest.ufoRoutesDir,
-      ufoSoundDir: manifest.ufoSoundDir
+      ufoSoundDir: manifest.ufoSoundDir,
+      ufoSoundFiles: manifest.ufoSoundFiles,
+      ufoIntroFiles: manifest.ufoIntroFiles
     };
   }
 

@@ -115,8 +115,15 @@ export function loadManifest(modId: string, manifest: Record<string, string | st
     for (const fullPath of files) {
       const parts = fullPath.replaceAll("\\", "/").split("/");
       const file = parts.pop() || "";
-      const relPath = parts.slice(-2, -1).join("/");
-      const basePath = parts.slice(0, -1).join("/");
+      let basePath = parts.slice(0, -1).join("/");
+      let relPath = parts.slice(-1).join("/");
+      if (parts[0] === "XCOM" || parts[0] === "TFD" || parts[0] === "TFTD") {
+        basePath = parts[0];
+        relPath = parts.slice(1).join("/");
+      } else if (parts[0] === "bin" && parts.length >= 2) {
+        basePath = parts.slice(0, 2).join("/");
+        relPath = parts.slice(2).join("/");
+      }
       mapFile(modId, basePath, relPath, file, ignoreMods);
     }
   }
