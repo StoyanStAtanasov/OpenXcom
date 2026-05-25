@@ -739,6 +739,50 @@ const verifier = String.raw`async page => {
     outState.handleImpact({});
     assert(outAimed.length === 1 && outAimed[0] === false && outCacheValues[0] === 0 && outCacheUnits.length === 1, "ProjectileFlyBState out-of-bounds terminal impact did not lower and recache the weapon");
 
+    const finishCalls = [];
+    const finishUnit = {
+      isOut: () => false,
+      abortTurn: () => finishCalls.push("abortTurn")
+    };
+    const finishState = Object.create(ProjectileFlyBState.prototype);
+    finishState._unit = finishUnit;
+    finishState._ammo = null;
+    finishState._action = {
+      type: BattleActionType.BA_SNAPSHOT,
+      cameraPosition: new Position(3, 4, 0),
+      waypoints: [],
+      weapon: null
+    };
+    finishState._parent = {
+      getSave: () => ({
+        getBattleState: () => ({ clearMouseScrollingState: () => finishCalls.push("clearMouseScrollingState") }),
+        getUnitsFalling: () => false,
+        getSide: () => UnitFaction.FACTION_PLAYER,
+        getDebugMode: () => false
+      }),
+      getMap: () => ({
+        getProjectile: () => null,
+        getCamera: () => ({ setMapOffset: pos => finishCalls.push("setMapOffset:" + pos.toString()) }),
+        invalidate: () => finishCalls.push("invalidate")
+      }),
+      getPanicHandled: () => true,
+      getTileEngine: () => ({ checkReactionFire: unit => finishCalls.push(unit === finishUnit ? "checkReactionFire" : "wrongReactionUnit") }),
+      setupCursor: () => finishCalls.push("setupCursor"),
+      convertInfected: () => finishCalls.push("convertInfected"),
+      popState: () => finishCalls.push("popState")
+    };
+    finishState.think();
+    assert(JSON.stringify(finishCalls) === JSON.stringify([
+      "clearMouseScrollingState",
+      "setMapOffset:(3,4,0)",
+      "invalidate",
+      "checkReactionFire",
+      "abortTurn",
+      "setupCursor",
+      "convertInfected",
+      "popState"
+    ]), "ProjectileFlyBState finish cleanup order mismatch: " + JSON.stringify(finishCalls));
+
     return {
       straightPath: straightPath.copyPath(),
       straightTU: straightPath.getTotalTUCost(),
@@ -753,7 +797,8 @@ const verifier = String.raw`async page => {
       hostileGrenadeDanger: dangerCalls.length,
       shotFireSound: shotSounds[0].sound,
       shotgunSecondaryHits: shotgunHitCalls.length,
-      shotgunFiringXP
+      shotgunFiringXP,
+      projectileFinishCleanup: finishCalls.length
     };
   });
 

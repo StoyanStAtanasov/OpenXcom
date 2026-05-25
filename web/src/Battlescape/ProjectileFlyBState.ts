@@ -170,6 +170,7 @@ export class ProjectileFlyBState extends BattleState {
   }
 
   think(): void {
+    this._parent.getSave().getBattleState()?.clearMouseScrollingState();
     const map = this._parent.getMap();
     const projectile = map.getProjectile();
     if (!projectile) {
@@ -441,8 +442,9 @@ export class ProjectileFlyBState extends BattleState {
     if (this._unit && !this._parent.getSave().getUnitsFalling() && this._parent.getPanicHandled()) {
       this._parent.getTileEngine()?.checkReactionFire(this._unit);
     }
-    this._unit?.aim(false);
-    this._unit?.invalidateCache();
+    if (this._unit && !this._unit.isOut()) {
+      this._unit.abortTurn();
+    }
     if (this._parent.getSave().getSide() === UnitFaction.FACTION_PLAYER || this._parent.getSave().getDebugMode()) {
       this._parent.setupCursor();
     }
